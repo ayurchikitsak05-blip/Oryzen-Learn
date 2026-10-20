@@ -43,7 +43,7 @@ export interface ProfileRow {
   organization_id: string | null;
   prakriti_profile: StoredPrakritiProfilePayload | null;
   role?: "student" | "instructor" | "admin";
-  access_status?: "none" | "active_paid" | "class_sponsored" | "trial" | "revoked";
+  access_status?: "none" | "free" | "active_paid" | "class_sponsored" | "trial" | "revoked";
   access_granted_at?: string | null;
   sponsored_code_id?: string | null;
   created_at: string;

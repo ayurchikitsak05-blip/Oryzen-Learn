@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     safeRequested.startsWith("/pricing") ||
     safeRequested.startsWith("/checkout");
   const finalPath =
-    destinationPath === "/access" && stayOnGate ? safeRequested : destinationPath;
+    destinationPath === "/pricing" && stayOnGate ? safeRequested : destinationPath;
   const response = NextResponse.redirect(`${origin}${finalPath}`);
 
   response.cookies.set(DEVICE_ID_COOKIE_NAME, resolvedDeviceId, {

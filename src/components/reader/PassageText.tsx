@@ -126,7 +126,7 @@ async function lookupFreeDictionary(
   return {
     word,
     phonetic: first.phonetic ?? null,
-    partOfSpeech: meaning.partOfSpeech ?? null,
+    partOfSpeech: meaning?.partOfSpeech ?? null,
     definition,
   };
 }
@@ -209,7 +209,7 @@ function WordLookupPopup({
     <div
       role="dialog"
       aria-label={`Meaning of ${anchor.word}`}
-      className="fixed z-50 w-72 rounded-2xl border border-zinc-200/80 bg-white p-4 text-left shadow-xl shadow-zinc-950/10 dark:border-zinc-700 dark:bg-zinc-900"
+      className="fixed z-50 w-72 rounded-2xl border border-zinc-700 bg-zinc-900 p-4 text-left text-zinc-100 shadow-xl shadow-black/40"
       style={{
         top: Math.max(12, anchor.top - 12),
         left: Math.min(window.innerWidth - 300, Math.max(12, anchor.left)),
@@ -218,7 +218,7 @@ function WordLookupPopup({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <p className="text-sm font-semibold text-zinc-100">
             {anchor.word}
           </p>
           {entry?.phonetic && (
@@ -330,7 +330,7 @@ export default function PassageText({
           return (
             <span
               key={`${segment.start}-${segment.end}`}
-              className={`${segment.highlight ? "rounded-sm bg-amber-200/80 text-zinc-950 dark:bg-amber-300/70 dark:text-zinc-950" : ""} ${segment.underline ? "underline decoration-2 underline-offset-4" : ""}`}
+              className={`${segment.highlight ? "rounded-sm bg-zinc-200 text-zinc-950" : ""} ${segment.underline ? "underline decoration-zinc-300 decoration-2 underline-offset-4" : ""}`}
             >
               {pieces.map((piece) => {
                 const start = cursor;
@@ -365,7 +365,7 @@ export default function PassageText({
                         left: rect.left,
                       });
                     }}
-                    className="cursor-pointer rounded-sm hover:bg-zinc-200/70 dark:hover:bg-zinc-700/70"
+                    className="cursor-pointer rounded-sm hover:bg-zinc-800"
                   >
                     {piece}
                   </span>
@@ -381,14 +381,14 @@ export default function PassageText({
           id="reader-selection-tools"
           role="toolbar"
           aria-label="Highlight and underline"
-          className="fixed z-50 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-full border border-zinc-200/80 bg-white p-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+          className="fixed z-50 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-full border border-zinc-700 bg-zinc-900 p-1 shadow-xl shadow-black/40"
           style={{ top: Math.max(56, toolbar.top - 8), left: toolbar.left }}
         >
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => applyMark("highlight")}
-            className="min-h-[36px] rounded-full px-3 text-xs font-medium text-zinc-800 hover:bg-amber-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            className="min-h-[36px] rounded-full px-3 text-xs font-medium text-zinc-100 hover:bg-zinc-800"
           >
             Highlight
           </button>
@@ -396,7 +396,7 @@ export default function PassageText({
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => applyMark("underline")}
-            className="min-h-[36px] rounded-full px-3 text-xs font-medium text-zinc-800 underline hover:bg-zinc-100 dark:text-zinc-100 dark:hover:bg-zinc-800"
+            className="min-h-[36px] rounded-full px-3 text-xs font-medium text-zinc-100 underline hover:bg-zinc-800"
           >
             Underline
           </button>
@@ -408,7 +408,7 @@ export default function PassageText({
               setToolbar(null);
               window.getSelection()?.removeAllRanges();
             }}
-            className="min-h-[36px] rounded-full bg-[#C2410C] px-3 text-xs font-medium text-white hover:bg-amber-800"
+            className="min-h-[36px] rounded-full bg-white px-3 text-xs font-medium text-zinc-950 hover:bg-zinc-200"
           >
             Explain
           </button>

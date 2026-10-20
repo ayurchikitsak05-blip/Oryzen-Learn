@@ -28,13 +28,13 @@ export default function StudioFrame({
   children,
 }: StudioFrameProps) {
   return (
-    <div className="min-h-screen bg-[#FDFBF7] text-[#2C221E]">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <header className="sticky top-0 z-30 px-4 pt-4 md:px-8">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-amber-200/50 bg-[#FDFBF7]/90 px-4 py-3 shadow-lg shadow-amber-900/10 backdrop-blur-xl">
+        <div className="mx-auto max-w-7xl rounded-3xl border border-zinc-800 bg-zinc-900/80 px-4 py-3 shadow-xl shadow-black/20 backdrop-blur-xl">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Link
               href="/hub"
-              className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full px-2 text-sm font-medium text-[#645147] transition-all hover:text-[#C2410C] active:scale-95"
+              className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full px-2 text-sm font-medium text-zinc-400 transition-all hover:text-zinc-100 active:scale-95"
             >
               <ArrowLeft className="h-4 w-4" />
               <span className="whitespace-nowrap">Study hub</span>
@@ -48,7 +48,7 @@ export default function StudioFrame({
                 aria-label="Body Type Profile"
                 value={activeDosha}
                 onChange={(event) => onChangeDosha(event.target.value as Dosha)}
-                className="min-h-[44px] max-w-[10.5rem] cursor-pointer rounded-full border border-amber-200/50 bg-[#FAF7F0] px-3 text-xs font-medium text-[#2C221E] sm:max-w-none sm:px-4"
+                className="min-h-[44px] max-w-[10.5rem] cursor-pointer rounded-full border border-zinc-700 bg-zinc-950 px-3 text-xs font-medium text-zinc-100 sm:max-w-none sm:px-4"
               >
                 {BODY_TYPE_OPTIONS.map((option) => (
                   <option key={option.dosha} value={option.dosha}>
@@ -60,10 +60,10 @@ export default function StudioFrame({
           </div>
 
           <div className="px-1 pb-1 pt-2 text-center">
-            <p className="text-[11px] font-medium tracking-wide text-[#645147]">
+            <p className="text-[11px] font-medium tracking-wide text-zinc-400">
               {eyebrow}
             </p>
-            <h1 className="text-lg font-semibold tracking-tight text-[#2C221E]">
+            <h1 className="text-lg font-semibold tracking-tight text-zinc-100">
               {title}
             </h1>
           </div>

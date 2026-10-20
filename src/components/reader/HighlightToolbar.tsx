@@ -109,8 +109,8 @@ export default function HighlightToolbar({
               onClick={() => onSelectLens(lens.id)}
               className={`flex min-h-[56px] flex-col justify-between rounded-2xl border p-4 text-left transition-all active:scale-95 disabled:opacity-50 ${
                 isSelected
-                  ? "bg-[#C2410C] text-white hover:bg-amber-800 border-[#C2410C]"
-                  : "border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50/80 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100"
+                  ? "bg-white text-zinc-950 hover:bg-zinc-200 border-white"
+                  : "border-zinc-700 bg-zinc-900 text-zinc-100"
               }`}
             >
               <div className="flex items-center gap-1.5 text-sm font-medium">

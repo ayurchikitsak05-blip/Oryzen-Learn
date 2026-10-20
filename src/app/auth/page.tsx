@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   KeyRound,
   Mail,
-  ShieldCheck,
   Smartphone,
   Tablet,
 } from "lucide-react";
@@ -30,7 +29,6 @@ function AuthScreen() {
   const [otpToken, setOtpToken] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [useOneTimeCode, setUseOneTimeCode] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [deviceType, setDeviceType] = useState<DeviceCategory>("tablet");
   const [deviceId, setDeviceId] = useState("tablet-primary");
 
@@ -46,7 +44,6 @@ function AuthScreen() {
       setDeviceId(generated);
     }
     setDeviceType(detected);
-    setMounted(true);
   }, []);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -58,7 +55,7 @@ function AuthScreen() {
       requested?.startsWith("/access") ||
       requested?.startsWith("/pricing") ||
       requested?.startsWith("/checkout");
-    if (nextPath === "/access" && stayOnGate && requested) {
+    if (nextPath === "/pricing" && stayOnGate && requested) {
       router.push(requested);
     } else {
       router.push(nextPath);
@@ -92,7 +89,7 @@ function AuthScreen() {
       } else if (json.status === "confirm_email") {
         setStatusMessage("Check your email to confirm the account, then sign in.");
       } else {
-        finishSignIn(json.next ?? "/access");
+        finishSignIn(json.next ?? "/pricing");
       }
     } catch {
       setErrorMessage("Network error while signing in.");
@@ -172,7 +169,7 @@ function AuthScreen() {
             ? `Authenticated! Replaced ${revokedCount} older ${deviceType} session under the Strict 2-Device Lock.`
             : "Authenticated! Redirecting to Cognitive Energy Blueprint Assessment..."
         );
-        finishSignIn(json.next ?? "/access");
+        finishSignIn(json.next ?? "/pricing");
       }
     } catch {
       setErrorMessage("Network error while verifying OTP.");
@@ -229,27 +226,11 @@ function AuthScreen() {
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 items-center px-4 py-8 md:px-8">
         <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* Left Pane: Strict 2-Device Lock Selector & Shield 5 Status */}
           <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 lg:col-span-5">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-950">
-              <ShieldCheck className="h-4 w-4" />
-              Shield 5: Strict 2-Device Lock
-            </div>
-            <h2 className="text-xl font-bold">
-              1 Study Tablet + 1 Companion Phone
-            </h2>
-            <p className="text-sm leading-relaxed text-zinc-400">
-              To protect B2B coaching institute DRM watermarks and keep AI plans
-              affordable, each student account permits{" "}
-              <strong>1 active Tablet session</strong> and{" "}
-              <strong>1 active Phone session</strong> concurrently. Signing in
-              on a second device of the same category automatically revokes the
-              older session in that slot.
-            </p>
-
-            <div className="space-y-2 pt-2">
+            <h2 className="text-xl font-bold">This device</h2>
+            <div className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                Select Current Device Slot (≥ 44×44px Touch Target):
+                Study Tablet or Study Phone
               </span>
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -298,11 +279,6 @@ function AuthScreen() {
                   </div>
                 </button>
               </div>
-            </div>
-
-            <div className="rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-xs font-mono text-zinc-400">
-              Device Fingerprint:{" "}
-              <strong>{mounted ? `${deviceId} (${deviceType})` : "Preparing this device…"}</strong>
             </div>
           </section>
 
@@ -373,7 +349,7 @@ function AuthScreen() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-amber-900/10 transition disabled:opacity-50"
+                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold transition disabled:opacity-50"
                 >
                   {loading ? "Signing in..." : "Sign in"}
                 </button>
@@ -419,7 +395,7 @@ function AuthScreen() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-amber-900/10 transition disabled:opacity-50"
+                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold transition disabled:opacity-50"
                 >
                   <Mail className="h-4 w-4" />
                   {loading ? "Sending OTP..." : "Send 6-Digit Email OTP"}
@@ -460,7 +436,7 @@ function AuthScreen() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold text-white"
+                    className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold"
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     {loading

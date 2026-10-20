@@ -1,4 +1,5 @@
 export const ENTITLED_ACCESS_STATUSES = [
+  "free",
   "active_paid",
   "class_sponsored",
   "trial",
@@ -33,10 +34,10 @@ export function safeInternalPath(value: string | null | undefined): string | nul
 export function destinationAfterAuth(input: {
   accessStatus: string | null | undefined;
   role: string | null | undefined;
-}): "/instructor" | "/hub" | "/access" {
+}): "/instructor" | "/hub" | "/pricing" {
   if (canManageClasses(input.role)) return "/instructor";
   if (isEntitled(input.accessStatus)) return "/hub";
-  return "/access";
+  return "/pricing";
 }
 
 export function decideAccessRedirect(input: {
@@ -67,7 +68,7 @@ export function decideAccessRedirect(input: {
       ? null
       : isEntitled(input.accessStatus)
         ? "/hub"
-        : "/access";
+        : "/pricing";
   }
 
   if (
@@ -80,7 +81,7 @@ export function decideAccessRedirect(input: {
     return null;
   }
 
-  return "/access";
+  return "/pricing";
 }
 
 const INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

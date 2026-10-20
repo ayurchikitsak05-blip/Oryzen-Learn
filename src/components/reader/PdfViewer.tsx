@@ -215,10 +215,10 @@ function VirtualizedPageCanvas({
   return (
     <div
       data-testid={`pdf-mounted-page-${pageNumber}`}
-      className={`backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border rounded-3xl shadow-xl shadow-amber-900/10 p-8 transition-all ${
+      className={`backdrop-blur-xl bg-zinc-900 border rounded-3xl shadow-xl shadow-black/20 p-8 text-zinc-100 transition-all ${
         isActivePage
-          ? "border-zinc-900/20 dark:border-white/20"
-          : "border-amber-200/50 dark:border-zinc-800/60"
+          ? "border-zinc-400"
+          : "border-zinc-800"
       }`}
     >
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
@@ -227,7 +227,7 @@ function VirtualizedPageCanvas({
             Page {pageNumber}
             {isActivePage ? " · reading now" : ""}
           </p>
-          <h3 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h3 className="text-sm font-semibold tracking-tight text-zinc-100">
             {pageChunks[0]?.section_heading ?? `Section ${pageNumber}`}
           </h3>
         </div>
@@ -236,7 +236,7 @@ function VirtualizedPageCanvas({
         </span>
       </div>
 
-      <div className="flex justify-center overflow-x-auto rounded-2xl border border-amber-200/50 bg-[#FAF7F0] p-4">
+      <div className="flex justify-center overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
         <canvas
           ref={canvasRef}
           aria-label={`PDF Canvas Page ${pageNumber}`}
@@ -256,8 +256,8 @@ function VirtualizedPageCanvas({
                 key={chunk.chunk_id}
                 className={`relative flex min-h-[52px] w-full flex-col rounded-2xl border p-4 text-left ${
                   isSelected
-                    ? "border-zinc-900/30 bg-white dark:border-white/30 dark:bg-zinc-900"
-                    : "border-amber-200/50 bg-white/70 dark:border-zinc-800/60 dark:bg-zinc-800/40"
+                    ? "border-zinc-400 bg-zinc-800"
+                    : "border-zinc-800 bg-zinc-950"
                 }`}
               >
                 <PassageText
@@ -274,7 +274,7 @@ function VirtualizedPageCanvas({
                   <button
                     type="button"
                     onClick={() => onSelectChunk(chunk)}
-                    className="inline-flex min-h-[36px] items-center rounded-full bg-[#C2410C] px-3 text-xs font-medium text-white hover:bg-amber-800"
+                    className="inline-flex min-h-[36px] items-center rounded-full bg-white px-3 text-xs font-medium text-zinc-950 hover:bg-zinc-200"
                   >
                     Explain this passage
                   </button>
@@ -777,8 +777,8 @@ export default function PdfViewer({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-3 rounded-3xl border border-amber-200/50 bg-[#FDFBF7] p-4 shadow-lg shadow-amber-900/10 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
-        <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full bg-[#C2410C] px-5 py-2.5 text-xs font-medium text-white shadow-lg shadow-amber-900/10 transition-all hover:bg-amber-800 active:scale-95">
+      <div className="flex flex-col gap-3 rounded-3xl border border-zinc-800 bg-zinc-900 p-4 shadow-xl shadow-black/20 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+        <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-medium text-zinc-950 transition-all hover:bg-zinc-200 active:scale-95">
           <FileUp className="h-4 w-4" />
           Open document
           <input
@@ -842,7 +842,7 @@ export default function PdfViewer({
             onClick={() => setAutoScroll((current) => !current)}
             className={`inline-flex min-h-[44px] items-center rounded-full px-4 text-xs font-medium transition-all active:scale-95 ${
               autoScroll
-                ? "bg-[#C2410C] text-white hover:bg-amber-800"
+                ? "bg-white text-zinc-950 hover:bg-zinc-200"
                 : "text-zinc-700 dark:text-zinc-200"
             }`}
           >
@@ -982,7 +982,7 @@ export default function PdfViewer({
         </div>
 
         {isSplitDrawerOpen && (
-          <aside className="space-y-6 backdrop-blur-xl bg-[#FDFBF7] border border-amber-200/50 rounded-3xl shadow-lg shadow-amber-900/10 p-8 lg:col-span-5 h-fit sticky top-24">
+          <aside className="space-y-6 backdrop-blur-xl bg-zinc-900 border border-zinc-800 rounded-3xl shadow-xl shadow-black/20 p-8 lg:col-span-5 h-fit sticky top-24">
             <div>
               <p className="text-xs font-medium text-zinc-500">Study notes</p>
               <h3 className="mt-1 flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
@@ -1011,7 +1011,7 @@ export default function PdfViewer({
                 data-testid="ai-lens-loading-skeleton"
                 role="status"
                 aria-label="Generating Cognitive Energy Blueprint AI Lens synthesis"
-                className="animate-pulse space-y-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 p-4"
+                className="animate-pulse space-y-3 rounded-2xl bg-zinc-800/50 p-4"
               >
                 <div className="h-4 w-2/3 rounded-full bg-zinc-200 dark:bg-zinc-700" />
                 <div className="h-3 w-full rounded-full bg-zinc-200 dark:bg-zinc-700" />
@@ -1022,7 +1022,7 @@ export default function PdfViewer({
             {aiResult && !aiLoading && (
               <div
                 data-testid="ai-lens-response-card"
-                className="space-y-4 rounded-2xl bg-zinc-50/80 dark:bg-zinc-800/40 p-5"
+                className="space-y-4 rounded-2xl bg-zinc-800/40 p-5"
               >
                 <h4 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
                   {aiResult.payload.title}
@@ -1049,9 +1049,9 @@ export default function PdfViewer({
                                 className={`flex min-h-[44px] w-full items-center rounded-full border px-4 py-2 text-left text-xs font-medium transition-all ${
                                   isPicked
                                     ? isCorrect
-                                      ? "bg-[#C2410C] text-white hover:bg-amber-800 border-transparent"
+                                      ? "bg-white text-zinc-950 hover:bg-zinc-200 border-transparent"
                                       : "border-zinc-300 text-zinc-400"
-                                    : "border-amber-200/50 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200"
+                                    : "border-zinc-800 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200"
                                 }`}
                               >
                                 {String.fromCharCode(65 + optIdx)}. {opt}
@@ -1076,7 +1076,7 @@ export default function PdfViewer({
                         key={cite.label}
                         type="button"
                         onClick={() => handleJumpToCitationCoordinate(cite)}
-                        className="min-h-[44px] rounded-full border border-amber-200/50 dark:border-zinc-800/60 px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition-all active:scale-95"
+                        className="min-h-[44px] rounded-full border border-zinc-800 dark:border-zinc-800/60 px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition-all active:scale-95"
                       >
                         {cite.label}
                       </button>
@@ -1095,7 +1095,7 @@ export default function PdfViewer({
                   {notebookEntries.slice(0, 4).map((note) => (
                     <div
                       key={note.id}
-                      className="rounded-2xl border border-amber-200/50 dark:border-zinc-800/60 p-4 text-xs space-y-2"
+                      className="rounded-2xl border border-zinc-800 dark:border-zinc-800/60 p-4 text-xs space-y-2"
                     >
                       <p className="line-clamp-2 text-zinc-600 dark:text-zinc-300">
                         &ldquo;{note.highlightedText}&rdquo;
@@ -1111,7 +1111,7 @@ export default function PdfViewer({
                             bounding_box: note.boundingBox,
                           })
                         }
-                        className="inline-flex min-h-[44px] items-center rounded-full bg-[#C2410C] text-white hover:bg-amber-800 px-4 py-2 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
+                        className="inline-flex min-h-[44px] items-center rounded-full bg-white text-zinc-950 hover:bg-zinc-200 px-4 py-2 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
                       >
                         Page {note.pageNumber}
                       </button>
@@ -1143,8 +1143,8 @@ export default function PdfViewer({
                         }}
                         className={`flex min-h-[48px] w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-xs transition-all ${
                           isCurrent
-                            ? "bg-[#C2410C] text-white hover:bg-amber-800 border-transparent"
-                            : "border-amber-200/50 dark:border-zinc-800/60 text-zinc-800 dark:text-zinc-100"
+                            ? "bg-white text-zinc-950 hover:bg-zinc-200 border-transparent"
+                            : "border-zinc-800 dark:border-zinc-800/60 text-zinc-800 dark:text-zinc-100"
                         }`}
                       >
                         <div>

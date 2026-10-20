@@ -11,7 +11,8 @@ import {
 } from "../gate";
 
 describe("access gate", () => {
-  it("treats paid, sponsored, and trial profiles as entitled", () => {
+  it("treats free, paid, sponsored, and trial profiles as entitled", () => {
+    expect(isEntitled("free")).toBe(true);
     expect(isEntitled("active_paid")).toBe(true);
     expect(isEntitled("class_sponsored")).toBe(true);
     expect(isEntitled("trial")).toBe(true);
@@ -20,9 +21,12 @@ describe("access gate", () => {
     expect(isEntitled(null)).toBe(false);
   });
 
-  it("sends a new sign-in to access, the hub, or the instructor desk", () => {
+  it("sends a new sign-in to pricing, the hub, or the instructor desk", () => {
     expect(destinationAfterAuth({ accessStatus: "none", role: "student" })).toBe(
-      "/access"
+      "/pricing"
+    );
+    expect(destinationAfterAuth({ accessStatus: "free", role: "student" })).toBe(
+      "/hub"
     );
     expect(
       destinationAfterAuth({ accessStatus: "active_paid", role: "student" })
@@ -66,7 +70,7 @@ describe("access gate", () => {
         accessStatus: "none",
         role: "student",
       })
-    ).toBe("/access");
+    ).toBe("/pricing");
     expect(
       decideAccessRedirect({
         pathname: "/pricing",
@@ -93,7 +97,7 @@ describe("access gate", () => {
         accessStatus: "none",
         role: "student",
       })
-    ).toBe("/access");
+    ).toBe("/pricing");
     expect(
       decideAccessRedirect({
         pathname: "/instructor",

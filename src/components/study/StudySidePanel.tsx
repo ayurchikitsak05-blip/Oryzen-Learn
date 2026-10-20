@@ -101,7 +101,7 @@ function RecommendationsCard({
     return (
       <section
         aria-label="Recommendations for Your Body Type"
-        className="rounded-3xl border border-amber-200/50 bg-[#FDFBF7] p-5 shadow-lg shadow-amber-900/10"
+        className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-xl shadow-black/20"
       >
         <h2 className="text-sm font-semibold tracking-tight">
           Recommendations for Your Body Type
@@ -112,7 +112,7 @@ function RecommendationsCard({
         </p>
         <Link
           href="/body-type"
-          className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-[#C2410C] px-4 text-sm font-medium text-white hover:bg-amber-800"
+          className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-white px-4 text-sm font-medium text-zinc-950 hover:bg-zinc-200"
         >
           Find Your Body Type
         </Link>
@@ -127,18 +127,18 @@ function RecommendationsCard({
     <section
       aria-label="Recommendations for Your Body Type"
       data-testid="recommendations-panel"
-      className="rounded-3xl border border-amber-200/50 bg-[#FDFBF7] p-5 shadow-lg shadow-amber-900/10"
+      className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-xl shadow-black/20"
     >
       <h2 className="text-sm font-semibold tracking-tight">
         Recommendations for Your Body Type
       </h2>
-      <p className="mt-3 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <p className="mt-3 text-base font-semibold tracking-tight text-zinc-100">
         {title}
       </p>
       <p className="mt-2 text-sm leading-relaxed text-zinc-500">
         {preset.cognitiveSummary}
       </p>
-      <ul className="mt-4 space-y-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">
+      <ul className="mt-4 space-y-2 text-sm leading-relaxed text-zinc-300">
         {recommendationBullets(dosha).map((item) => (
           <li key={item} className="flex gap-2">
             <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
@@ -235,7 +235,7 @@ function StudySchedulerCard({
     <section
       aria-label="Smart study scheduler"
       data-testid="study-scheduler"
-      className="rounded-3xl border border-amber-200/50 bg-[#FDFBF7] p-5 shadow-lg shadow-amber-900/10"
+      className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-xl shadow-black/20"
     >
       <h2 className="text-sm font-semibold tracking-tight">Smart Study Scheduler</h2>
       <p className="mt-2 text-sm leading-relaxed text-zinc-500">
@@ -257,7 +257,7 @@ function StudySchedulerCard({
                 Math.round(hours * 60)
               )
             }
-            className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-200/50 bg-[#FAF7F0] px-3 text-sm text-[#2C221E] disabled:opacity-60"
+            className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 disabled:opacity-60"
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -273,7 +273,7 @@ function StudySchedulerCard({
               onChange={(event) =>
                 updateNumber("focusMinutes", event.target.value, (minutes) => minutes)
               }
-              className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-200/50 bg-[#FAF7F0] px-3 text-sm text-[#2C221E] disabled:opacity-60"
+              className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 disabled:opacity-60"
             />
           </label>
           <label className="block text-xs font-medium text-zinc-500">
@@ -288,7 +288,7 @@ function StudySchedulerCard({
               onChange={(event) =>
                 updateNumber("breakMinutes", event.target.value, (minutes) => minutes)
               }
-              className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-200/50 bg-[#FAF7F0] px-3 text-sm text-[#2C221E] disabled:opacity-60"
+              className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 disabled:opacity-60"
             />
           </label>
         </div>
@@ -305,14 +305,14 @@ function StudySchedulerCard({
           <p className="mt-1 text-xs text-zinc-500">
             {Math.round(schedule.focusedMs / 60_000)} min of {schedule.goalMinutes / 60} hr
           </p>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-amber-100">
-            <div className="h-full bg-[#C2410C]" style={{ width: `${progress}%` }} />
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+            <div className="h-full bg-zinc-100" style={{ width: `${progress}%` }} />
           </div>
         </div>
       )}
 
       {schedule.phase === "complete" && (
-        <p className="mt-4 text-sm font-medium text-zinc-800 dark:text-zinc-100" role="status">
+        <p className="mt-4 text-sm font-medium text-zinc-100" role="status">
           You reached your study goal.
         </p>
       )}
@@ -322,7 +322,7 @@ function StudySchedulerCard({
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
             Wellness for this break
           </p>
-          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">
+          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-zinc-300">
             {wellness.map((item) => (
               <li key={item}>{item}</li>
             ))}
@@ -345,7 +345,7 @@ function StudySchedulerCard({
               setSchedule((current) => beginFocus(current, Date.now()));
               setNow(Date.now());
             }}
-            className="inline-flex min-h-[44px] items-center rounded-full bg-[#C2410C] px-4 text-sm font-medium text-white hover:bg-amber-800"
+            className="inline-flex min-h-[44px] items-center rounded-full bg-white px-4 text-sm font-medium text-zinc-950 hover:bg-zinc-200"
           >
             {schedule.phase === "complete" ? "Start again" : "Start"}
           </button>
@@ -357,7 +357,7 @@ function StudySchedulerCard({
               setAlert(null);
               setSchedule((current) => resetSchedule(current));
             }}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-200/50 bg-[#FAF7F0] px-4 text-sm font-medium text-[#2C221E]"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-zinc-700 bg-zinc-950 px-4 text-sm font-medium text-zinc-100"
           >
             End session
           </button>
@@ -370,7 +370,7 @@ function StudySchedulerCard({
           aria-modal="true"
           aria-labelledby="study-interval-alert-title"
           data-testid="scheduler-alert"
-          className="fixed inset-x-4 top-4 z-50 mx-auto max-w-md rounded-3xl border border-amber-200/50 bg-[#FDFBF7] p-5 shadow-2xl shadow-amber-900/10"
+          className="fixed inset-x-4 top-4 z-50 mx-auto max-w-md rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl shadow-black/40"
         >
           <h3 id="study-interval-alert-title" className="text-lg font-semibold tracking-tight">
             {ALERT_COPY[alert].title}
@@ -379,7 +379,7 @@ function StudySchedulerCard({
             {ALERT_COPY[alert].body}
           </p>
           {alert === "break" && (
-            <ul className="mt-3 space-y-1 text-sm text-zinc-700 dark:text-zinc-200">
+            <ul className="mt-3 space-y-1 text-sm text-zinc-300">
               {wellness.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -388,7 +388,7 @@ function StudySchedulerCard({
           <button
             type="button"
             onClick={() => setAlert(null)}
-            className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-[#C2410C] px-4 text-sm font-medium text-white hover:bg-amber-800"
+            className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-white px-4 text-sm font-medium text-zinc-950 hover:bg-zinc-200"
           >
             {alert === "resume" ? "Resume studying" : "Dismiss"}
           </button>
