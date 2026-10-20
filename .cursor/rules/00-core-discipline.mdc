@@ -1,0 +1,6 @@
+# Scope Lock & Core Engineering Discipline
+
+1. **Scope Lock:** Always read `docs/00_MASTER_VISION.md` and `docs/01_PRAKRITI_ENGINE_SPEC.md` for context, but ONLY write application code for tasks explicitly listed under the active layer in `docs/CURRENT_LAYER.md`.
+2. **Zero Mocked Backends:** Never hardcode fake UI state to pretend a feature works. Every feature must be backed by real local storage (IndexedDB/OPFS) or verified Supabase/API logic.
+3. **Tablet-First Ergonomics:** Minimum touch target size of 44x44px, split-screen responsive layouts for iPad/Android tablets, and zero-crash memory management.
+4. **Verification Gate:** No task in `docs/CURRENT_LAYER.md` may be marked `[x]` until its unit/integration test passes (`npm run test`) and `npm run build` succeeds with zero TypeScript or lint errors.

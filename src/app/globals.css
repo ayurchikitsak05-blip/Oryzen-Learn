@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+:root {
+  --theme-vata: #09090b;
+  --theme-pitta: #09090b;
+  --theme-kapha: #09090b;
+  --apple-bg-light: #09090b;
+  --apple-bg-dark: #09090b;
+  --prakriti-bg: #09090b;
+  --prakriti-surface: rgba(24, 24, 27, 0.88);
+  --prakriti-text-primary: #f4f4f5;
+  --prakriti-text-secondary: #a1a1aa;
+  --prakriti-accent: #fafafa;
+  --prakriti-border: rgba(63, 63, 70, 0.8);
+  --prakriti-gradient: radial-gradient(
+    circle at 50% 0%,
+    #18181b 0%,
+    #09090b 75%
+  );
+}
+
+[data-prakriti-theme="Vata"],
+[data-prakriti-theme="Pitta"],
+[data-prakriti-theme="Kapha"] {
+  --prakriti-bg: #09090b;
+  --prakriti-surface: rgba(24, 24, 27, 0.88);
+  --prakriti-text-primary: #f4f4f5;
+  --prakriti-text-secondary: #a1a1aa;
+  --prakriti-accent: #fafafa;
+  --prakriti-border: rgba(63, 63, 70, 0.8);
+}
+
+body {
+  background-color: #09090b;
+  background-image: var(--prakriti-gradient);
+  background-attachment: fixed;
+  color: #f4f4f5;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "SF Pro Text", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition:
+    background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark body {
+  background-color: #09090b;
+  background-image: radial-gradient(
+    circle at 50% 0%,
+    #18181b 0%,
+    #09090b 75%
+  );
+  color: #f4f4f5;
+}
