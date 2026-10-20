@@ -329,16 +329,20 @@ export default function PdfViewer({
   const autoScrollPausedRef = useRef<boolean>(false);
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(READER_MARKS_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as ReaderTextMark[];
-      if (Array.isArray(parsed)) setTextMarks(parsed);
-    } catch {
-      // Ignore corrupt mark storage
-    } finally {
-      setMarksReady(true);
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = window.localStorage.getItem(READER_MARKS_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as ReaderTextMark[];
+          if (Array.isArray(parsed)) setTextMarks(parsed);
+        }
+      } catch {
+        // Ignore corrupt mark storage
+      } finally {
+        setMarksReady(true);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {

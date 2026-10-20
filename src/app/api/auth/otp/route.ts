@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { destinationAfterAuth } from "@/lib/access/gate";
+import { describeSupabaseFailure, supabaseConfigError } from "@/lib/supabase/client";
 import { createClient } from "@/lib/supabase/server";
 import {
   detectDeviceCategory,
@@ -29,6 +30,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const configError = supabaseConfigError();
+    if (configError) {
+      return NextResponse.json({ error: configError }, { status: 503 });
+    }
+
     const supabase = await createClient();
 
     if (body.action === "send") {
@@ -42,7 +48,11 @@ export async function POST(request: NextRequest) {
       });
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
+        const friendly = describeSupabaseFailure(error.message);
+        return NextResponse.json(
+          { error: friendly ?? error.message },
+          { status: friendly ? 503 : 400 }
+        );
       }
 
       return NextResponse.json({
@@ -87,13 +97,19 @@ export async function POST(request: NextRequest) {
         ? data.session.access_token.slice(-24)
         : `otp-${Date.now()}`;
 
-      const lockResult = await enforceTwoDeviceLock(supabase, {
-        userId: data.user.id,
-        deviceId: resolvedDeviceId,
-        deviceType: resolvedDeviceType,
-        deviceLabel: body.deviceLabel,
-        sessionTokenHash,
-      });
+      let revokedSessionIds: string[] = [];
+      try {
+        const lockResult = await enforceTwoDeviceLock(supabase, {
+          userId: data.user.id,
+          deviceId: resolvedDeviceId,
+          deviceType: resolvedDeviceType,
+          deviceLabel: body.deviceLabel,
+          sessionTokenHash,
+        });
+        revokedSessionIds = lockResult.revokedSessionIds;
+      } catch {
+        revokedSessionIds = [];
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -112,7 +128,7 @@ export async function POST(request: NextRequest) {
         deviceLock: {
           deviceType: resolvedDeviceType,
           deviceId: resolvedDeviceId,
-          revokedSessionIds: lockResult.revokedSessionIds,
+          revokedSessionIds,
         },
       });
 
@@ -138,7 +154,8 @@ export async function POST(request: NextRequest) {
     );
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : "Authentication request failed.";
-    return NextResponse.json({ error: message }, { status: 500 });
+      describeSupabaseFailure(err) ??
+      (err instanceof Error ? err.message : "Authentication request failed.");
+    return NextResponse.json({ error: message }, { status: 503 });
   }
 }

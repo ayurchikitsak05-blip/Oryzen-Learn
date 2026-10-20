@@ -38,26 +38,38 @@ export async function updateSession(
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: { id: string } | null = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    return supabaseResponse;
+  }
 
   const deviceId = request.cookies.get(DEVICE_ID_COOKIE_NAME)?.value;
 
   // Enforce Strict 2-Device Lock on authenticated sessions when device cookie is present
   if (user && deviceId) {
-    const { isActive, session } = await verifyDeviceSessionActive(
-      supabase,
-      user.id,
-      deviceId
-    );
+    try {
+      const { isActive, session } = await verifyDeviceSessionActive(
+        supabase,
+        user.id,
+        deviceId
+      );
 
-    if (session && !isActive) {
-      await supabase.auth.signOut();
-      const revokedUrl = request.nextUrl.clone();
-      revokedUrl.pathname = "/auth";
-      revokedUrl.searchParams.set("reason", "device_limit_revoked");
-      return NextResponse.redirect(revokedUrl);
+      if (session && !isActive) {
+        await supabase.auth.signOut();
+        const revokedUrl = request.nextUrl.clone();
+        revokedUrl.pathname = "/auth";
+        revokedUrl.searchParams.set("reason", "device_limit_revoked");
+        const redirectResponse = NextResponse.redirect(revokedUrl);
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          redirectResponse.cookies.set(cookie);
+        });
+        return redirectResponse;
+      }
+    } catch {
+      // A missing device table or unreachable host must not take down the request.
     }
   }
 
@@ -65,13 +77,20 @@ export async function updateSession(
   let accessStatus: string | null = null;
   let role: string | null = null;
   if (user) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("access_status, role")
-      .eq("id", user.id)
-      .maybeSingle();
-    accessStatus = profile?.access_status ?? null;
-    role = profile?.role ?? null;
+    try {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("access_status, role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!error && profile) {
+        accessStatus = profile.access_status ?? null;
+        role = profile.role ?? null;
+      }
+    } catch {
+      accessStatus = null;
+      role = null;
+    }
   }
 
   const apiOpen =

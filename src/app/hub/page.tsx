@@ -33,7 +33,10 @@ export default function StudyHubPage() {
   const [saved, setSaved] = useState<SavedBodyType | null>(null);
 
   useEffect(() => {
-    setSaved(readSavedBodyType());
+    const timer = window.setTimeout(() => {
+      setSaved(readSavedBodyType());
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   return (

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { destinationAfterAuth } from "@/lib/access/gate";
+import { describeSupabaseFailure, supabaseConfigError } from "@/lib/supabase/client";
 import { createClient } from "@/lib/supabase/server";
 import { detectDeviceCategory, enforceTwoDeviceLock } from "@/lib/supabase/device-lock";
 import {
@@ -26,6 +27,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const configError = supabaseConfigError();
+    if (configError) {
+      return NextResponse.json({ error: configError }, { status: 503 });
+    }
+
     const supabase = await createClient();
     const authResult =
       body.action === "sign_up"
@@ -33,9 +39,10 @@ export async function POST(request: NextRequest) {
         : await supabase.auth.signInWithPassword({ email, password });
 
     if (authResult.error || !authResult.data.user) {
+      const friendly = describeSupabaseFailure(authResult.error?.message);
       return NextResponse.json(
-        { error: authResult.error?.message ?? "Unable to sign in." },
-        { status: 401 }
+        { error: friendly ?? authResult.error?.message ?? "Unable to sign in." },
+        { status: friendly ? 503 : 401 }
       );
     }
 
@@ -53,22 +60,32 @@ export async function POST(request: NextRequest) {
       request.cookies.get(DEVICE_ID_COOKIE_NAME)?.value ||
       `${resolvedDeviceType}-${authResult.data.user.id.slice(0, 8)}`;
 
-    const lockResult = await enforceTwoDeviceLock(supabase, {
-      userId: authResult.data.user.id,
-      deviceId: resolvedDeviceId,
-      deviceType: resolvedDeviceType,
-      deviceLabel:
-        resolvedDeviceType === "tablet"
-          ? "Primary Study Tablet"
-          : "Companion Study Phone",
-      sessionTokenHash: authResult.data.session.access_token.slice(-24),
-    });
+    let revokedSessionIds: string[] = [];
+    try {
+      const lockResult = await enforceTwoDeviceLock(supabase, {
+        userId: authResult.data.user.id,
+        deviceId: resolvedDeviceId,
+        deviceType: resolvedDeviceType,
+        deviceLabel:
+          resolvedDeviceType === "tablet"
+            ? "Primary Study Tablet"
+            : "Companion Study Phone",
+        sessionTokenHash: authResult.data.session.access_token.slice(-24),
+      });
+      revokedSessionIds = lockResult.revokedSessionIds;
+    } catch {
+      revokedSessionIds = [];
+    }
 
     const { data: profile } = await supabase
       .from("profiles")
       .select("access_status, role")
       .eq("id", authResult.data.user.id)
-      .maybeSingle();
+      .maybeSingle()
+      .then(
+        (result) => result,
+        () => ({ data: null })
+      );
 
     const response = NextResponse.json({
       status: "authenticated",
@@ -79,7 +96,7 @@ export async function POST(request: NextRequest) {
       deviceLock: {
         deviceType: resolvedDeviceType,
         deviceId: resolvedDeviceId,
-        revokedSessionIds: lockResult.revokedSessionIds,
+        revokedSessionIds,
       },
     });
 
@@ -98,7 +115,12 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Sign-in failed.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const message =
+      describeSupabaseFailure(err) ??
+      (err instanceof Error ? err.message : "Sign-in failed.");
+    return NextResponse.json(
+      { error: message },
+      { status: describeSupabaseFailure(err) ? 503 : 500 }
+    );
   }
 }

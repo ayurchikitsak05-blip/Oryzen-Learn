@@ -33,17 +33,20 @@ function AuthScreen() {
   const [deviceId, setDeviceId] = useState("tablet-primary");
 
   useEffect(() => {
-    const detected = detectDeviceCategory(window.navigator.userAgent);
-    const storageKey = "prakriti_local_device_id";
-    const existingId = window.localStorage.getItem(storageKey);
-    if (existingId) {
-      setDeviceId(existingId);
-    } else {
-      const generated = `${detected}-${Math.random().toString(36).slice(2, 10)}`;
-      window.localStorage.setItem(storageKey, generated);
-      setDeviceId(generated);
-    }
-    setDeviceType(detected);
+    const timer = window.setTimeout(() => {
+      const detected = detectDeviceCategory(window.navigator.userAgent);
+      const storageKey = "prakriti_local_device_id";
+      const existingId = window.localStorage.getItem(storageKey);
+      if (existingId) {
+        setDeviceId(existingId);
+      } else {
+        const generated = `${detected}-${Math.random().toString(36).slice(2, 10)}`;
+        window.localStorage.setItem(storageKey, generated);
+        setDeviceId(generated);
+      }
+      setDeviceType(detected);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -235,6 +238,7 @@ function AuthScreen() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
+                  suppressHydrationWarning
                   onClick={() => setDeviceType("tablet")}
                   className={`flex min-h-[64px] flex-col items-start justify-between rounded-xl border p-3.5 text-left transition-all ${
                     deviceType === "tablet"
@@ -258,6 +262,7 @@ function AuthScreen() {
 
                 <button
                   type="button"
+                  suppressHydrationWarning
                   onClick={() => setDeviceType("phone")}
                   className={`flex min-h-[64px] flex-col items-start justify-between rounded-xl border p-3.5 text-left transition-all ${
                     deviceType === "phone"
@@ -321,6 +326,7 @@ function AuthScreen() {
                       id="student-email"
                       type="email"
                       required
+                      suppressHydrationWarning
                       placeholder="student@university.edu"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -339,6 +345,7 @@ function AuthScreen() {
                     id="student-password"
                     type="password"
                     required
+                    suppressHydrationWarning
                     minLength={8}
                     autoComplete="current-password"
                     value={password}
@@ -348,6 +355,7 @@ function AuthScreen() {
                 </div>
                 <button
                   type="submit"
+                  suppressHydrationWarning
                   disabled={loading}
                   className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold transition disabled:opacity-50"
                 >
@@ -384,6 +392,7 @@ function AuthScreen() {
                       id="student-email"
                       type="email"
                       required
+                      suppressHydrationWarning
                       placeholder="student@university.edu"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -394,6 +403,7 @@ function AuthScreen() {
 
                 <button
                   type="submit"
+                  suppressHydrationWarning
                   disabled={loading}
                   className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold transition disabled:opacity-50"
                 >
@@ -423,6 +433,7 @@ function AuthScreen() {
                       id="otp-code"
                       type="text"
                       required
+                      suppressHydrationWarning
                       maxLength={8}
                       placeholder="123456"
                       value={otpToken}
@@ -464,6 +475,7 @@ function AuthScreen() {
 
             <button
               type="button"
+              suppressHydrationWarning
               onClick={handleGoogleOAuth}
               disabled={loading}
               className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-5 py-3 text-sm font-bold text-zinc-100 transition hover:bg-white disabled:opacity-50"

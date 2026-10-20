@@ -165,26 +165,32 @@ function StudySchedulerCard({
   const audioRef = useRef<AudioContext | null>(null);
   const alertKeyRef = useRef<string | null>(null);
   const scheduleRef = useRef(schedule);
-  scheduleRef.current = schedule;
 
   useEffect(() => {
-    const stored = readStoredSchedule();
-    const base =
-      stored ??
-      createIdleSchedule(
-        saved
-          ? {
-              focusMinutes: saved.studySprintMinutes,
-              breakMinutes: saved.breakMinutes,
-            }
-          : undefined
-      );
-    const caught = catchUpSchedule(base, Date.now());
-    setNow(Date.now());
-    setSchedule(caught.schedule);
-    if (caught.alert) setAlert(caught.alert);
-    setMounted(true);
-    setReady(true);
+    scheduleRef.current = schedule;
+  }, [schedule]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const stored = readStoredSchedule();
+      const base =
+        stored ??
+        createIdleSchedule(
+          saved
+            ? {
+                focusMinutes: saved.studySprintMinutes,
+                breakMinutes: saved.breakMinutes,
+              }
+            : undefined
+        );
+      const caught = catchUpSchedule(base, Date.now());
+      setNow(Date.now());
+      setSchedule(caught.schedule);
+      if (caught.alert) setAlert(caught.alert);
+      setMounted(true);
+      setReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [saved]);
 
   useEffect(() => {
@@ -403,8 +409,11 @@ export default function StudySidePanel({ dosha }: { dosha: Dosha | null }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setSaved(readSavedBodyType());
-    setLoaded(true);
+    const timer = window.setTimeout(() => {
+      setSaved(readSavedBodyType());
+      setLoaded(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const constitution = saved?.primaryDosha ?? dosha;

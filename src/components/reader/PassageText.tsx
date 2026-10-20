@@ -172,8 +172,6 @@ function WordLookupPopup({
 
   useEffect(() => {
     const controller = new AbortController();
-    setStatus("loading");
-    setEntry(null);
 
     const ignoreAbort = (error: unknown) => {
       if (error instanceof DOMException && error.name === "AbortError") throw error;
@@ -181,6 +179,8 @@ function WordLookupPopup({
     };
 
     (async () => {
+      setStatus("loading");
+      setEntry(null);
       try {
         const query = anchor.word.toLowerCase();
         const primary = await lookupFreeDictionary(query, controller.signal).catch(
@@ -417,7 +417,7 @@ export default function PassageText({
 
       {lookup && (
         <div id="reader-word-lookup">
-          <WordLookupPopup anchor={lookup} onClose={() => setLookup(null)} />
+          <WordLookupPopup key={lookup.word} anchor={lookup} onClose={() => setLookup(null)} />
         </div>
       )}
     </>

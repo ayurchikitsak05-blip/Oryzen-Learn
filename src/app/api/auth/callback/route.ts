@@ -47,12 +47,16 @@ export async function GET(request: NextRequest) {
     ? data.session.access_token.slice(-24)
     : `oauth-${Date.now()}`;
 
-  await enforceTwoDeviceLock(supabase, {
-    userId: data.user.id,
-    deviceId: resolvedDeviceId,
-    deviceType: resolvedDeviceType,
-    sessionTokenHash,
-  });
+  try {
+    await enforceTwoDeviceLock(supabase, {
+      userId: data.user.id,
+      deviceId: resolvedDeviceId,
+      deviceType: resolvedDeviceType,
+      sessionTokenHash,
+    });
+  } catch {
+    // Sign-in can finish even when the device-session table is unavailable.
+  }
 
   // Check if user already has a completed prakriti_profile in `profiles`
   const { data: profileRow } = await supabase
