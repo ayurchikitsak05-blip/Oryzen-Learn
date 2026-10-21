@@ -179,7 +179,7 @@ export const DOSHA_STUDY_PRESETS: Record<Dosha, DoshaStudyPreset> = {
     modernProfileLabel: PRAKRITI_PROFILE_LABELS.Vata,
     sanskritTrait: "Quick-Take Speed / Rapid Skimmer (Shighra-grahi / Alpa-smriti)",
     cognitiveSummary:
-      "High Quick-Take Speed (Dhee) with susceptibility to tab-switching restlessness and rapid forgetting without spaced flashcards.",
+      "You grasp ideas quickly. Short study bursts and a quick recall check help those ideas stay with you.",
     theme: {
       cssVariable: "--theme-vata",
       name: "Warm Parchment",
@@ -220,7 +220,7 @@ export const DOSHA_STUDY_PRESETS: Record<Dosha, DoshaStudyPreset> = {
     modernProfileLabel: PRAKRITI_PROFILE_LABELS.Pitta,
     sanskritTrait: "Precision Analyst / Deep Lock-In (Tikshna-buddhi / Medhavi)",
     cognitiveSummary:
-      "Laser analytical intellect and structured mastery drive, prone to screen glare heat (Alochaka Pitta) and intense burnout.",
+      "You work best in long, precise stretches. Structured outlines and a calmer screen help you stay sharp without burning out.",
     theme: {
       cssVariable: "--theme-pitta",
       name: "Cool Anti-Glare Sage-Ivory",
@@ -260,7 +260,7 @@ export const DOSHA_STUDY_PRESETS: Record<Dosha, DoshaStudyPreset> = {
     modernProfileLabel: PRAKRITI_PROFILE_LABELS.Kapha,
     sanskritTrait: "Deep Marathoner / Vault Memory (Chira-grahi / Dridha-smriti)",
     cognitiveSummary:
-      "Methodical, unhurried processing with rock-solid Recall Power (Smriti), thriving on active check-ins to prevent passive drowsiness (Tandra).",
+      "You learn steadily and remember what you have truly worked through. Active check-ins keep the pace from becoming too quiet.",
     theme: {
       cssVariable: "--theme-kapha",
       name: "Bright Crisp High-Contrast Amber-White",

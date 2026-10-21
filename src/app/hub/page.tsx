@@ -2,45 +2,61 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Archive, ArrowLeft, BookOpen, CalendarClock, Clapperboard, Library, PenLine } from "lucide-react";
+import {
+  Archive,
+  BookOpen,
+  CalendarClock,
+  Clapperboard,
+  Compass,
+  Library,
+  PenLine,
+} from "lucide-react";
 import AccountMenu from "@/components/auth/AccountMenu";
-import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
+import AppChrome from "@/components/layout/AppChrome";
 import SchedulerDialog from "@/components/study/SchedulerDialog";
-import StudySidePanel from "@/components/study/StudySidePanel";
-import { readSavedBodyType, type SavedBodyType } from "@/lib/study/body-type";
-import { createClient } from "@/lib/supabase/client";
+import { ui } from "@/components/ui/classes";
+import {
+  modernProfileHeadline,
+  readSavedBodyType,
+  type SavedBodyType,
+} from "@/lib/study/body-type";
+import { fetchSignedInUser } from "@/lib/supabase/session";
 
 const TOOLS = [
   {
     href: "/reader",
-    title: "Document Reader & Upload",
+    title: "Read & Explore",
     description:
-      "Study one file with word meanings, highlighting, underlining, and smooth auto-scroll.",
+      "Turn your documents into an interactive reading experience. Highlight ideas, explore meanings, and make notes as you go.",
     icon: BookOpen,
   },
   {
     href: "/video",
-    title: "Video Analysis & Notes",
-    description: "Watch a lecture and turn it into structured notes.",
+    title: "Learn from Videos",
+    description:
+      "Turn lectures into useful notes. Revisit key moments and explore concepts at your own pace.",
     icon: Clapperboard,
   },
   {
-    href: "/synthesis",
-    title: "Multi-PDF Merge Notes",
-    description: "Combine and synthesize notes across several source documents.",
-    icon: Library,
-  },
-  {
     href: "/vaults",
-    title: "Subject Vaults",
-    description: "Upload a textbook, ask questions from it, and keep study notes.",
+    title: "My Learning Library",
+    description:
+      "Keep your subjects, textbooks, and learning materials organized and easy to find.",
     icon: Archive,
   },
   {
     href: "/notes",
-    title: "My Notes",
-    description: "Write notes by subject, then open that subject whenever you need them.",
+    title: "My Notebook",
+    description:
+      "Capture your thoughts, save important ideas, and return to them whenever you need.",
     icon: PenLine,
+  },
+  {
+    href: "/synthesis",
+    title: "Connect Your Knowledge",
+    description:
+      "Bring ideas from different documents and lectures together into one organized study guide.",
+    icon: Library,
   },
 ] as const;
 
@@ -52,9 +68,8 @@ export default function StudyHubPage() {
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
-          const supabase = createClient();
-          const { data } = await supabase.auth.getUser();
-          setSaved(readSavedBodyType(data.user?.id ?? null));
+          const user = await fetchSignedInUser();
+          setSaved(readSavedBodyType(user?.userId ?? null));
         } catch {
           setSaved(null);
         }
@@ -64,66 +79,34 @@ export default function StudyHubPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-amber-100">
-      <header className="sticky top-0 z-30 px-4 pt-5 md:px-8">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-full border border-amber-500/30 bg-zinc-950/80 px-5 py-2.5 shadow-xl shadow-black/20 backdrop-blur-xl">
-          <OryzenLearnBrand subtitle="Adaptive Intelligence & Focus Reader" />
-          <div className="flex items-center gap-1">
-            <AccountMenu />
-            <button
-              type="button"
-              aria-label="Open smart scheduler"
-              aria-expanded={schedulerOpen}
-              onClick={() => setSchedulerOpen((open) => !open)}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/40 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
-            >
-              <CalendarClock className="h-4 w-4" aria-hidden="true" />
-              Scheduler
-            </button>
-            <Link
-              href="/"
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-3 text-sm font-medium text-amber-200"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Home
-            </Link>
-          </div>
+    <AppChrome
+      subtitle="My Learning Space"
+      actions={
+        <div className="flex items-center gap-1">
+          <AccountMenu />
+          <button
+            type="button"
+            aria-label="Plan your study time"
+            aria-expanded={schedulerOpen}
+            onClick={() => setSchedulerOpen((open) => !open)}
+            className={`${ui.secondary} inline-flex`}
+          >
+            <CalendarClock className="h-4 w-4" aria-hidden="true" />
+            Plan time
+          </button>
         </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-10 md:px-8 md:py-14">
-        {saved ? (
-          <div data-testid="hub-constitution">
-            <p className="text-xs font-medium uppercase tracking-widest text-amber-200">
-              Your cognitive prakriti
-            </p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight text-white">
-              {saved.displayProfileTitle}
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-relaxed text-amber-100">
-              {saved.cognitiveSummary}
-            </p>
-          </div>
-        ) : (
-          <div data-testid="hub-general">
-            <p className="text-xs font-medium uppercase tracking-widest text-amber-200">
-              Study hub
-            </p>
-            <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight text-white">
-              Choose how you want to study
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-relaxed text-amber-100">
-              These tools are ready before the reading. Discover Your Cognitive
-              Prakriti when you want a pace made for how you focus.
-            </p>
-            <Link
-              href="/body-type"
-              className="mt-5 inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/40 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
-            >
-              Discover Your Cognitive Prakriti
-            </Link>
-          </div>
-        )}
+      }
+    >
+      <main className={ui.main}>
+        <div>
+          <p className={ui.eyebrow}>My Learning Space</p>
+          <h1 className={`${ui.heading} mt-3 max-w-3xl text-4xl`}>
+            Your learning space, your way.
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
+            Read, watch, explore, and organize everything you learn—all in one place.
+          </p>
+        </div>
 
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {TOOLS.map((tool) => {
@@ -132,11 +115,13 @@ export default function StudyHubPage() {
               <Link
                 key={tool.href}
                 href={tool.href}
-                className="flex min-h-[180px] flex-col rounded-3xl border border-amber-500/30 bg-amber-950/20 p-5 shadow-xl shadow-black/20 transition-all hover:border-amber-200/40 active:scale-[0.99]"
+                className={`${ui.card} flex min-h-[180px] flex-col transition-colors hover:bg-beige-2`}
               >
-                <Icon className="h-5 w-5 text-amber-200" />
-                <h2 className="mt-4 text-lg font-semibold tracking-tight text-white">{tool.title}</h2>
-                <p className="mt-2 text-sm leading-relaxed text-amber-100">
+                <span className={ui.chip}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <h2 className={`${ui.heading} mt-4 text-lg`}>{tool.title}</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted">
                   {tool.description}
                 </p>
               </Link>
@@ -144,11 +129,56 @@ export default function StudyHubPage() {
           })}
         </div>
 
-        <div className="mt-8 xl:max-w-sm">
-          <StudySidePanel dosha={null} showScheduler={false} />
-        </div>
+        {saved ? (
+          <section
+            data-testid="hub-constitution"
+            className={`${ui.card} mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between`}
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <span className={ui.chip}>
+                <Compass className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className={`${ui.heading} text-lg`}>Your Learning Insights</h2>
+                <p className="mt-1 text-sm font-medium text-heading">
+                  {modernProfileHeadline(saved.displayProfileTitle)}
+                </p>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
+                  {saved.cognitiveSummary} These are optional strategies to
+                  try—not a measure of ability.
+                </p>
+              </div>
+            </div>
+            <Link href="/body-type" className={`${ui.secondary} shrink-0`}>
+              Explore My Learning Profile
+            </Link>
+          </section>
+        ) : (
+          <section
+            data-testid="hub-general"
+            className={`${ui.card} mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between`}
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <span className={ui.chip}>
+                <Compass className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className={`${ui.heading} text-lg`}>
+                  Make Learning More Personal.
+                </h2>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
+                  Discover your learning rhythm and explore study strategies that
+                  may work for you.
+                </p>
+              </div>
+            </div>
+            <Link href="/body-type" className={`${ui.secondary} shrink-0`}>
+              Explore My Learning Profile
+            </Link>
+          </section>
+        )}
       </main>
       <SchedulerDialog open={schedulerOpen} onClose={() => setSchedulerOpen(false)} />
-    </div>
+    </AppChrome>
   );
 }

@@ -24,6 +24,7 @@ export interface VideoPlayerProps {
   onTimeUpdate: (seconds: number) => void;
   onRewindFriction?: (fromSeconds: number, toSeconds: number) => void;
   onChangeYouTubeUrl?: (newUrl: string, extractedId: string) => void;
+  onLocalFileSelected?: (fileName: string) => void;
   theme: PrakritiThemePalette;
 }
 
@@ -34,6 +35,7 @@ export default function VideoPlayer({
   onTimeUpdate,
   onRewindFriction,
   onChangeYouTubeUrl,
+  onLocalFileSelected,
 }: VideoPlayerProps) {
   const [sourceMode, setSourceMode] = useState<"youtube" | "local_mp4">(
     "youtube"
@@ -106,6 +108,7 @@ export default function VideoPlayer({
     setLocalVideoObjectUrl(objUrl);
     setLocalVideoName(file.name);
     setSourceMode("local_mp4");
+    onLocalFileSelected?.(file.name);
     onTimeUpdate(0);
   };
 
@@ -121,7 +124,7 @@ export default function VideoPlayer({
   };
 
   return (
-    <div className="space-y-5 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border border-zinc-200/60 dark:border-zinc-800/60 rounded-3xl shadow-xl shadow-zinc-950/5 p-8">
+    <div className="surface-card space-y-5 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -129,8 +132,8 @@ export default function VideoPlayer({
             onClick={() => setSourceMode("youtube")}
             className={`inline-flex min-h-[44px] items-center gap-2 rounded-full px-4 py-2 text-xs font-medium transition-all active:scale-95 ${
               sourceMode === "youtube"
-                ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950"
-                : "border border-zinc-200/60 dark:border-zinc-800/60 text-zinc-600 dark:text-zinc-300"
+                ? "bg-selected text-heading"
+                : "border border-line text-muted"
             }`}
           >
             <Video className="h-4 w-4" />
@@ -140,8 +143,8 @@ export default function VideoPlayer({
           <label
             className={`inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-xs font-medium transition-all active:scale-95 ${
               sourceMode === "local_mp4"
-                ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950"
-                : "border border-zinc-200/60 dark:border-zinc-800/60 text-zinc-600 dark:text-zinc-300"
+                ? "bg-selected text-heading"
+                : "border border-line text-muted"
             }`}
           >
             <FileVideo className="h-4 w-4" />
@@ -155,7 +158,7 @@ export default function VideoPlayer({
           </label>
         </div>
 
-        <span className="text-xs text-zinc-500">
+        <span className="text-xs text-muted">
           {formatTimestampBadge(currentTimeSeconds)} /{" "}
           {formatTimestampBadge(durationSeconds)}
         </span>
@@ -164,30 +167,30 @@ export default function VideoPlayer({
       {sourceMode === "youtube" && (
         <form onSubmit={handleLoadYouTubeUrl} className="flex gap-2">
           <div className="relative flex-1">
-            <Link2 className="pointer-events-none absolute top-3.5 left-3 h-4 w-4 text-zinc-400" />
+            <Link2 className="pointer-events-none absolute top-3.5 left-3 h-4 w-4 text-muted" />
             <input
               type="text"
-              aria-label="YouTube Lecture Link"
+              aria-label="Lecture link"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="Paste a lecture link"
-              className="min-h-[44px] w-full rounded-full border border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-800/60 pr-4 pl-9 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none"
+              className="field-input pr-4 pl-9 text-sm"
             />
           </div>
           <button
             type="submit"
-            className="inline-flex min-h-[44px] items-center rounded-full bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 px-5 py-2 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
+            className="btn-primary text-xs"
           >
             Load
           </button>
         </form>
       )}
 
-      <div className="relative aspect-video overflow-hidden rounded-2xl bg-zinc-950">
+      <div className="relative aspect-video overflow-hidden rounded-2xl bg-heading">
         {sourceMode === "youtube" ? (
           <iframe
             data-testid="youtube-iframe-player"
-            title="YouTube Lecture Player"
+            title="Lecture player"
             src={`https://www.youtube.com/embed/${activeYouTubeId}?enablejsapi=1&start=${Math.floor(
               currentTimeSeconds
             )}`}
@@ -208,7 +211,7 @@ export default function VideoPlayer({
             className="h-full w-full object-contain"
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center text-sm text-zinc-400">
+          <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center text-sm text-beige-2">
             <FileVideo className="mb-2 h-8 w-8 opacity-70" />
             <p>{localVideoName ?? "Choose a lecture file from this device."}</p>
           </div>
@@ -221,7 +224,7 @@ export default function VideoPlayer({
             type="button"
             data-testid="video-play-pause-btn"
             onClick={() => setIsPlaying((p) => !p)}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 px-5 py-2 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
+            className="btn-primary text-xs"
           >
             {isPlaying ? (
               <>
@@ -240,7 +243,7 @@ export default function VideoPlayer({
             type="button"
             data-testid="video-rewind-10s-btn"
             onClick={() => handleScrubOrRewind(currentTimeSeconds - 10)}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-zinc-200/60 dark:border-zinc-800/60 px-4 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-200 transition-all active:scale-95"
+            className="btn-secondary text-xs"
           >
             <RotateCcw className="h-4 w-4" />
             −10s
@@ -250,7 +253,7 @@ export default function VideoPlayer({
             type="button"
             data-testid="video-forward-30s-btn"
             onClick={() => handleScrubOrRewind(currentTimeSeconds + 30)}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-zinc-200/60 dark:border-zinc-800/60 px-4 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-200 transition-all active:scale-95"
+            className="btn-secondary text-xs"
           >
             <FastForward className="h-4 w-4" />
             +30s
@@ -261,10 +264,10 @@ export default function VideoPlayer({
           type="range"
           min={0}
           max={durationSeconds}
-          aria-label="Video Lecture Timeline Scrubber"
+          aria-label="Lecture timeline"
           value={currentTimeSeconds}
           onChange={(e) => handleScrubOrRewind(Number(e.target.value))}
-          className="h-2 w-full cursor-pointer accent-zinc-950 dark:accent-white"
+          className="h-2 w-full cursor-pointer accent-accent"
         />
       </div>
     </div>

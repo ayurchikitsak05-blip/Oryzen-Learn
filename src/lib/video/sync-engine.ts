@@ -168,6 +168,36 @@ export function detectVideoRewindFriction(
   };
 }
 
+export function createStudentLecture(input: {
+  sourceType: "youtube" | "local_mp4";
+  youtubeVideoId?: string | null;
+  youtubeUrl?: string | null;
+  localFileName?: string | null;
+  title?: string;
+}): VideoLectureRecord {
+  const youtubeId = input.youtubeVideoId ?? null;
+  const fileName = input.localFileName ?? null;
+  const id =
+    input.sourceType === "youtube" && youtubeId
+      ? `lec-student-${youtubeId}`
+      : `lec-student-local-${(fileName ?? "file")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")
+          .slice(0, 24)}`;
+  return {
+    id,
+    title: input.title ?? fileName ?? "Your lecture",
+    facultyName: "Your video",
+    sourceType: input.sourceType,
+    youtubeVideoId: youtubeId,
+    youtubeUrl: input.youtubeUrl ?? null,
+    localFileName: fileName,
+    durationSeconds: 3600,
+    notes: [],
+  };
+}
+
 export const DEFAULT_VIDEO_LECTURES: VideoLectureRecord[] = [
   {
     id: "lec-physics-newton-01",

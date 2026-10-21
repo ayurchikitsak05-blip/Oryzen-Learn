@@ -7,6 +7,7 @@ import {
   type Dosha,
 } from "@/lib/prakriti/config";
 import {
+  modernProfileHeadline,
   readSavedBodyType,
   recommendationBullets,
   wellnessSuggestions,
@@ -101,47 +102,49 @@ function RecommendationsCard({
   if (!dosha) {
     return (
       <section
-        aria-label="Recommendations for Your Body Type"
-        className="rounded-3xl border border-amber-500/30 bg-amber-950/20 p-5 shadow-xl shadow-black/20"
+        aria-label="Your Learning Insights"
+        className="surface-card p-5"
       >
-        <h2 className="text-sm font-semibold tracking-tight text-white">
-          Recommendations for Your Body Type
+        <h2 className="font-display text-sm text-heading">
+          Your Learning Insights
         </h2>
-        <p className="mt-3 text-sm leading-relaxed text-amber-100">
-          Finish the reading to see pacing and focus strategies made for you.
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          Explore your learning rhythm for optional study strategies you can try.
         </p>
         <Link
           href="/body-type"
-          className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/40 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
+          className="btn-secondary mt-4 text-sm"
         >
-          Discover Your Cognitive Prakriti
+          Explore My Learning Profile
         </Link>
       </section>
     );
   }
 
   const preset = DOSHA_STUDY_PRESETS[dosha];
-  const title = saved?.displayProfileTitle ?? preset.modernProfileLabel;
+  const title = modernProfileHeadline(
+    saved?.displayProfileTitle ?? preset.modernProfileLabel
+  );
 
   return (
     <section
-      aria-label="Recommendations for Your Body Type"
+      aria-label="Your Learning Insights"
       data-testid="recommendations-panel"
-      className="rounded-3xl border border-amber-500/30 bg-amber-950/20 p-5 shadow-xl shadow-black/20"
+      className="surface-card p-5"
     >
-      <h2 className="text-sm font-semibold tracking-tight text-white">
-        Recommendations for Your Body Type
+      <h2 className="font-display text-sm text-heading">
+        Your Learning Insights
       </h2>
-      <p className="mt-3 text-base font-semibold tracking-tight text-amber-50">
+      <p className="mt-3 font-display text-base text-heading">
         {title}
       </p>
-      <p className="mt-2 text-sm leading-relaxed text-amber-100">
-        {preset.cognitiveSummary}
+      <p className="mt-2 text-sm leading-relaxed text-muted">
+        {preset.cognitiveSummary} These are optional strategies to try—not a measure of ability.
       </p>
-      <ul className="mt-4 space-y-2 text-sm leading-relaxed text-amber-100">
+      <ul className="mt-4 space-y-2 text-sm leading-relaxed text-ink">
         {recommendationBullets(dosha).map((item) => (
           <li key={item} className="flex gap-2">
-            <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
+            <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
             <span>{item}</span>
           </li>
         ))}
@@ -248,17 +251,17 @@ export function StudySchedulerCard({
 
   return (
     <section
-      aria-label="Smart study scheduler"
+      aria-label="Plan your study time"
       data-testid="study-scheduler"
-      className="rounded-3xl border border-amber-500/30 bg-amber-950/20 p-5 shadow-xl shadow-black/20"
+      className="surface-card p-5"
     >
-      <h2 className="text-sm font-semibold tracking-tight text-white">Smart Study Scheduler</h2>
-      <p className="mt-2 text-sm leading-relaxed text-amber-100">
-        Set a study goal and the rhythm of focus and rest.
+      <h2 className="font-display text-sm text-heading">Plan Your Study Time</h2>
+      <p className="mt-2 text-sm leading-relaxed text-muted">
+        Set your goals, make time for focused learning, and take breaks that work for you.
       </p>
 
       <div className="mt-4 space-y-3">
-        <label className="block text-xs font-medium text-amber-200">
+        <label className="block text-xs font-medium text-muted">
           Study goal (hours)
           <input
             type="number"
@@ -272,11 +275,11 @@ export function StudySchedulerCard({
                 Math.round(hours * 60)
               )
             }
-            className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-500/30 bg-black px-3 text-sm text-amber-100 disabled:opacity-60"
+            className="field-input mt-1 text-sm disabled:opacity-60"
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="block text-xs font-medium text-amber-200">
+          <label className="block text-xs font-medium text-muted">
             Focus (minutes)
             <input
               type="number"
@@ -288,10 +291,10 @@ export function StudySchedulerCard({
               onChange={(event) =>
                 updateNumber("focusMinutes", event.target.value, (minutes) => minutes)
               }
-              className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-500/30 bg-black px-3 text-sm text-amber-100 disabled:opacity-60"
+              className="field-input mt-1 text-sm disabled:opacity-60"
             />
           </label>
-          <label className="block text-xs font-medium text-amber-200">
+          <label className="block text-xs font-medium text-muted">
             Break (minutes)
             <input
               type="number"
@@ -303,7 +306,7 @@ export function StudySchedulerCard({
               onChange={(event) =>
                 updateNumber("breakMinutes", event.target.value, (minutes) => minutes)
               }
-              className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-500/30 bg-black px-3 text-sm text-amber-100 disabled:opacity-60"
+              className="field-input mt-1 text-sm disabled:opacity-60"
             />
           </label>
         </div>
@@ -311,33 +314,33 @@ export function StudySchedulerCard({
 
       {mounted && running && (
         <div className="mt-4" aria-live="polite">
-          <p className="text-xs font-medium uppercase tracking-wide text-amber-200">
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">
             {schedule.phase === "focus" ? "Focus" : "Break"}
           </p>
           <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
             {formatClock(remaining)}
           </p>
-          <p className="mt-1 text-xs text-amber-200">
+          <p className="mt-1 text-xs text-muted">
             {Math.round(schedule.focusedMs / 60_000)} min of {schedule.goalMinutes / 60} hr
           </p>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800">
-            <div className="h-full bg-zinc-100" style={{ width: `${progress}%` }} />
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-beige-2">
+            <div className="h-full bg-accent" style={{ width: `${progress}%` }} />
           </div>
         </div>
       )}
 
       {schedule.phase === "complete" && (
-        <p className="mt-4 text-sm font-medium text-zinc-100" role="status">
+        <p className="mt-4 text-sm font-medium text-heading" role="status">
           You reached your study goal.
         </p>
       )}
 
       {showWellness && (
         <div className="mt-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-amber-200">
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">
             Wellness for this break
           </p>
-          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-amber-100">
+          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-ink">
             {wellness.map((item) => (
               <li key={item}>{item}</li>
             ))}
@@ -360,7 +363,7 @@ export function StudySchedulerCard({
               setSchedule((current) => beginFocus(current, Date.now()));
               setNow(Date.now());
             }}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
+            className="btn-primary text-sm"
           >
             {schedule.phase === "complete" ? "Start again" : "Start"}
           </button>
@@ -372,7 +375,7 @@ export function StudySchedulerCard({
               setAlert(null);
               setSchedule((current) => resetSchedule(current));
             }}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 bg-black px-4 text-sm font-medium text-amber-100"
+            className="btn-secondary text-sm"
           >
             End session
           </button>
@@ -385,16 +388,16 @@ export function StudySchedulerCard({
           aria-modal="true"
           aria-labelledby="study-interval-alert-title"
           data-testid="scheduler-alert"
-          className="fixed inset-x-4 top-4 z-[80] mx-auto max-w-md rounded-3xl border border-amber-500/30 bg-zinc-950 p-5 shadow-2xl shadow-black/40"
+          className="surface-card fixed inset-x-4 top-4 z-[80] mx-auto max-w-md p-5 shadow-[0_24px_60px_-28px_rgba(32,36,43,0.45)]"
         >
-          <h3 id="study-interval-alert-title" className="text-lg font-semibold tracking-tight">
+          <h3 id="study-interval-alert-title" className="font-display text-lg text-heading">
             {ALERT_COPY[alert].title}
           </h3>
-          <p className="mt-2 text-sm leading-relaxed text-amber-100">
+          <p className="mt-2 text-sm leading-relaxed text-ink">
             {ALERT_COPY[alert].body}
           </p>
           {alert === "break" && (
-            <ul className="mt-3 space-y-1 text-sm text-amber-100">
+            <ul className="mt-3 space-y-1 text-sm text-ink">
               {wellness.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -403,7 +406,7 @@ export function StudySchedulerCard({
           <button
             type="button"
             onClick={() => setAlert(null)}
-            className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
+            className="btn-primary mt-4 text-sm"
           >
             {alert === "resume" ? "Resume studying" : "Dismiss"}
           </button>
@@ -415,7 +418,7 @@ export function StudySchedulerCard({
 
 export default function StudySidePanel({
   dosha,
-  showScheduler = true,
+  showScheduler = false,
 }: {
   dosha: Dosha | null;
   showScheduler?: boolean;
@@ -443,7 +446,7 @@ export default function StudySidePanel({
   const shown = saved && constitution === saved.primaryDosha ? saved : null;
 
   return (
-    <aside className="space-y-4 xl:sticky xl:top-28 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
+    <aside className="space-y-4 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
       {loaded && <RecommendationsCard dosha={constitution} saved={shown} />}
       {loaded && showScheduler && (
         <StudySchedulerCard dosha={constitution} saved={shown} />

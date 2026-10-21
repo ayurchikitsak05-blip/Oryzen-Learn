@@ -9,6 +9,8 @@ import {
   FileUp,
   Highlighter,
   Layers,
+  PanelTop,
+  PanelTopClose,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -224,28 +226,35 @@ function VirtualizedPageCanvas({
   return (
     <div
       data-testid={`pdf-mounted-page-${pageNumber}`}
-      className={`backdrop-blur-xl bg-zinc-900 border rounded-3xl shadow-xl shadow-black/20 p-8 text-zinc-100 transition-all ${
-        isActivePage
-          ? "border-zinc-400"
-          : "border-zinc-800"
-      }`}
+      className="rounded-3xl border p-5 transition-all"
+      style={{
+        backgroundColor: theme.surfaceHex,
+        borderColor: isActivePage ? theme.accentHex : theme.borderHex,
+        color: theme.textPrimaryHex,
+      }}
     >
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-0.5">
-          <p className="text-xs font-medium text-zinc-500">
+          <p className="text-xs font-medium" style={{ color: theme.textSecondaryHex }}>
             Page {pageNumber}
             {isActivePage ? " · reading now" : ""}
           </p>
-          <h3 className="text-sm font-semibold tracking-tight text-zinc-100">
+          <h3 className="font-display text-sm" style={{ color: theme.textPrimaryHex }}>
             {pageChunks[0]?.section_heading ?? `Section ${pageNumber}`}
           </h3>
         </div>
-        <span className="text-[11px] text-zinc-400">
+        <span className="text-[11px]" style={{ color: theme.textSecondaryHex }}>
           {renderStatus === "rendering" ? "Loading…" : "Ready"}
         </span>
       </div>
 
-      <div className="flex justify-center overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+      <div
+        className="flex justify-center overflow-x-auto rounded-2xl border p-4"
+        style={{
+          backgroundColor: theme.backgroundHex,
+          borderColor: theme.borderHex,
+        }}
+      >
         <canvas
           ref={canvasRef}
           aria-label={`PDF Canvas Page ${pageNumber}`}
@@ -255,7 +264,7 @@ function VirtualizedPageCanvas({
 
       {showPassages && pageChunks.length > 0 && (
         <div className="mt-6 space-y-3">
-          <p className="text-xs font-medium text-zinc-500">
+          <p className="text-xs font-medium text-muted">
             Click a word for its meaning. Select text to highlight, underline, or explain.
           </p>
           {pageChunks.map((chunk) => {
@@ -265,8 +274,8 @@ function VirtualizedPageCanvas({
                 key={chunk.chunk_id}
                 className={`relative flex min-h-[52px] w-full flex-col rounded-2xl border p-4 text-left ${
                   isSelected
-                    ? "border-zinc-400 bg-zinc-800"
-                    : "border-zinc-800 bg-zinc-950"
+                    ? "border-beige bg-selected"
+                    : "border-line bg-surface"
                 }`}
               >
                 <PassageText
@@ -278,13 +287,13 @@ function VirtualizedPageCanvas({
                   onAddNote={(quote, note) => onAddNote(quote, note, chunk)}
                 />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] text-zinc-400">
+                  <span className="text-[11px] text-muted">
                     Page {chunk.page_number} · {chunk.section_heading}
                   </span>
                   <button
                     type="button"
                     onClick={() => onSelectChunk(chunk)}
-                    className="inline-flex min-h-[36px] items-center rounded-full bg-white px-3 text-xs font-medium text-zinc-950 hover:bg-zinc-200"
+                    className="btn-primary px-3 text-xs"
                   >
                     Explain this passage
                   </button>
@@ -335,6 +344,7 @@ export default function PdfViewer({
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [autoScroll, setAutoScroll] = useState<boolean>(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState<number>(36);
+  const [toolbarOpen, setToolbarOpen] = useState<boolean>(true);
 
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef<number>(DEFAULT_READER_ZOOM);
@@ -679,34 +689,38 @@ export default function PdfViewer({
     if (!file) return;
 
     setUploadStatus("Opening your document…");
-    const buffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
 
-    const indexed = await parseAndIndexPdfBytes(
-      bytes,
-      file.name.replace(/\.pdf$/i, "")
-    );
+      const indexed = await parseAndIndexPdfBytes(
+        bytes,
+        file.name.replace(/\.pdf$/i, "")
+      );
 
-    const result = await saveLocalPdfDocument({
-      title: file.name.replace(/\.pdf$/i, ""),
-      fileName: file.name,
-      pdfBytes: bytes,
-      pageCount: indexed.pageCount,
-      chapters: indexed.chapters,
-      chunks: indexed.chunks,
-    });
+      const result = await saveLocalPdfDocument({
+        title: file.name.replace(/\.pdf$/i, ""),
+        fileName: file.name,
+        pdfBytes: bytes,
+        pageCount: indexed.pageCount,
+        chapters: indexed.chapters,
+        chunks: indexed.chunks,
+      });
 
-    const refreshed = await listLocalPdfDocuments();
-    setDocuments(refreshed);
-    setActiveDoc(result.document);
-    setActivePdfBytes(bytes);
-    setActivePage(1);
-    setSelectedChunk(null);
+      const refreshed = await listLocalPdfDocuments();
+      setDocuments(refreshed);
+      setActiveDoc(result.document);
+      setActivePdfBytes(bytes);
+      setActivePage(1);
+      setSelectedChunk(null);
 
-    if (result.isDuplicate) {
-      setUploadStatus("This document is already in your library.");
-    } else {
-      setUploadStatus(`“${result.document.title}” is ready to read.`);
+      if (result.isDuplicate) {
+        setUploadStatus("This document is already in your library.");
+      } else {
+        setUploadStatus(`“${result.document.title}” is ready to read.`);
+      }
+    } catch {
+      setUploadStatus("We couldn't upload this file. Please check the format and try again.");
     }
   };
 
@@ -788,10 +802,14 @@ export default function PdfViewer({
           });
           setSavedPassages(listSavedPassages());
           setUploadStatus(
-            `✨ Saved highlight & deep-link coordinates [Page ${selectedChunk.page_number}, x:${selectedChunk.bounding_box.x}, y:${selectedChunk.bounding_box.y}] to Study Compendium!`
+            `Saved to My Notebook. Open page ${selectedChunk.page_number} anytime to return to this idea.`
           );
         }
+      } else {
+        setUploadStatus("We couldn't explore this passage. Please try again.");
       }
+    } catch {
+      setUploadStatus("We couldn't explore this passage. Please try again.");
     } finally {
       setAiLoading(false);
     }
@@ -822,9 +840,28 @@ export default function PdfViewer({
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-3 rounded-3xl border border-zinc-800 bg-zinc-900 p-4 shadow-xl shadow-black/20 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
-        <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-medium text-zinc-950 transition-all hover:bg-zinc-200 active:scale-95">
+    <div className="space-y-5">
+      <div className="surface-card p-2 sm:p-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="px-2 text-xs text-muted">
+            {activePage} / {totalPages}
+            <span data-testid="ram-window-indicator" className="sr-only">
+              Pages {ramWindowPages.join("–")}
+            </span>
+          </p>
+          <button
+            type="button"
+            aria-expanded={toolbarOpen}
+            aria-label={toolbarOpen ? "Collapse reader toolbar" : "Expand reader toolbar"}
+            onClick={() => setToolbarOpen((open) => !open)}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-accent hover:bg-beige-2"
+          >
+            {toolbarOpen ? <PanelTopClose className="h-4 w-4" /> : <PanelTop className="h-4 w-4" />}
+          </button>
+        </div>
+        {toolbarOpen ? (
+          <div className="mt-2 flex flex-col gap-2 border-t border-line pt-2 sm:flex-row sm:items-center sm:justify-between">
+        <label className="btn-primary cursor-pointer text-xs">
           <FileUp className="h-4 w-4" />
           Open document
           <input
@@ -846,7 +883,7 @@ export default function PdfViewer({
                   ?.pageNumber ?? activeDoc.chapters[0].pageNumber
               }
               onChange={(event) => handleGoToPage(Number(event.target.value))}
-              className="min-h-[44px] w-full cursor-pointer truncate rounded-full bg-transparent px-3 text-xs font-medium text-zinc-700 dark:text-zinc-200"
+              className="field-input w-full cursor-pointer truncate text-xs"
             >
               {activeDoc.chapters.map((chapter) => (
                 <option key={`${chapter.pageNumber}-${chapter.title}`} value={chapter.pageNumber}>
@@ -861,21 +898,21 @@ export default function PdfViewer({
           <button
             type="button"
             onClick={() => setContentsOpen(true)}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+            className="btn-secondary text-xs"
           >
             Contents
           </button>
           <button
             type="button"
             onClick={() => setGridOpen(true)}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+            className="btn-secondary text-xs"
           >
             Page grid
           </button>
           <button
             type="button"
             onClick={() => setAnnotationsOpen(true)}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+            className="btn-secondary text-xs"
           >
             Annotations
           </button>
@@ -884,22 +921,19 @@ export default function PdfViewer({
             aria-label="Previous Page"
             disabled={activePage <= 1}
             onClick={() => handleGoToPage(activePage - 1)}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-zinc-700 transition-all active:scale-95 disabled:opacity-40 dark:text-zinc-200"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading disabled:opacity-40"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <div className="min-w-[3.5rem] text-center text-xs font-medium text-zinc-500">
+          <div className="min-w-[3.5rem] text-center text-xs font-medium text-muted">
             {activePage} / {totalPages}
-            <span data-testid="ram-window-indicator" className="sr-only">
-              Pages {ramWindowPages.join("–")}
-            </span>
           </div>
           <button
             type="button"
             aria-label="Next Page"
             disabled={activePage >= totalPages}
             onClick={() => handleGoToPage(activePage + 1)}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-zinc-700 transition-all active:scale-95 disabled:opacity-40 dark:text-zinc-200"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading disabled:opacity-40"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -907,16 +941,14 @@ export default function PdfViewer({
             type="button"
             aria-pressed={autoScroll}
             onClick={() => setAutoScroll((current) => !current)}
-            className={`inline-flex min-h-[44px] items-center rounded-full px-4 text-xs font-medium transition-all active:scale-95 ${
-              autoScroll
-                ? "border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70"
-                : "text-zinc-700 dark:text-zinc-200"
+            className={`inline-flex min-h-11 items-center rounded-xl px-4 text-xs font-medium ${
+              autoScroll ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
             }`}
           >
             Auto-Scroll
           </button>
           {autoScroll && (
-            <label className="flex min-h-[44px] items-center gap-2 px-2 text-xs text-zinc-500">
+            <label className="flex min-h-11 items-center gap-2 px-2 text-xs text-muted">
               Speed
               <input
                 type="range"
@@ -930,7 +962,7 @@ export default function PdfViewer({
           )}
           <button
             onClick={() => setZoomScale((z) => clampReaderZoom(z - 0.15))}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-zinc-700 transition-all active:scale-95 dark:text-zinc-200"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading"
           >
             <ZoomOut className="h-4 w-4" />
           </button>
@@ -938,15 +970,17 @@ export default function PdfViewer({
             type="button"
             aria-label="Zoom In"
             onClick={() => setZoomScale((z) => clampReaderZoom(z + 0.15))}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-zinc-700 transition-all active:scale-95 dark:text-zinc-200"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading"
           >
             <ZoomIn className="h-4 w-4" />
           </button>
         </div>
+          </div>
+        ) : null}
       </div>
 
       {uploadStatus && (
-        <p className="flex items-center gap-2 text-xs text-zinc-500">
+        <p className="flex items-center gap-2 text-xs text-muted">
           <FileCheck2 className="h-4 w-4 shrink-0" />
           <span>{uploadStatus}</span>
         </p>
@@ -988,7 +1022,7 @@ export default function PdfViewer({
                     <button
                       type="button"
                       onClick={() => handleGoToPage(pageNumber)}
-                      className="min-h-[44px] rounded-full px-4 py-1.5 font-medium text-zinc-700 dark:text-zinc-200 transition-all active:scale-95"
+                      className="min-h-11 rounded-xl px-4 py-1.5 font-medium text-heading"
                     >
                       Jump here
                     </button>
@@ -1050,10 +1084,10 @@ export default function PdfViewer({
         </div>
 
         {isSplitDrawerOpen && (
-          <aside className="space-y-6 backdrop-blur-xl bg-zinc-900 border border-zinc-800 rounded-3xl shadow-xl shadow-black/20 p-8 lg:col-span-5 h-fit sticky top-24">
+          <aside className="surface-card sticky top-20 h-fit space-y-6 p-6 lg:col-span-5">
             <div>
-              <p className="text-xs font-medium text-zinc-500">Study notes</p>
-              <h3 className="mt-1 flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+              <p className="text-xs font-medium text-muted">Explore this passage</p>
+              <h3 className="mt-1 flex items-center gap-2 font-display text-lg text-heading">
                 <Highlighter className="h-4 w-4" />
                 Selected passage
               </h3>
@@ -1061,16 +1095,16 @@ export default function PdfViewer({
 
             {selectedChunk ? (
               <div className="space-y-3">
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-muted">
                   Page {selectedChunk.page_number} · {selectedChunk.section_heading}
                 </p>
-                <blockquote className="border-l border-zinc-200 pl-3 text-sm leading-relaxed italic text-zinc-600 dark:border-zinc-700 dark:text-zinc-300">
+                <blockquote className="border-l border-line pl-3 text-sm leading-relaxed italic text-muted">
                   &ldquo;{lensText?.trim() || selectedChunk.text}&rdquo;
                 </blockquote>
               </div>
             ) : (
-              <p className="text-sm leading-relaxed text-zinc-500">
-                Tap a passage on the page to generate a five-lens explanation.
+              <p className="text-sm leading-relaxed text-muted">
+                Select a passage to highlight ideas, explore meanings, or save it to My Notebook.
               </p>
             )}
 
@@ -1078,25 +1112,25 @@ export default function PdfViewer({
               <div
                 data-testid="ai-lens-loading-skeleton"
                 role="status"
-                aria-label="Generating Cognitive Energy Blueprint AI Lens synthesis"
-                className="animate-pulse space-y-3 rounded-2xl bg-zinc-800/50 p-4"
+                aria-label="Exploring this passage..."
+                className="animate-pulse space-y-3 rounded-2xl bg-beige-2 p-4"
               >
-                <div className="h-4 w-2/3 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-                <div className="h-3 w-full rounded-full bg-zinc-200 dark:bg-zinc-700" />
-                <div className="h-3 w-5/6 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                <div className="h-4 w-2/3 rounded-full bg-beige" />
+                <div className="h-3 w-full rounded-full bg-beige" />
+                <div className="h-3 w-5/6 rounded-full bg-beige" />
               </div>
             )}
 
             {aiResult && !aiLoading && (
               <div
                 data-testid="ai-lens-response-card"
-                className="space-y-4 rounded-2xl bg-zinc-800/40 p-5"
+                className="space-y-4 rounded-2xl bg-beige-2 p-5"
               >
-                <h4 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+                <h4 className="font-display text-sm text-heading">
                   {aiResult.payload.title}
                 </h4>
 
-                <div className="whitespace-pre-line text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+                <div className="whitespace-pre-line text-sm leading-relaxed text-ink">
                   {aiResult.payload.markdown_body}
                 </div>
 
@@ -1117,9 +1151,9 @@ export default function PdfViewer({
                                 className={`flex min-h-[44px] w-full items-center rounded-full border px-4 py-2 text-left text-xs font-medium transition-all ${
                                   isPicked
                                     ? isCorrect
-                                      ? "border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70"
-                                      : "border-zinc-300 text-zinc-400"
-                                    : "border-zinc-800 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200"
+                                      ? "border-beige bg-selected text-heading"
+                                      : "border-line text-muted"
+                                    : "border-line text-ink"
                                 }`}
                               >
                                 {String.fromCharCode(65 + optIdx)}. {opt}
@@ -1128,7 +1162,7 @@ export default function PdfViewer({
                           })}
                         </div>
                         {selectedMcqOption !== null && (
-                          <p className="pt-1 text-xs text-zinc-500">
+                          <p className="pt-1 text-xs text-muted">
                             {mcq.explanation}
                           </p>
                         )}
@@ -1144,7 +1178,7 @@ export default function PdfViewer({
                         key={cite.label}
                         type="button"
                         onClick={() => handleJumpToCitationCoordinate(cite)}
-                        className="min-h-[44px] rounded-full border border-zinc-800 dark:border-zinc-800/60 px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition-all active:scale-95"
+                        className="btn-secondary text-xs"
                       >
                         {cite.label}
                       </button>
@@ -1156,16 +1190,16 @@ export default function PdfViewer({
 
             {savedPassages.length > 0 && (
               <div className="space-y-3">
-                <p className="text-xs font-medium text-zinc-500">
-                  Saved passages ({savedPassages.length})
+                <p className="text-xs font-medium text-muted">
+                  Saved to My Notebook ({savedPassages.length})
                 </p>
                 <div className="space-y-2">
                   {savedPassages.slice(0, 4).map((note) => (
                     <div
                       key={note.id}
-                      className="rounded-2xl border border-zinc-800 dark:border-zinc-800/60 p-4 text-xs space-y-2"
+                      className="space-y-2 rounded-2xl border border-line p-4 text-xs"
                     >
-                      <p className="line-clamp-2 text-zinc-600 dark:text-zinc-300">
+                      <p className="line-clamp-2 text-muted">
                         &ldquo;{note.highlightedText}&rdquo;
                       </p>
                       <button
@@ -1179,7 +1213,7 @@ export default function PdfViewer({
                             bounding_box: note.boundingBox,
                           })
                         }
-                        className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70 px-4 py-2 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
+                        className="btn-primary text-xs"
                       >
                         Page {note.pageNumber}
                       </button>
@@ -1191,7 +1225,7 @@ export default function PdfViewer({
 
             {documents.length > 0 && (
               <div className="space-y-3">
-                <p className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
                   <Layers className="h-4 w-4" />
                   Library
                 </p>
@@ -1211,15 +1245,15 @@ export default function PdfViewer({
                         }}
                         className={`flex min-h-[48px] w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-xs transition-all ${
                           isCurrent
-                            ? "border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70"
-                            : "border-zinc-800 dark:border-zinc-800/60 text-zinc-800 dark:text-zinc-100"
+                            ? "border-beige bg-selected text-heading"
+                            : "border-line text-ink"
                         }`}
                       >
                         <div>
                           <div className="font-medium">{doc.title}</div>
                           <div
                             className={`mt-0.5 ${
-                              isCurrent ? "opacity-70" : "text-zinc-500"
+                              isCurrent ? "opacity-70" : "text-muted"
                             }`}
                           >
                             {doc.pageCount} pages

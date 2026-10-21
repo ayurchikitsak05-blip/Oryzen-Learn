@@ -10,6 +10,7 @@ import {
   type Dosha,
 } from "@/lib/prakriti/config";
 import {
+  createStudentLecture,
   DEFAULT_VIDEO_LECTURES,
   formatTimestampBadge,
   type VideoLectureRecord,
@@ -113,8 +114,8 @@ export default function ParallelVideoStudioPage() {
 
   return (
     <StudioFrame
-      title="Synchronized Video Lecture"
-      eyebrow="Live timestamped notes"
+      title="Learn from Videos"
+      eyebrow="Video notes"
       activeDosha={activeDosha}
       onChangeDosha={setActiveDosha}
     >
@@ -130,7 +131,7 @@ export default function ParallelVideoStudioPage() {
                 setActiveLectureId(event.target.value);
                 setCurrentTimeSeconds(0);
               }}
-              className="min-h-[44px] w-full cursor-pointer rounded-full border border-zinc-200/60 bg-white/80 px-4 text-sm font-medium text-zinc-900 backdrop-blur-xl dark:border-zinc-800/60 dark:bg-zinc-900/80 dark:text-zinc-100"
+              className="field-input w-full cursor-pointer text-sm"
             >
               {lectures.map((lecture) => (
                 <option key={lecture.id} value={lecture.id}>
@@ -139,11 +140,16 @@ export default function ParallelVideoStudioPage() {
               ))}
             </select>
           </label>
-          <p className="px-2 text-xs text-zinc-500">{activeLecture.facultyName}</p>
+          <p className="px-2 text-xs text-muted">
+            <span className="mr-2 rounded-full bg-beige-2 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+              Demo
+            </span>
+            {activeLecture.facultyName}
+          </p>
         </div>
 
         {telemetryToast && (
-          <p className="text-center text-xs text-zinc-500">{telemetryToast}</p>
+          <p className="text-center text-xs text-muted">{telemetryToast}</p>
         )}
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
@@ -153,6 +159,30 @@ export default function ParallelVideoStudioPage() {
             durationSeconds={activeLecture.durationSeconds}
             onTimeUpdate={setCurrentTimeSeconds}
             onRewindFriction={handleRewindFriction}
+            onChangeYouTubeUrl={(url, videoId) => {
+              const lecture = createStudentLecture({
+                sourceType: "youtube",
+                youtubeVideoId: videoId,
+                youtubeUrl: url,
+                title: "Your lecture",
+              });
+              setLectures((prev) =>
+                prev.some((row) => row.id === lecture.id) ? prev : [...prev, lecture]
+              );
+              setActiveLectureId(lecture.id);
+            }}
+            onLocalFileSelected={(fileName) => {
+              const lecture = createStudentLecture({
+                sourceType: "local_mp4",
+                localFileName: fileName,
+                title: fileName,
+              });
+              setLectures((prev) => [
+                ...prev.filter((row) => row.id !== lecture.id),
+                lecture,
+              ]);
+              setActiveLectureId(lecture.id);
+            }}
             theme={theme}
           />
           <ParallelNotes

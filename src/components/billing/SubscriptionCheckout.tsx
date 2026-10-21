@@ -124,7 +124,7 @@ export default function SubscriptionCheckout({
 
   const finishPaid = () => {
     onClose();
-    router.push("/body-type");
+    router.push("/hub");
     router.refresh();
   };
 
@@ -170,7 +170,7 @@ export default function SubscriptionCheckout({
         name: order.name,
         description: order.description,
         order_id: order.orderId,
-        theme: { color: "#fafafa" },
+        theme: { color: "#E8D9C8" },
         modal: { ondismiss: () => setLoading(false) },
         handler: (payment) => {
           void verifyRazorpay(checkout.sessionId, payment);
@@ -220,7 +220,7 @@ export default function SubscriptionCheckout({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[color-mix(in_srgb,var(--heading)_28%,transparent)] p-4 sm:items-center"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -229,28 +229,28 @@ export default function SubscriptionCheckout({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md rounded-3xl border border-amber-500/30 bg-zinc-950 p-6 shadow-2xl shadow-black/50 [animation:oryzen-rise_180ms_ease]"
+        className="surface-card w-full max-w-md p-6 shadow-[0_24px_60px_-28px_rgba(32,36,43,0.45)] [animation:oryzen-rise_180ms_ease]"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-amber-200">
+            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
               Student Pro
             </p>
-            <h2 id={titleId} className="mt-2 text-2xl font-semibold tracking-tight">
+            <h2 id={titleId} className="mt-2 font-display text-2xl text-heading">
               ₹{checkout?.amountInr ?? DIRECT_ACCESS_PRICE_INR}
-              <span className="text-base font-medium text-amber-200"> / month</span>
+              <span className="text-base font-medium text-muted"> / month</span>
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close checkout"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-amber-200 hover:bg-zinc-950 hover:text-zinc-100"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-muted hover:bg-beige-2 hover:text-heading"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-3 text-sm leading-relaxed text-amber-200">
+        <p className="mt-3 text-sm leading-relaxed text-muted">
           {!checkout
             ? "Preparing Student Pro checkout."
             : checkout.confirmInApp
@@ -270,7 +270,7 @@ export default function SubscriptionCheckout({
               type="button"
               onClick={() => void confirmInApp()}
               disabled={loading}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70 disabled:opacity-50"
+              className="btn-primary text-sm disabled:opacity-50"
             >
               {loading ? "Activating..." : "Confirm and activate"}
             </button>
@@ -281,7 +281,7 @@ export default function SubscriptionCheckout({
               onClick={() => {
                 window.location.assign(checkout.redirectUrl ?? "/pricing");
               }}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
+              className="btn-primary text-sm"
             >
               Continue to Stripe
             </button>
@@ -291,7 +291,7 @@ export default function SubscriptionCheckout({
               type="button"
               onClick={() => void payWithRazorpay()}
               disabled={loading}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70 disabled:opacity-50"
+              className="btn-primary text-sm disabled:opacity-50"
             >
               {loading ? "Opening Razorpay..." : "Pay with Razorpay"}
             </button>
@@ -301,7 +301,7 @@ export default function SubscriptionCheckout({
               type="button"
               onClick={() => void start()}
               disabled={loading}
-              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70 disabled:opacity-50"
+              className="btn-primary text-sm disabled:opacity-50"
             >
               {loading ? "Starting checkout..." : "Try again"}
             </button>

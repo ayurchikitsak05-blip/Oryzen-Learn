@@ -37,7 +37,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-1",
     number: 1,
     domainId: "agni_metabolism",
-    domainLabel: "Agni & Digestive Rhythm",
+    domainLabel: "Digestion & appetite",
     prompt: "How is your daily appetite and digestive fire (Jatharagni)?",
     options: {
       Vata: "Irregular (Vishamagni) — hungry at unpredictable times, sometimes bloating",
@@ -49,7 +49,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-2",
     number: 2,
     domainId: "agni_metabolism",
-    domainLabel: "Agni & Digestive Rhythm",
+    domainLabel: "Digestion & appetite",
     prompt: "How do you feel immediately after eating a full meal before studying?",
     options: {
       Vata: "Light and restless, ready to move or switch tasks quickly",
@@ -61,7 +61,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-3",
     number: 3,
     domainId: "agni_metabolism",
-    domainLabel: "Agni & Digestive Rhythm",
+    domainLabel: "Digestion & appetite",
     prompt: "What type of food and beverage temperature do you naturally crave?",
     options: {
       Vata: "Warm, comforting, soupy, and lightly spiced foods",
@@ -73,7 +73,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-4",
     number: 4,
     domainId: "agni_metabolism",
-    domainLabel: "Agni & Digestive Rhythm",
+    domainLabel: "Digestion & appetite",
     prompt: "How does exam stress affect your digestion?",
     options: {
       Vata: "Gas, dryness, or sudden loss of appetite",
@@ -85,7 +85,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-5",
     number: 5,
     domainId: "agni_metabolism",
-    domainLabel: "Agni & Digestive Rhythm",
+    domainLabel: "Digestion & appetite",
     prompt: "How consistent is your body weight across an academic semester?",
     options: {
       Vata: "Naturally slender; loses weight easily during intense exam weeks",
@@ -99,7 +99,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-6",
     number: 6,
     domainId: "thermoregulation_hydration",
-    domainLabel: "Thermoregulation & Hydration",
+    domainLabel: "Temperature & hydration",
     prompt: "What is your typical hand, foot, and body temperature in an air-conditioned library?",
     options: {
       Vata: "Hands and feet get cold quickly; prefer a shawl or warm room",
@@ -111,7 +111,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-7",
     number: 7,
     domainId: "thermoregulation_hydration",
-    domainLabel: "Thermoregulation & Hydration",
+    domainLabel: "Temperature & hydration",
     prompt: "How frequently do you experience thirst during study blocks?",
     options: {
       Vata: "Variable thirst; often forget to drink water until lips feel dry",
@@ -123,7 +123,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-8",
     number: 8,
     domainId: "thermoregulation_hydration",
-    domainLabel: "Thermoregulation & Hydration",
+    domainLabel: "Temperature & hydration",
     prompt: "How does your skin and lip moisture behave across seasons?",
     options: {
       Vata: "Tends toward dryness, roughness, or chapped lips",
@@ -135,7 +135,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-9",
     number: 9,
     domainId: "thermoregulation_hydration",
-    domainLabel: "Thermoregulation & Hydration",
+    domainLabel: "Temperature & hydration",
     prompt: "How much do you perspire during normal daily activities?",
     options: {
       Vata: "Minimal perspiration even in warm weather",
@@ -147,7 +147,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-10",
     number: 10,
     domainId: "thermoregulation_hydration",
-    domainLabel: "Thermoregulation & Hydration",
+    domainLabel: "Temperature & hydration",
     prompt: "Which climate supports your best study concentration?",
     options: {
       Vata: "Warm, calm, humid environment without cold drafts",
@@ -161,7 +161,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-11",
     number: 11,
     domainId: "sharira_body_frame",
-    domainLabel: "Sharira Frame & Motor Tempo",
+    domainLabel: "Body frame & movement",
     prompt: "How would you describe your natural skeletal frame and joints?",
     options: {
       Vata: "Light, narrow frame with prominent or cracking joints",
@@ -173,7 +173,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-12",
     number: 12,
     domainId: "sharira_body_frame",
-    domainLabel: "Sharira Frame & Motor Tempo",
+    domainLabel: "Body frame & movement",
     prompt: "What is your natural walking and speaking pace?",
     options: {
       Vata: "Quick, animated, rapid steps and fast speech",
@@ -185,7 +185,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-13",
     number: 13,
     domainId: "sharira_body_frame",
-    domainLabel: "Sharira Frame & Motor Tempo",
+    domainLabel: "Body frame & movement",
     prompt: "When sitting at a desk with a tablet, how is your posture?",
     options: {
       Vata: "Frequently shifting positions, tapping foot, or fidgeting",
@@ -197,7 +197,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-14",
     number: 14,
     domainId: "sharira_body_frame",
-    domainLabel: "Sharira Frame & Motor Tempo",
+    domainLabel: "Body frame & movement",
     prompt: "How is your handwriting or stylus annotation style on a tablet?",
     options: {
       Vata: "Fast, cursive, variable pressure, quick arrows and scribbles",
@@ -209,7 +209,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-15",
     number: 15,
     domainId: "sharira_body_frame",
-    domainLabel: "Sharira Frame & Motor Tempo",
+    domainLabel: "Body frame & movement",
     prompt: "How do your eyes feel physically by evening?",
     options: {
       Vata: "Dry, blinking frequently, or twitching when tired",
@@ -223,7 +223,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-16",
     number: 16,
     domainId: "nidra_sleep_stamina",
-    domainLabel: "Nidra (Sleep) & Stamina",
+    domainLabel: "Sleep & stamina",
     prompt: "How would you describe your sleep quality during exam preparation?",
     options: {
       Vata: "Light, interrupted sleep (Alpa-nidra) with active dreams",
@@ -235,7 +235,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-17",
     number: 17,
     domainId: "nidra_sleep_stamina",
-    domainLabel: "Nidra (Sleep) & Stamina",
+    domainLabel: "Sleep & stamina",
     prompt: "How does your energy curve behave across the day?",
     options: {
       Vata: "Comes in bursts of high enthusiasm followed by sudden fatigue",
@@ -247,7 +247,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-18",
     number: 18,
     domainId: "nidra_sleep_stamina",
-    domainLabel: "Nidra (Sleep) & Stamina",
+    domainLabel: "Sleep & stamina",
     prompt: "How quickly do you recover from a late-night study session?",
     options: {
       Vata: "Feel wired yet exhausted the next day; need grounding rest",
@@ -259,7 +259,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-19",
     number: 19,
     domainId: "nidra_sleep_stamina",
-    domainLabel: "Nidra (Sleep) & Stamina",
+    domainLabel: "Sleep & stamina",
     prompt: "What type of physical break refreshes you most between chapters?",
     options: {
       Vata: "Quiet slow breathing (Nadi Shodhana) and warm water",
@@ -271,7 +271,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-20",
     number: 20,
     domainId: "nidra_sleep_stamina",
-    domainLabel: "Nidra (Sleep) & Stamina",
+    domainLabel: "Sleep & stamina",
     prompt: "What is your natural physical endurance during 8-hour college days?",
     options: {
       Vata: "High initial agility, but physically drained by late afternoon",
@@ -285,7 +285,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-21",
     number: 21,
     domainId: "manas_stress_dinacharya",
-    domainLabel: "Manas Stress & Dinacharya",
+    domainLabel: "Stress & daily rhythm",
     prompt: "What is your primary emotional response when syllabus load feels huge?",
     options: {
       Vata: "Anxiousness, overthinking, or jumping between 5 textbooks at once",
@@ -297,7 +297,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-22",
     number: 22,
     domainId: "manas_stress_dinacharya",
-    domainLabel: "Manas Stress & Dinacharya",
+    domainLabel: "Stress & daily rhythm",
     prompt: "How do you relate to daily routines (Dinacharya)?",
     options: {
       Vata: "Dislike rigid schedules, yet thrive when gently anchored",
@@ -309,7 +309,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-23",
     number: 23,
     domainId: "manas_stress_dinacharya",
-    domainLabel: "Manas Stress & Dinacharya",
+    domainLabel: "Stress & daily rhythm",
     prompt: "How do you react to background noise while studying?",
     options: {
       Vata: "Easily startled or distracted by sudden sounds",
@@ -321,7 +321,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-24",
     number: 24,
     domainId: "manas_stress_dinacharya",
-    domainLabel: "Manas Stress & Dinacharya",
+    domainLabel: "Stress & daily rhythm",
     prompt: "How do you start a new textbook or subject module?",
     options: {
       Vata: "Excitedly browse multiple chapters and illustrations first",
@@ -333,7 +333,7 @@ export const BASIC_PHYSICAL_PRAKRITI_QUESTIONS: AssessmentQuestion[] = [
     id: "phys-25",
     number: 25,
     domainId: "manas_stress_dinacharya",
-    domainLabel: "Manas Stress & Dinacharya",
+    domainLabel: "Stress & daily rhythm",
     prompt: "What helps restore your mental calm in 5 minutes?",
     options: {
       Vata: "Humming bee breath (Bhramari) and warm herbal hydration",
@@ -494,7 +494,7 @@ export const READING_COGNITIVE_QUESTIONS: AssessmentQuestion[] = [
     number: 12,
     domainId: "smriti_retention",
     domainLabel: "Recall Power (Retention / Smriti)",
-    prompt: "How often do you need to revisit your study compendium highlights?",
+    prompt: "How often do you need to revisit highlights you saved in your notebook?",
     options: {
       Vata: "Frequent, bite-sized 5-minute flashcard bursts every 1–3 days",
       Pitta: "Structured weekly mastery review of flagged high-yield tables",
@@ -557,7 +557,7 @@ export const READING_COGNITIVE_QUESTIONS: AssessmentQuestion[] = [
     id: "cog-17",
     number: 17,
     domainId: "video_lecture_habits",
-    domainLabel: "Parallel Video Lecture Habits",
+    domainLabel: "Learn from Videos",
     prompt: "How do you typically watch recorded video lectures on YouTube or tablet?",
     options: {
       Vata: "Watch in short bursts, often rewinding 10s when mind wanders",
@@ -569,8 +569,8 @@ export const READING_COGNITIVE_QUESTIONS: AssessmentQuestion[] = [
     id: "cog-18",
     number: 18,
     domainId: "video_lecture_habits",
-    domainLabel: "Parallel Video Lecture Habits",
-    prompt: "What should the Parallel Video Lecture Studio right-pane do as the teacher speaks?",
+    domainLabel: "Learn from Videos",
+    prompt: "What should Learn from Videos show beside the lecture as the teacher speaks?",
     options: {
       Vata: "Reveal bite-sized visual summary cards and story analogies synced to [mm:ss]",
       Pitta: "Stream structured mechanism flowcharts and comparison tables synced to [mm:ss]",
@@ -581,20 +581,20 @@ export const READING_COGNITIVE_QUESTIONS: AssessmentQuestion[] = [
     id: "cog-19",
     number: 19,
     domainId: "video_lecture_habits",
-    domainLabel: "Parallel Video Lecture Habits",
+    domainLabel: "Learn from Videos",
     prompt: "Which 1-tap note modification button do you reach for most during lectures?",
     options: {
-      Vata: "'Simplify with Analogy' & 'Generate Flashcards'",
-      Pitta: "'Convert to Comparison Table' & '+ Add Detail'",
-      Kapha: "'Test Me on This Timestamp' & 'Worked-Example Challenge'",
+      Vata: "'Make It Easier' and 'Show an Example'",
+      Pitta: "'Turn Into a Table' and 'Explain Further'",
+      Kapha: "'Test Me' and a short worked example",
     },
   },
   {
     id: "cog-20",
     number: 20,
     domainId: "video_lecture_habits",
-    domainLabel: "Parallel Video Lecture Habits",
-    prompt: "When merging video lectures and study compendiums into a Master Study Book:",
+    domainLabel: "Learn from Videos",
+    prompt: "When you bring lectures and documents together into one study guide:",
     options: {
       Vata: "Format with visual mind-maps, concise cards, and audio-friendly summaries",
       Pitta: "Format with hierarchical numbering, tables, and strict inline citations",

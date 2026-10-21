@@ -1,24 +1,19 @@
 "use client";
 
 import React, { Suspense, useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Smartphone, Tablet } from "lucide-react";
+import AppChrome from "@/components/layout/AppChrome";
+import { tabClass, ui } from "@/components/ui/classes";
 import { createClient } from "@/lib/supabase/client";
 import { detectDeviceCategory } from "@/lib/supabase/device-lock";
 import type { DeviceCategory } from "@/lib/supabase/types";
 
-const labelClass =
-  "mb-1.5 block text-xs tracking-[0.14em] text-[#A1A1AA] uppercase";
-const inputClass =
-  "min-h-12 w-full rounded-xl border border-white/10 bg-[#050505] px-4 text-sm text-[#FAFAFA] placeholder:text-[#71717A] outline-none focus:border-white/30";
-const primaryButtonClass =
-  "flex min-h-12 w-full items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50";
-const secondaryButtonClass =
-  "flex min-h-12 w-full items-center justify-center rounded-xl border border-white/20 px-5 py-3 text-sm text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50";
-const noticeClass =
-  "rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-sm leading-relaxed text-[#E2E8F0]";
+const labelClass = ui.label;
+const inputClass = ui.input;
+const primaryButtonClass = `${ui.primary} w-full`;
+const secondaryButtonClass = `${ui.secondary} w-full`;
+const noticeClass = ui.notice;
 
 function describeAuthLinkError(params: URLSearchParams): string | null {
   const code = params.get("error_code");
@@ -54,14 +49,6 @@ function readAuthLinkError(searchParams: { get(name: string): string | null }): 
   } catch {
     return null;
   }
-}
-
-function tabClass(active: boolean): string {
-  return `min-h-11 rounded-xl border px-3 py-2 text-sm transition ${
-    active
-      ? "border-white/30 bg-white/5 text-[#E2E8F0]"
-      : "border-transparent text-[#71717A] hover:text-[#A1A1AA]"
-  }`;
 }
 
 export default function AuthPage() {
@@ -277,29 +264,11 @@ function AuthScreen() {
   const heading = mode === "sign_up" ? "Create account" : "Sign in";
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#FAFAFA]">
-      <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col px-4 py-8">
-        <Link href="/" className="mb-6 inline-flex min-h-11 items-center gap-3 self-start">
-          <Image
-            src="/logo.png"
-            alt="Oryzen Learn"
-            width={48}
-            height={48}
-            className="h-12 w-12 rounded-2xl object-cover"
-          />
-          <span>
-            <span className="block text-sm font-medium tracking-tight text-[#FAFAFA]">
-              Oryzen Learn
-            </span>
-            <span className="block text-[11px] text-[#71717A]">
-              Adaptive Intelligence & Focus Reader
-            </span>
-          </span>
-        </Link>
-
-        <section className="rounded-2xl border border-white/10 bg-[#101010] p-6 sm:p-8">
-          <h1 className="text-3xl font-medium tracking-tight text-[#FAFAFA]">{heading}</h1>
-          <p className="mt-2 text-sm text-[#71717A]">
+    <AppChrome nav="marketing" subtitle="Your personal learning environment" maxWidthClass="max-w-lg">
+      <main className="mx-auto flex w-full max-w-lg flex-col px-4 py-8">
+        <section className={ui.cardPad}>
+          <h1 className={`${ui.heading} text-3xl`}>{heading}</h1>
+          <p className="mt-2 text-sm text-muted">
             {mode === "sign_up"
               ? "Email, password, and an optional name."
               : "Email and password for your account."}
@@ -366,7 +335,7 @@ function AuthScreen() {
                       Email
                     </label>
                     <div className="relative">
-                      <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-[#71717A]" />
+                      <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-muted" />
                       <input
                         id="student-email"
                         type="email"
@@ -392,14 +361,14 @@ function AuthScreen() {
                     type="button"
                     suppressHydrationWarning
                     onClick={() => setUseOneTimeCode(false)}
-                    className="text-xs text-[#A1A1AA] underline-offset-4 hover:text-[#E2E8F0] hover:underline"
+                    className="text-xs text-muted underline-offset-4 hover:text-heading hover:underline"
                   >
                     Use email and password instead
                   </button>
                 </form>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-sm leading-relaxed text-[#A1A1AA]">
+                  <p className="text-sm leading-relaxed text-muted">
                     The email titled “Your sign-in link” has a Sign in link and no numeric code. Open that link to continue.
                   </p>
                   <button
@@ -409,7 +378,7 @@ function AuthScreen() {
                       setOtpSent(false);
                       setUseOneTimeCode(false);
                     }}
-                    className="text-xs text-[#A1A1AA] underline-offset-4 hover:text-[#E2E8F0] hover:underline"
+                    className="text-xs text-muted underline-offset-4 hover:text-heading hover:underline"
                   >
                     Use a different email
                   </button>
@@ -426,7 +395,7 @@ function AuthScreen() {
               >
                 <div>
                   <label htmlFor="student-name" className={labelClass}>
-                    Full name <span className="normal-case tracking-normal text-[#71717A]">(optional)</span>
+                    Full name <span className="normal-case tracking-normal text-muted">(optional)</span>
                   </label>
                   <input
                     id="student-name"
@@ -444,7 +413,7 @@ function AuthScreen() {
                     Email
                   </label>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-[#71717A]" />
+                    <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-muted" />
                     <input
                       id="student-email"
                       type="email"
@@ -482,7 +451,7 @@ function AuthScreen() {
                 >
                   {pendingAction === "sign_up" ? "Creating account..." : "Create account"}
                 </button>
-                <p className="text-xs leading-relaxed text-[#71717A]">
+                <p className="text-xs leading-relaxed text-muted">
                   Creating an account signs you in on this page. No confirmation email.
                 </p>
               </form>
@@ -500,7 +469,7 @@ function AuthScreen() {
                     Email
                   </label>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-[#71717A]" />
+                    <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-muted" />
                     <input
                       id="student-email"
                       type="email"
@@ -551,7 +520,7 @@ function AuthScreen() {
                   setStatusMessage(null);
                   setPasswordMismatch(false);
                 }}
-                className="text-xs text-[#71717A] underline-offset-4 hover:text-[#A1A1AA] hover:underline"
+                className="text-xs text-muted underline-offset-4 hover:text-heading hover:underline"
               >
                 Email me a sign-in link instead
               </button>
@@ -559,23 +528,21 @@ function AuthScreen() {
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-[#222222] bg-[#161616] p-4">
-          <p className="text-xs tracking-[0.14em] text-[#71717A] uppercase">This device</p>
+        <section className={`${ui.card} mt-4 p-4`}>
+          <p className={ui.eyebrow}>This device</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               suppressHydrationWarning
               onClick={() => setDeviceType("tablet")}
               className={`flex min-h-16 items-center gap-3 rounded-xl border px-3 py-3 text-left ${
-                deviceType === "tablet"
-                  ? "border-white/30 bg-white/5 text-[#E2E8F0]"
-                  : "border-white/10 text-[#A1A1AA]"
+                deviceType === "tablet" ? ui.selected : ui.idle
               }`}
             >
               <Tablet className="h-4 w-4 shrink-0" />
               <span>
                 <span className="block text-sm">Study Tablet</span>
-                <span className="block text-[11px] text-[#71717A]">iPad / Android Tab</span>
+                <span className="block text-[11px] text-muted">iPad / Android Tab</span>
               </span>
             </button>
             <button
@@ -583,20 +550,18 @@ function AuthScreen() {
               suppressHydrationWarning
               onClick={() => setDeviceType("phone")}
               className={`flex min-h-16 items-center gap-3 rounded-xl border px-3 py-3 text-left ${
-                deviceType === "phone"
-                  ? "border-white/30 bg-white/5 text-[#E2E8F0]"
-                  : "border-white/10 text-[#A1A1AA]"
+                deviceType === "phone" ? ui.selected : ui.idle
               }`}
             >
               <Smartphone className="h-4 w-4 shrink-0" />
               <span>
                 <span className="block text-sm">Study Phone</span>
-                <span className="block text-[11px] text-[#71717A]">iPhone / Android</span>
+                <span className="block text-[11px] text-muted">iPhone / Android</span>
               </span>
             </button>
           </div>
         </section>
       </main>
-    </div>
+    </AppChrome>
   );
 }

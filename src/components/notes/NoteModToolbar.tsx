@@ -13,28 +13,28 @@ export interface NoteModButtonSpec {
 export const NOTE_MODIFICATION_BUTTONS: readonly NoteModButtonSpec[] = [
   {
     action: "add_detail",
-    label: "Add Detail",
-    shortTag: "Expand the explanation",
+    label: "Explain Further",
+    shortTag: "Add a fuller explanation",
   },
   {
     action: "subtract_detail",
-    label: "Simplify",
-    shortTag: "Distill to exam essence",
+    label: "Make It Easier",
+    shortTag: "Use simpler language",
   },
   {
     action: "illustrative_example",
-    label: "Example",
-    shortTag: "Add a quick analogy",
+    label: "Show an Example",
+    shortTag: "Add a concrete example",
   },
   {
     action: "ayurvedic_lens",
-    label: "Constitution Lens",
-    shortTag: "Map the note to Vata, Pitta, and Kapha",
+    label: "Explore My Learning Approach",
+    shortTag: "See this through your study preferences",
   },
   {
     action: "convert_table_flowchart",
-    label: "Table",
-    shortTag: "Turn into a recall matrix",
+    label: "Turn Into a Table",
+    shortTag: "Organize this as a table",
   },
 ] as const;
 
@@ -67,7 +67,7 @@ export default function NoteModToolbar({
           title={btn.shortTag}
           data-testid={`note-mod-btn-${noteId}-${btn.action}`}
           onClick={() => onModifyNote(btn.action)}
-          className="inline-flex min-h-[44px] items-center rounded-full border border-zinc-200/60 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/80 px-4 py-2 text-xs font-medium text-zinc-700 dark:text-zinc-200 transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+          className="btn-secondary text-xs disabled:opacity-50"
         >
           {btn.label}
         </button>

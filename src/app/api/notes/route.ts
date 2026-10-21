@@ -28,7 +28,7 @@ export async function GET() {
     return NextResponse.json(
       {
         error: missingTable(subjects.error.message)
-          ? "My Notes is not installed on the database yet."
+          ? "Your notebook isn't ready yet. Please try again in a moment."
           : subjects.error.message,
       },
       { status: 500 }

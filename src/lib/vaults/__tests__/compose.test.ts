@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { answerFromTextbook, composeStudyNotes } from "@/lib/vaults/compose";
-import { buildPlainPdf } from "@/lib/vaults/download";
+import { buildPlainPdf, downloadBlob, safeDownloadName } from "@/lib/vaults/download";
+import { MAX_TEXTBOOK_PAGES } from "@/lib/vaults/extract-pdf";
+import { isOwnedVaultPath, vaultStoragePath } from "@/lib/vaults/paths";
 import { annotationsToMarkdown } from "@/lib/reader/annotations";
 
 describe("subject vault study material", () => {
@@ -39,5 +41,34 @@ describe("subject vault study material", () => {
     ]);
     expect(markdown).toContain("Page 2");
     expect(markdown.toLowerCase()).not.toContain("compendium");
+  });
+
+  it("keeps textbook extraction bounded and stores files under the owner path", () => {
+    expect(MAX_TEXTBOOK_PAGES).toBe(80);
+    const path = vaultStoragePath("user-1", "vault-1", "source-1");
+    expect(path).toBe("users/user-1/vaults/vault-1/source-1.pdf");
+    expect(isOwnedVaultPath(path, "user-1", "vault-1")).toBe(true);
+    expect(isOwnedVaultPath(path, "user-2", "vault-1")).toBe(false);
+  });
+
+  it("triggers a named file download for markdown, text, and PDF", () => {
+    const clicked: string[] = [];
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function clickStub() {
+      clicked.push(this.download);
+    };
+    try {
+      downloadBlob(safeDownloadName("CNS Notes", "md"), new Blob(["# note"], { type: "text/markdown" }));
+      downloadBlob(safeDownloadName("CNS Notes", "txt"), new Blob(["note"], { type: "text/plain" }));
+      downloadBlob(
+        safeDownloadName("CNS Notes", "pdf"),
+        new Blob([new Uint8Array(buildPlainPdf("Notes", "Body"))], {
+          type: "application/pdf",
+        })
+      );
+    } finally {
+      HTMLAnchorElement.prototype.click = originalClick;
+    }
+    expect(clicked).toEqual(["cns-notes.md", "cns-notes.txt", "cns-notes.pdf"]);
   });
 });

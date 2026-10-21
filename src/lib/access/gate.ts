@@ -34,11 +34,12 @@ export function safeInternalPath(value: string | null | undefined): string | nul
 export function destinationAfterAuth(input: {
   accessStatus: string | null | undefined;
   role: string | null | undefined;
+  /** Kept for callers; assessment is optional and does not gate the hub. */
   hasBodyType?: boolean;
 }): "/instructor" | "/hub" | "/pricing" | "/body-type" {
   if (canManageClasses(input.role)) return "/instructor";
   if (!isEntitled(input.accessStatus)) return "/pricing";
-  return input.hasBodyType ? "/hub" : "/body-type";
+  return "/hub";
 }
 
 export function decideAccessRedirect(input: {

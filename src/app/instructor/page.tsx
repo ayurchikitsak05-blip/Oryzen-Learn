@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
+import AppChrome from "@/components/layout/AppChrome";
+import { ui } from "@/components/ui/classes";
 import { formatInviteCode } from "@/lib/access/gate";
 
 interface InviteCodeRow {
@@ -116,22 +117,21 @@ export default function InstructorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="px-4 pt-5 md:px-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between rounded-full border border-zinc-800 bg-zinc-900 px-5 py-2.5">
-          <OryzenLearnBrand subtitle="Class desk" />
-          <Link href="/hub" className="min-h-[44px] rounded-full px-3 py-2 text-sm font-medium text-zinc-500">
-            Study hub
-          </Link>
-        </div>
-      </header>
+    <AppChrome
+      nav="marketing"
+      subtitle="Class desk"
+      maxWidthClass="max-w-5xl"
+      actions={
+        <Link href="/hub" className={ui.ghost}>
+          Learning space
+        </Link>
+      }
+    >
       <main className="mx-auto max-w-5xl space-y-8 px-4 py-10 md:px-8">
         <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">
-            Instructor
-          </p>
-          <h1 className="mt-2 text-4xl font-semibold tracking-tight">Class desk</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
+          <p className={ui.eyebrow}>Instructor</p>
+          <h1 className={`${ui.heading} mt-2 text-4xl`}>Class desk</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
             Generate a batch code for seats your institute has purchased, share the invite link,
             and grant or revoke student access.
           </p>
@@ -149,52 +149,52 @@ export default function InstructorPage() {
         )}
 
         <section className="grid gap-4 md:grid-cols-2">
-          <form onSubmit={createCode} className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5">
+          <form onSubmit={createCode} className={ui.cardPad}>
             <h2 className="text-lg font-semibold">Batch access code</h2>
-            <label className="mt-4 block text-xs font-medium text-zinc-500">
+            <label className="mt-4 block text-xs font-medium text-muted">
               Batch name
               <input
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
-                className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100"
+                className={`${ui.input} mt-1`}
               />
             </label>
-            <label className="mt-3 block text-xs font-medium text-zinc-500">
+            <label className="mt-3 block text-xs font-medium text-muted">
               Seats
               <input
                 type="number"
                 min={1}
                 value={seatLimit}
                 onChange={(event) => setSeatLimit(Number(event.target.value))}
-                className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100"
+                className={`${ui.input} mt-1`}
               />
             </label>
             <button
               type="submit"
-              className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-white px-4 text-sm font-medium text-zinc-950 hover:bg-zinc-200"
+              className={`${ui.primary} mt-4`}
             >
               Generate code
             </button>
           </form>
 
-          <form onSubmit={grantByEmail} className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5">
+          <form onSubmit={grantByEmail} className={ui.cardPad}>
             <h2 className="text-lg font-semibold">Grant a student</h2>
-            <p className="mt-2 text-sm text-zinc-500">
+            <p className="mt-2 text-sm text-muted">
               The student needs an account already. Otherwise share a batch code.
             </p>
-            <label className="mt-4 block text-xs font-medium text-zinc-500">
+            <label className="mt-4 block text-xs font-medium text-muted">
               Student email
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100"
+                className={`${ui.input} mt-1`}
               />
             </label>
             <button
               type="submit"
-              className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-zinc-700 px-4 text-sm font-medium"
+              className={`${ui.secondary} mt-4`}
             >
               Grant class access
             </button>
@@ -204,9 +204,9 @@ export default function InstructorPage() {
         <section>
           <h2 className="text-lg font-semibold">Invite codes</h2>
           {loading ? (
-            <p className="mt-3 text-sm text-zinc-500">Loading class records...</p>
+            <p className="mt-3 text-sm text-muted">Loading class records...</p>
           ) : codes.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">No codes yet.</p>
+            <p className="mt-3 text-sm text-muted">No codes yet.</p>
           ) : (
             <ul className="mt-3 space-y-3">
               {codes.map((code) => {
@@ -215,15 +215,15 @@ export default function InstructorPage() {
                 return (
                   <li
                     key={code.id}
-                    className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 text-sm"
+                    className={`${ui.card} p-4 text-sm`}
                   >
                     <p className="font-semibold tracking-wide">{display}</p>
-                    <p className="mt-1 text-zinc-500">
+                    <p className="mt-1 text-muted">
                       {code.label || "Untitled batch"} · {code.seats_used}
                       {code.seat_limit ? ` / ${code.seat_limit}` : ""} seats
                       {code.revoked ? " · turned off" : ""}
                     </p>
-                    <p className="mt-2 break-all text-zinc-500">{link}</p>
+                    <p className="mt-2 break-all text-muted">{link}</p>
                   </li>
                 );
               })}
@@ -234,17 +234,17 @@ export default function InstructorPage() {
         <section>
           <h2 className="text-lg font-semibold">Enrolled students</h2>
           {students.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-500">No students enrolled yet.</p>
+            <p className="mt-3 text-sm text-muted">No students enrolled yet.</p>
           ) : (
             <ul className="mt-3 space-y-3">
               {students.map((student) => (
                 <li
                   key={student.enrollment_id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-4"
+                  className={`${ui.card} flex flex-wrap items-center justify-between gap-3 p-4`}
                 >
                   <div>
                     <p className="text-sm font-medium">{student.full_name || student.email}</p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-muted">
                       {student.email} · {student.access_status} · {student.enrollment_status}
                     </p>
                   </div>
@@ -252,14 +252,14 @@ export default function InstructorPage() {
                     <button
                       type="button"
                       onClick={() => void setAccess(student.student_id, "grant")}
-                      className="min-h-[44px] rounded-full bg-white px-3 text-xs font-medium text-zinc-950 hover:bg-zinc-200"
+                      className={`${ui.primary} text-xs`}
                     >
                       Grant
                     </button>
                     <button
                       type="button"
                       onClick={() => void setAccess(student.student_id, "revoke")}
-                      className="min-h-[44px] rounded-full border border-zinc-700 px-3 text-xs font-medium"
+                      className={`${ui.secondary} text-xs`}
                     >
                       Revoke
                     </button>
@@ -270,6 +270,6 @@ export default function InstructorPage() {
           )}
         </section>
       </main>
-    </div>
+    </AppChrome>
   );
 }

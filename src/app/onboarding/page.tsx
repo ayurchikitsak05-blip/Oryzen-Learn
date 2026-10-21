@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import {
   calculatePrakritiProfile,
-  COGNITIVE_METRIC_LABELS,
   DOSHA_STUDY_PRESETS,
   PRAKRITI_PROFILE_LABELS,
   type Dosha,
@@ -32,7 +31,9 @@ import {
   savePrakritiProfileToDatabase,
 } from "@/lib/supabase/profile-sync";
 import { createClient } from "@/lib/supabase/client";
-import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
+import { modernProfileHeadline } from "@/lib/study/body-type";
+import AppChrome from "@/components/layout/AppChrome";
+import { choiceClass, ui } from "@/components/ui/classes";
 
 type OnboardingStep = 1 | 2 | 3;
 
@@ -65,11 +66,11 @@ function QuestionCard({
   onSelect: (dosha: Dosha) => void;
 }) {
   return (
-    <article className="rounded-3xl border border-amber-500/30 bg-black p-5 shadow-xl shadow-black/30">
-      <p className="text-xs font-medium uppercase tracking-widest text-amber-200">
+    <article className={ui.cardPad}>
+      <p className={ui.eyebrow}>
         Question {question.number} · {question.domainLabel}
       </p>
-      <h3 className="mt-3 text-xl font-semibold tracking-tight text-white">
+      <h3 className={`${ui.heading} mt-3 text-xl`}>
         {question.prompt}
       </h3>
       <div className="mt-5 space-y-3">
@@ -80,11 +81,7 @@ function QuestionCard({
               key={`${question.id}-${dosha}`}
               type="button"
               onClick={() => onSelect(dosha)}
-              className={`flex min-h-[52px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm leading-relaxed transition-colors ${
-                chosen
-                  ? "border-amber-200/40 bg-amber-950/50 font-medium text-amber-50"
-                  : "border-amber-500/30 bg-zinc-950 text-amber-100 hover:border-amber-200/40"
-              }`}
+              className={choiceClass(chosen)}
             >
               <span>{question.options[dosha]}</span>
               {chosen ? <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
@@ -208,7 +205,7 @@ export default function PrakritiOnboardingPage() {
           basicScores,
           readingScores,
         });
-        setSaveStatus("Your body type is saved. Opening your studio...");
+        setSaveStatus("Your learning profile is saved. Opening your learning space...");
       } else {
         const apiRes = await fetch("/api/profile/prakriti", {
           method: "POST",
@@ -221,9 +218,9 @@ export default function PrakritiOnboardingPage() {
         });
 
         if (apiRes.ok) {
-          setSaveStatus("Your body type is saved. Opening your studio...");
+          setSaveStatus("Your learning profile is saved. Opening your learning space...");
         } else {
-          setSaveStatus("Saved on this device. Opening your studio...");
+          setSaveStatus("Saved on this device. Opening your learning space...");
         }
       }
 
@@ -234,7 +231,7 @@ export default function PrakritiOnboardingPage() {
       const msg =
         err instanceof Error
           ? err.message
-          : "Failed to save Body Type Profile.";
+          : "We couldn't save your learning profile. Please try again.";
       setSaveError(msg);
     } finally {
       setSaving(false);
@@ -243,7 +240,7 @@ export default function PrakritiOnboardingPage() {
 
   const goToStep = (next: OnboardingStep) => {
     if (next === 2 && inputMode === "questions" && !physicalComplete) {
-      setFormNotice("Answer each constitution question before opening study habits.");
+      setFormNotice("Answer each question about your energy and pace before continuing.");
       return;
     }
     if (next === 3 && inputMode === "questions" && (!physicalComplete || !readingComplete)) {
@@ -296,44 +293,44 @@ export default function PrakritiOnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 font-sans text-amber-100">
-      <header className="sticky top-0 z-20 border-b border-amber-500/30 bg-black/90 px-4 py-3.5 backdrop-blur-md md:px-8">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-4">
-            <OryzenLearnBrand subtitle="Adaptive Intelligence & Focus Reader" />
-            <h1 className="text-lg font-semibold tracking-tight text-white md:text-xl">
-              Discover Your Cognitive Prakriti
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setInputMode((prev) =>
-                  prev === "questions" ? "sliders" : "questions"
-                )
-              }
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-amber-500/30 px-3.5 py-2 text-xs font-medium text-amber-100"
-            >
-              <Sliders className="h-4 w-4 text-amber-200" />
-              {inputMode === "questions" ? "Questions" : "Sliders"}
-            </button>
-
-            <Link
-              href="/body-type"
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-amber-500/30 px-4 text-xs font-medium text-amber-100"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Link>
-          </div>
+    <AppChrome
+      nav="marketing"
+      subtitle="Your Learning Rhythm"
+      maxWidthClass="max-w-3xl"
+      actions={
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              setInputMode((prev) =>
+                prev === "questions" ? "sliders" : "questions"
+              )
+            }
+            className={ui.secondary}
+          >
+            <Sliders className="h-4 w-4" />
+            {inputMode === "questions" ? "Questions" : "Sliders"}
+          </button>
+          <Link href="/body-type" className={ui.ghost}>
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Link>
         </div>
-      </header>
-
+      }
+    >
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-8">
+        <div>
+          <p className={ui.eyebrow}>Your Learning Rhythm</p>
+          <h1 className={`${ui.heading} mt-2 text-3xl`}>Discover Your Learning Rhythm</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            This explores your preferences, routines, and focus habits, with an
+            Ayurveda-inspired perspective. It is a starting point for how you
+            study, not a scientific claim about intelligence, memory, or academic
+            performance.
+          </p>
+        </div>
         {formNotice && (
-          <p role="status" className="text-sm font-medium text-amber-100">
+          <p role="status" className="text-sm font-medium text-heading">
             {formNotice}
           </p>
         )}
@@ -342,8 +339,8 @@ export default function PrakritiOnboardingPage() {
           {[
             {
               num: 1 as OnboardingStep,
-              title: "Constitution",
-              sub: "How your energy shows up",
+              title: "Your energy",
+              sub: "How your pace shows up",
             },
             {
               num: 2 as OnboardingStep,
@@ -353,7 +350,7 @@ export default function PrakritiOnboardingPage() {
             {
               num: 3 as OnboardingStep,
               title: "Your result",
-              sub: "Primary body type",
+              sub: "Your study preferences",
             },
           ].map((item) => {
             const active = step === item.num;
@@ -363,13 +360,11 @@ export default function PrakritiOnboardingPage() {
                 type="button"
                 onClick={() => goToStep(item.num)}
                 className={`flex min-h-[56px] flex-col justify-center rounded-2xl border px-4 py-3 text-left ${
-                  active
-                    ? "border-amber-200/40 bg-amber-950/50 text-amber-50"
-                    : "border-amber-500/30 bg-zinc-950 text-amber-200"
+                  active ? ui.selected : ui.idle
                 }`}
               >
                 <span className="text-sm font-semibold">{item.title}</span>
-                <span className={`text-xs ${active ? "text-amber-200" : "text-amber-100"}`}>
+                <span className={`text-xs ${active ? "text-accent" : "text-muted"}`}>
                   {item.sub}
                 </span>
               </button>
@@ -379,21 +374,21 @@ export default function PrakritiOnboardingPage() {
 
         {/* STEP 1: Basic Physical Prakriti Assessment (25 Questions / Modular Sliders) */}
         {step === 1 && (
-          <section className="space-y-5 rounded-3xl border border-amber-500/30 bg-zinc-950 p-5 shadow-xl shadow-black/30 md:p-6">
-            <div className="border-b border-amber-500/30 pb-4">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-                <HeartPulse className="h-5 w-5 text-amber-200" />
-                Constitution
+          <section className="surface-card space-y-5 p-5 md:p-6">
+            <div className="border-b border-line pb-4">
+              <h2 className="flex items-center gap-2 font-display text-lg text-heading">
+                <HeartPulse className="h-5 w-5 text-accent" />
+                Your energy
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-amber-100">
-                These questions look at energy, appetite, and how you recover.{" "}
-                {COGNITIVE_METRIC_LABELS.dinacharya.fullLabel} shapes the pauses between study blocks.
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                These questions look at energy, appetite, and how you recover.
+                They help suggest pauses between study blocks—not a measure of ability.
               </p>
             </div>
 
             {inputMode === "sliders" ? (
-              <div className="space-y-4 rounded-2xl border border-amber-500/30 bg-black p-4">
-                <h3 className="text-sm font-semibold text-white">
+              <div className="space-y-4 rounded-2xl border border-line bg-beige-2 p-4">
+                <h3 className="text-sm font-semibold text-heading">
                   Physical balance
                 </h3>
                 {(["Vata", "Pitta", "Kapha"] as const).map((dosha) => (
@@ -414,7 +409,7 @@ export default function PrakritiOnboardingPage() {
                           [dosha]: Number(e.target.value),
                         }))
                       }
-                      className="h-6 w-full cursor-pointer accent-amber-200"
+                      className="h-6 w-full cursor-pointer accent-accent"
                     />
                   </div>
                 ))}
@@ -424,7 +419,7 @@ export default function PrakritiOnboardingPage() {
                 key={`physical-${physicalPage}`}
                 className="space-y-4 [animation:oryzen-rise_180ms_ease]"
               >
-                <p className="text-sm text-amber-100">
+                <p className="text-sm text-muted">
                   {questionRangeLabel(
                     visiblePhysical,
                     BASIC_PHYSICAL_PRAKRITI_QUESTIONS.length
@@ -454,7 +449,7 @@ export default function PrakritiOnboardingPage() {
                   if (physicalPage > 0) setPhysicalPage((page) => page - 1);
                 }}
                 disabled={inputMode === "questions" && physicalPage === 0}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/30 px-5 text-sm font-medium text-amber-100 disabled:opacity-40"
+                className="btn-secondary text-sm disabled:opacity-40"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
@@ -462,7 +457,7 @@ export default function PrakritiOnboardingPage() {
               <button
                 type="button"
                 onClick={advancePhysical}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-6 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
+                className="btn-primary text-sm"
               >
                 {inputMode === "questions" && physicalPage < physicalPageCount - 1
                   ? "Next"
@@ -475,22 +470,22 @@ export default function PrakritiOnboardingPage() {
 
         {/* STEP 2: Reading & Cognitive Ability Assessment (20 Questions across 5 Domains) */}
         {step === 2 && (
-          <section className="space-y-5 rounded-3xl border border-amber-500/30 bg-zinc-950 p-5 shadow-xl shadow-black/30 md:p-6">
-            <div className="border-b border-amber-500/30 pb-4">
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-                <Brain className="h-5 w-5 text-amber-200" />
+          <section className="surface-card space-y-5 p-5 md:p-6">
+            <div className="border-b border-line pb-4">
+              <h2 className="flex items-center gap-2 font-display text-lg text-heading">
+                <Brain className="h-5 w-5 text-accent" />
                 Study habits
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-amber-100">
-                {COGNITIVE_METRIC_LABELS.dhee.fullLabel},{" "}
-                {COGNITIVE_METRIC_LABELS.dhriti.fullLabel}, and{" "}
-                {COGNITIVE_METRIC_LABELS.smriti.fullLabel} decide how the reader paces you.
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                These questions look at how quickly you grasp ideas, how long you
+                stay focused, and how you recall them. They help suggest a reading
+                pace you can try.
               </p>
             </div>
 
             {inputMode === "sliders" ? (
-              <div className="space-y-4 rounded-2xl border border-amber-500/30 bg-black p-4">
-                <h3 className="text-sm font-semibold text-white">
+              <div className="space-y-4 rounded-2xl border border-line bg-beige-2 p-4">
+                <h3 className="text-sm font-semibold text-heading">
                   Study-habit balance
                 </h3>
                 {(["Vata", "Pitta", "Kapha"] as const).map((dosha) => (
@@ -511,7 +506,7 @@ export default function PrakritiOnboardingPage() {
                           [dosha]: Number(e.target.value),
                         }))
                       }
-                      className="h-6 w-full cursor-pointer accent-amber-200"
+                      className="h-6 w-full cursor-pointer accent-accent"
                     />
                   </div>
                 ))}
@@ -521,7 +516,7 @@ export default function PrakritiOnboardingPage() {
                 key={`reading-${readingPage}`}
                 className="space-y-4 [animation:oryzen-rise_180ms_ease]"
               >
-                <p className="text-sm text-amber-100">
+                <p className="text-sm text-muted">
                   {questionRangeLabel(
                     visibleReading,
                     READING_COGNITIVE_QUESTIONS.length
@@ -554,7 +549,7 @@ export default function PrakritiOnboardingPage() {
                   }
                   setReadingPage((page) => page - 1);
                 }}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/30 px-5 text-sm font-medium text-amber-100"
+                className="btn-secondary text-sm"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
@@ -562,11 +557,11 @@ export default function PrakritiOnboardingPage() {
               <button
                 type="button"
                 onClick={advanceReading}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-6 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
+                className="btn-primary text-sm"
               >
                 {inputMode === "questions" && readingPage < readingPageCount - 1
                   ? "Next"
-                  : "See my cognitive prakriti"}
+                  : "See my learning rhythm"}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -574,27 +569,44 @@ export default function PrakritiOnboardingPage() {
         )}
 
         {step === 3 && (
-          <section className="space-y-6 rounded-3xl border border-amber-500/30 bg-zinc-950 p-5 shadow-xl shadow-black/30 md:p-8">
-            <p className="text-xs font-medium uppercase tracking-widest text-amber-200">
-              Your cognitive prakriti
+          <section className="surface-card space-y-6 p-5 md:p-8">
+            <p className={ui.eyebrow}>
+              Your learning profile
             </p>
-            <h2 className="text-3xl font-semibold tracking-tight text-white">
-              {profile.displayProfileTitle}
+            <h2 className={`${ui.heading} text-3xl`}>
+              {modernProfileHeadline(profile.displayProfileTitle)}
             </h2>
-            <p className="max-w-xl text-base leading-relaxed text-amber-100">
+            <p className="max-w-xl text-base leading-relaxed text-ink">
               {DOSHA_STUDY_PRESETS[profile.primaryDosha].cognitiveSummary}
             </p>
-            <p className="max-w-xl text-sm leading-relaxed text-amber-100">
+            <p className="max-w-xl text-sm leading-relaxed text-muted">
               A comfortable reading stretch for you is about{" "}
               {profile.activeConfiguration.pomodoro.studySprintMinutes} minutes,
               followed by a {profile.activeConfiguration.pomodoro.breakMinutes}
-              -minute pause.
+              -minute pause. These are optional strategies to try—not a measure of
+              ability.
             </p>
+            <details className="max-w-xl rounded-2xl border border-line bg-beige-2 px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium text-heading">
+                About This Approach
+              </summary>
+              <div className="mt-3 space-y-2 text-sm leading-relaxed text-muted">
+                <p>
+                  This reading is inspired by Ayurveda as a way to talk about
+                  energy, pace, and study habits. In that language, this pattern
+                  is called {profile.classification}.
+                </p>
+                <p>
+                  It does not scientifically determine intelligence, memory, or
+                  academic performance.
+                </p>
+              </div>
+            </details>
 
             <div className="max-w-md space-y-2">
               <label
                 htmlFor="student-full-name"
-                className="block text-xs font-medium uppercase tracking-wider text-amber-200"
+                className={ui.label}
               >
                 Name (optional)
               </label>
@@ -604,14 +616,14 @@ export default function PrakritiOnboardingPage() {
                 placeholder="Your full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="min-h-[48px] w-full rounded-2xl border border-amber-500/30 bg-black px-4 text-sm text-amber-100 placeholder:text-amber-100/50 focus:outline-none"
+                className={ui.input}
               />
             </div>
 
             {saveStatus && (
               <div
                 role="status"
-                className="rounded-2xl border border-amber-500/30 bg-black p-4 text-sm font-medium text-amber-100"
+                className={ui.notice}
               >
                 {saveStatus}
               </div>
@@ -620,7 +632,7 @@ export default function PrakritiOnboardingPage() {
             {saveError && (
               <div
                 role="alert"
-                className="rounded-2xl border border-red-400/40 bg-black p-4 text-sm font-medium text-red-200"
+                className={ui.alert}
               >
                 {saveError}
               </div>
@@ -630,7 +642,7 @@ export default function PrakritiOnboardingPage() {
               <button
                 type="button"
                 onClick={() => setStep(2)}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/30 px-5 text-sm font-medium text-amber-100"
+                className="btn-secondary text-sm"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
@@ -639,7 +651,7 @@ export default function PrakritiOnboardingPage() {
                 type="button"
                 disabled={saving}
                 onClick={handleSaveAndFinish}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-6 text-sm font-medium text-amber-100 hover:bg-amber-950/70 disabled:opacity-50"
+                className="btn-primary text-sm disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 {saving ? "Saving..." : "Continue"}
@@ -649,6 +661,6 @@ export default function PrakritiOnboardingPage() {
         )}
 
       </main>
-    </div>
+    </AppChrome>
   );
 }

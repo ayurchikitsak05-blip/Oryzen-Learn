@@ -14,8 +14,8 @@ export const MULTI_LENS_ACTIONS: readonly HighlightLensActionItem[] = [
   {
     id: "ayurvedic",
     emoji: "🌿",
-    label: "Constitution View",
-    shortDesc: "Map the passage to your Prakriti energy",
+    label: "Explore My Learning Approach",
+    shortDesc: "See this idea through your study preferences",
   },
   {
     id: "illustrative",
@@ -32,8 +32,8 @@ export const MULTI_LENS_ACTIONS: readonly HighlightLensActionItem[] = [
   {
     id: "save_passage",
     emoji: "📓",
-    label: "Save passage",
-    shortDesc: "Save with a precise page deep-link",
+    label: "Save to My Notebook",
+    shortDesc: "Keep this idea in My Notebook",
   },
   {
     id: "test_me",
@@ -71,15 +71,15 @@ export default function HighlightToolbar({
     <div
       data-testid="multi-lens-highlight-toolbar"
       role="toolbar"
-      aria-label="Multi-Lens Highlighting Actions"
-      className="backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border border-zinc-200/60 dark:border-zinc-800/60 rounded-3xl shadow-xl shadow-zinc-950/5 p-8"
+      aria-label="Explore this passage"
+      className="surface-card p-5"
     >
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-zinc-500">Five-lens AI</p>
-          <p className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <p className="text-xs font-medium text-muted">Explore this passage</p>
+          <p className="font-display text-sm text-heading">
             Page {pageNumber}
-            <span className="font-normal text-zinc-500">
+            <span className="font-sans font-normal text-muted">
               {" "}
               · {sectionHeading.slice(0, 42)}
             </span>
@@ -90,7 +90,7 @@ export default function HighlightToolbar({
           <button
             type="button"
             onClick={onClearSelection}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-zinc-200/60 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-900/80 px-4 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition-all hover:opacity-90 active:scale-95"
+            className="btn-secondary text-xs"
           >
             Clear
           </button>
@@ -109,8 +109,8 @@ export default function HighlightToolbar({
               onClick={() => onSelectLens(lens.id)}
               className={`flex min-h-[56px] flex-col justify-between rounded-2xl border p-4 text-left transition-all active:scale-95 disabled:opacity-50 ${
                 isSelected
-                  ? "border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-100"
+                  ? "border-beige bg-selected text-heading"
+                  : "border-line bg-surface text-ink"
               }`}
             >
               <div className="flex items-center gap-1.5 text-sm font-medium">
@@ -119,7 +119,7 @@ export default function HighlightToolbar({
               </div>
               <span
                 className={`mt-2 text-[11px] leading-relaxed ${
-                  isSelected ? "opacity-80" : "text-zinc-500"
+                  isSelected ? "opacity-80" : "text-muted"
                 }`}
               >
                 {lens.shortDesc}

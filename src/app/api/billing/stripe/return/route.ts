@@ -46,5 +46,5 @@ export async function GET(request: NextRequest) {
   if (error) {
     return NextResponse.redirect(`${origin}/pricing`);
   }
-  return NextResponse.redirect(`${origin}/body-type`);
+  return NextResponse.redirect(`${origin}/hub`);
 }

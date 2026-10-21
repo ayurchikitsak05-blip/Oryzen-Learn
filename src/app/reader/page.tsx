@@ -68,8 +68,8 @@ function ReaderStudio() {
 
   return (
     <StudioFrame
-      title="Focus Book Reader"
-      eyebrow="Digital Reader Studio"
+      title="Your Reading Space"
+      eyebrow="Read & Explore"
       activeDosha={activeDosha}
       onChangeDosha={setActiveDosha}
     >

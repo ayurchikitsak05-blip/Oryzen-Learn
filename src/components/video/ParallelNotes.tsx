@@ -38,12 +38,14 @@ export default function ParallelNotes({
   return (
     <div
       data-testid="parallel-live-sync-notes"
-      className="space-y-6 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border border-zinc-200/60 dark:border-zinc-800/60 rounded-3xl shadow-xl shadow-zinc-950/5 p-8"
+      className="surface-card space-y-6 p-6"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-xs font-medium text-zinc-500">Live notes</p>
-          <h3 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <p className="text-xs font-medium text-muted">
+            Live notes <span className="ml-1 text-[10px] uppercase tracking-wide text-accent">Demo</span>
+          </p>
+          <h3 className="font-display text-lg text-heading">
             {lectureTitle}
           </h3>
         </div>
@@ -53,8 +55,8 @@ export default function ParallelNotes({
           onClick={() => setRevealAllMode((prev) => !prev)}
           className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-4 py-2 text-xs font-medium transition-all active:scale-95 ${
             revealAllMode
-              ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950"
-              : "border border-zinc-200/60 dark:border-zinc-800/60 bg-white/80 dark:bg-zinc-800/70 text-zinc-700 dark:text-zinc-200"
+              ? "bg-selected text-heading"
+              : "border border-line bg-surface text-ink"
           }`}
         >
           <Eye className="h-4 w-4" />
@@ -65,6 +67,12 @@ export default function ParallelNotes({
       </div>
 
       <div className="space-y-4">
+        {notes.length === 0 && (
+          <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-sm leading-relaxed text-muted">
+            No notes yet for this lecture. Sample lectures include demo notes.
+            A video you add does not receive a made-up transcript.
+          </p>
+        )}
         {revealedNotes.map((note) => {
           const isSpeakingNow = activeNote?.id === note.id;
           return (
@@ -73,8 +81,8 @@ export default function ParallelNotes({
               data-testid={`parallel-note-card-${note.id}`}
               className={`rounded-2xl border p-5 space-y-3 transition-all ${
                 isSpeakingNow
-                  ? "border-zinc-900/20 dark:border-white/20 bg-zinc-50 dark:bg-zinc-800/60"
-                  : "border-zinc-200/60 dark:border-zinc-800/60 bg-white/60 dark:bg-zinc-950/40"
+                  ? "border-beige bg-selected"
+                  : "border-line bg-surface"
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -85,32 +93,32 @@ export default function ParallelNotes({
                     onClick={() =>
                       onSeekToTimestamp(note.startSeconds, note.timestampBadge)
                     }
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 px-4 py-2 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
+                    className="btn-primary text-xs"
                   >
                     <Clock className="h-3.5 w-3.5" />
                     {note.timestampBadge}
                   </button>
-                  <h4 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+                  <h4 className="font-display text-sm text-heading">
                     {note.heading}
                   </h4>
                 </div>
 
                 {isSpeakingNow && (
-                  <span className="inline-flex items-center rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1 text-[11px] font-medium text-zinc-500">
+                  <span className="inline-flex items-center rounded-full bg-beige-2 px-3 py-1 text-[11px] font-medium text-muted">
                     Now playing
                   </span>
                 )}
               </div>
 
-              <blockquote className="border-l border-zinc-200 dark:border-zinc-700 pl-3.5 text-sm leading-relaxed italic text-zinc-500">
+              <blockquote className="border-l border-line pl-3.5 text-sm leading-relaxed italic text-muted">
                 &ldquo;{note.speakerTranscript}&rdquo;
               </blockquote>
 
-              <div className="whitespace-pre-line text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+              <div className="whitespace-pre-line text-sm leading-relaxed text-ink">
                 {note.studyNoteMarkdown}
               </div>
 
-              <p className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 px-4 py-3 text-xs leading-relaxed text-zinc-500">
+              <p className="rounded-2xl bg-beige-2 px-4 py-3 text-xs leading-relaxed text-muted">
                 {note.highYieldKeyPoint}
               </p>
 
@@ -125,12 +133,12 @@ export default function ParallelNotes({
         })}
 
         {upcomingCount > 0 && !revealAllMode && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 px-4 py-4 text-xs text-zinc-500">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-line px-4 py-4 text-xs text-muted">
             <span>{upcomingCount} notes still ahead in this lecture</span>
             <button
               type="button"
               onClick={() => setRevealAllMode(true)}
-              className="inline-flex min-h-[44px] items-center rounded-full border border-zinc-200/60 dark:border-zinc-800/60 px-4 py-2 font-medium text-zinc-700 dark:text-zinc-200 transition-all active:scale-95"
+              className="btn-secondary"
             >
               Reveal all
             </button>

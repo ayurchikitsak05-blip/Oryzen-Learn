@@ -1,10 +1,23 @@
 import type { Metadata } from "next";
+import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Oryzen Learn — Adaptive Intelligence & Focus Reader",
+  title: "Oryzen Learn — Your personal learning environment",
   description:
-    "Oryzen Learn combines a Focus Book Reader, synchronized video lectures, and adaptive intelligence for calm, focused study.",
+    "An AI-powered personal learning environment. Read your textbooks, learn from videos, organize your notebook, and discover how you study best.",
 };
 
 export default function RootLayout({
@@ -13,10 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${playfair.variable}`}>
       <body
         suppressHydrationWarning
-        className="antialiased min-h-screen bg-zinc-950 text-zinc-100 selection:bg-zinc-100 selection:text-zinc-950"
+        className="min-h-screen bg-canvas font-sans text-ink antialiased selection:bg-selected selection:text-heading"
       >
         {children}
       </body>

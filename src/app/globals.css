@@ -1,63 +1,198 @@
 @import "tailwindcss";
 
 :root {
-  --theme-vata: #09090b;
-  --theme-pitta: #09090b;
-  --theme-kapha: #09090b;
-  --apple-bg-light: #09090b;
-  --apple-bg-dark: #09090b;
-  --prakriti-bg: #09090b;
-  --prakriti-surface: rgba(24, 24, 27, 0.88);
-  --prakriti-text-primary: #f4f4f5;
-  --prakriti-text-secondary: #a1a1aa;
-  --prakriti-accent: #fafafa;
-  --prakriti-border: rgba(63, 63, 70, 0.8);
-  --prakriti-gradient: radial-gradient(
-    circle at 50% 0%,
-    #18181b 0%,
-    #09090b 75%
-  );
+  --bg: #faf8f5;
+  --bg-secondary: #f7f3ee;
+  --card: #fffdfc;
+  --beige-primary: #e8d9c8;
+  --beige-secondary: #f2e9df;
+  --selected: #ede0d1;
+  --heading: #20242b;
+  --body: #303640;
+  --text-secondary: #59616b;
+  --borders: #e7ded4;
+  --accent: #766454;
+  --focus-ring: #766454;
+  --danger: #8f2f2f;
+  --danger-bg: #f8ecec;
+  --success: #2f5d3a;
+  --success-bg: #eef5ef;
+  --prakriti-bg: var(--bg);
+  --prakriti-surface: var(--card);
+  --prakriti-text-primary: var(--heading);
+  --prakriti-text-secondary: var(--text-secondary);
+  --prakriti-accent: var(--accent);
+  --prakriti-border: var(--borders);
 }
 
-[data-prakriti-theme="Vata"],
-[data-prakriti-theme="Pitta"],
-[data-prakriti-theme="Kapha"] {
-  --prakriti-bg: #09090b;
-  --prakriti-surface: rgba(24, 24, 27, 0.88);
-  --prakriti-text-primary: #f4f4f5;
-  --prakriti-text-secondary: #a1a1aa;
-  --prakriti-accent: #fafafa;
-  --prakriti-border: rgba(63, 63, 70, 0.8);
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-canvas-2: var(--bg-secondary);
+  --color-surface: var(--card);
+  --color-beige: var(--beige-primary);
+  --color-beige-2: var(--beige-secondary);
+  --color-selected: var(--selected);
+  --color-heading: var(--heading);
+  --color-ink: var(--body);
+  --color-muted: var(--text-secondary);
+  --color-line: var(--borders);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --font-sans: var(--font-sans), Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-display: var(--font-display), "Playfair Display", Georgia, "Times New Roman",
+    serif;
+}
+
+html {
+  background-color: var(--bg);
 }
 
 body {
-  background-color: #09090b;
-  background-image: var(--prakriti-gradient);
+  min-height: 100%;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(ellipse at 8% 0%, rgba(232, 217, 200, 0.55) 0%, transparent 42%),
+    radial-gradient(ellipse at 96% 100%, rgba(242, 233, 223, 0.7) 0%, transparent 38%);
   background-attachment: fixed;
-  color: #f4f4f5;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Display",
-    "SF Pro Text", sans-serif;
+  color: var(--body);
+  font-family: var(--font-sans);
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition:
-    background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    color 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.dark body {
-  background-color: #09090b;
-  background-image: radial-gradient(
-    circle at 50% 0%,
-    #18181b 0%,
-    #09090b 75%
-  );
-  color: #f4f4f5;
+::selection {
+  background: var(--selected);
+  color: var(--heading);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  color: var(--heading);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.btn-primary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.9rem;
+  background: var(--beige-primary);
+  color: var(--heading);
+  border: 1px solid transparent;
+  font-weight: 500;
+  padding: 0.6rem 1.15rem;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--selected);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.9rem;
+  background: var(--card);
+  color: var(--heading);
+  border: 1px solid var(--beige-primary);
+  font-weight: 500;
+  padding: 0.6rem 1.15rem;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--beige-secondary);
+}
+
+.btn-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.9rem;
+  color: var(--accent);
+  padding: 0.45rem 0.75rem;
+}
+
+.btn-ghost:hover {
+  background: var(--beige-secondary);
+}
+
+.field-input {
+  min-height: 44px;
+  width: 100%;
+  border-radius: 0.9rem;
+  border: 1px solid var(--borders);
+  background: var(--card);
+  color: var(--body);
+  padding: 0.55rem 0.9rem;
+}
+
+.field-input::placeholder {
+  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.surface-card {
+  background: var(--card);
+  border: 1px solid var(--borders);
+  border-radius: 1.15rem;
+}
+
+.icon-chip {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.8rem;
+  background: var(--beige-secondary);
+  color: var(--accent);
 }
 
 @keyframes oryzen-rise {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;

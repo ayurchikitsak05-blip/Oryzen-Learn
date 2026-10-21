@@ -48,7 +48,7 @@ export default function SynthesisStudio({
     availableVideoLectures.slice(0, 2).map((v) => v.id)
   );
   const [customTitle, setCustomTitle] = useState<string>(
-    "Cross-Faculty Master Study Book"
+    "My Study Guide"
   );
   const [masterBook, setMasterBook] =
     useState<SynthesizedMasterStudyBook | null>(null);
@@ -113,16 +113,16 @@ export default function SynthesisStudio({
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        <section className="space-y-5 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border border-zinc-200/60 dark:border-zinc-800/60 rounded-3xl shadow-xl shadow-zinc-950/5 p-8 lg:col-span-6">
+        <section className="surface-card space-y-5 p-6 lg:col-span-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-medium text-zinc-500">Compendiums</p>
-              <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+              <p className="text-xs font-medium text-muted">Compendiums</p>
+              <h2 className="mt-1 flex items-center gap-2 font-display text-lg text-heading">
                 <FileText className="h-4 w-4" />
                 Choose at least {MIN_REQUIRED_SOURCES}
               </h2>
             </div>
-            <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1 text-xs font-medium text-zinc-500">
+            <span className="rounded-full bg-beige-2 px-3 py-1 text-xs font-medium text-muted">
               {selectedSourceIds.length} selected
             </span>
           </div>
@@ -138,8 +138,8 @@ export default function SynthesisStudio({
                   onClick={() => toggleSourceSelection(nb.id)}
                   className={`flex min-h-[56px] w-full flex-col justify-between rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
                     isSelected
-                      ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 border-zinc-950 dark:border-white"
-                      : "border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50/70 dark:bg-zinc-800/40 text-zinc-900 dark:text-zinc-100"
+                      ? "border-beige bg-selected text-heading"
+                      : "border-line bg-beige-2 text-ink"
                   }`}
                 >
                   <div className="flex w-full items-center justify-between gap-2">
@@ -148,7 +148,7 @@ export default function SynthesisStudio({
                   </div>
                   <p
                     className={`mt-1 line-clamp-2 text-xs ${
-                      isSelected ? "opacity-80" : "text-zinc-500"
+                      isSelected ? "opacity-80" : "text-muted"
                     }`}
                   >
                     {nb.excerpt}
@@ -159,16 +159,18 @@ export default function SynthesisStudio({
           </div>
         </section>
 
-        <section className="space-y-5 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border border-zinc-200/60 dark:border-zinc-800/60 rounded-3xl shadow-xl shadow-zinc-950/5 p-8 lg:col-span-6">
+        <section className="surface-card space-y-5 p-6 lg:col-span-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-medium text-zinc-500">Lectures</p>
-              <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+              <p className="text-xs font-medium text-muted">
+                Lectures <span className="ml-1 text-[10px] uppercase tracking-wide text-accent">Demo</span>
+              </p>
+              <h2 className="mt-1 flex items-center gap-2 font-display text-lg text-heading">
                 <Video className="h-4 w-4" />
                 Choose at least {MIN_REQUIRED_VIDEO_TRANSCRIPTS}
               </h2>
             </div>
-            <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1 text-xs font-medium text-zinc-500">
+            <span className="rounded-full bg-beige-2 px-3 py-1 text-xs font-medium text-muted">
               {selectedVideoIds.length} selected
             </span>
           </div>
@@ -184,8 +186,8 @@ export default function SynthesisStudio({
                   onClick={() => toggleVideoSelection(lec.id)}
                   className={`flex min-h-[56px] w-full flex-col justify-between rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
                     isSelected
-                      ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 border-zinc-950 dark:border-white"
-                      : "border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50/70 dark:bg-zinc-800/40 text-zinc-900 dark:text-zinc-100"
+                      ? "border-beige bg-selected text-heading"
+                      : "border-line bg-beige-2 text-ink"
                   }`}
                 >
                   <div className="flex w-full items-center justify-between gap-2">
@@ -194,7 +196,7 @@ export default function SynthesisStudio({
                   </div>
                   <span
                     className={`mt-1 text-xs ${
-                      isSelected ? "opacity-80" : "text-zinc-500"
+                      isSelected ? "opacity-80" : "text-muted"
                     }`}
                   >
                     {lec.facultyName} · {lec.notes.length} timed notes
@@ -207,20 +209,20 @@ export default function SynthesisStudio({
           <div className="space-y-3 pt-2">
             <label
               htmlFor="master-book-title"
-              className="block text-xs font-medium text-zinc-500"
+              className="block text-xs font-medium text-muted"
             >
-              Master Study Book title
+              Study guide title
             </label>
             <input
               id="master-book-title"
               type="text"
               value={customTitle}
               onChange={(e) => setCustomTitle(e.target.value)}
-              className="min-h-[44px] w-full rounded-full border border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-800/60 px-4 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none"
+              className="field-input text-sm"
             />
 
             {validationError && (
-              <p className="text-xs text-zinc-500">{validationError}</p>
+              <p className="text-xs text-muted">{validationError}</p>
             )}
 
             <button
@@ -228,17 +230,17 @@ export default function SynthesisStudio({
               data-testid="synthesize-master-book-btn"
               onClick={handleGenerateMasterBook}
               disabled={!canSynthesize}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 px-6 py-3 text-sm font-medium hover:opacity-90 transition-all active:scale-95 disabled:opacity-40"
+              className="btn-primary w-full text-sm disabled:opacity-40"
             >
               <Sparkles className="h-4 w-4" />
-              Create Master Study Book
+              Create My Study Guide
             </button>
 
             {synthesisToast && (
               <p
                 role="status"
                 data-testid="synthesis-success-toast"
-                className="text-xs text-zinc-500"
+                className="text-xs text-muted"
               >
                 {synthesisToast}
               </p>
@@ -250,22 +252,22 @@ export default function SynthesisStudio({
       {masterBook && (
         <section
           data-testid="synthesized-master-study-book"
-          className="space-y-6 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border border-zinc-200/60 dark:border-zinc-800/60 rounded-3xl shadow-xl shadow-zinc-950/5 p-8"
+          className="surface-card space-y-6 p-6"
         >
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="space-y-2">
-              <p className="text-xs font-medium text-zinc-500">
-                Unified Master Study Book · Cognitive Energy Blueprint
+              <p className="text-xs font-medium text-muted">
+                Your study guide
                 <span className="ml-1 opacity-70">({masterBook.prakritiDosha})</span>
               </p>
-              <h3 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+              <h3 className="font-display text-2xl text-heading">
                 {masterBook.title}
               </h3>
-              <p className="max-w-2xl text-sm leading-relaxed text-zinc-500">
+              <p className="max-w-2xl text-sm leading-relaxed text-muted">
                 {masterBook.executiveSummary}
               </p>
             </div>
-            <span className="rounded-full border border-zinc-200/60 dark:border-zinc-800/60 px-4 py-2 text-xs font-medium text-zinc-500">
+            <span className="rounded-full border border-line px-4 py-2 text-xs font-medium text-muted">
               {masterBook.allCitations.length} citations
             </span>
           </div>
@@ -274,12 +276,12 @@ export default function SynthesisStudio({
             {masterBook.sections.map((section) => (
               <article
                 key={section.sectionNumber}
-                className="space-y-3 rounded-2xl border border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50/70 dark:bg-zinc-800/40 p-5"
+                className="space-y-3 rounded-2xl border border-line bg-beige-2 p-5"
               >
-                <h4 className="text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+                <h4 className="font-display text-base text-heading">
                   {section.heading}
                 </h4>
-                <div className="whitespace-pre-line text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+                <div className="whitespace-pre-line text-sm leading-relaxed text-ink">
                   {section.prakritiFormattedBody}
                 </div>
 
@@ -291,8 +293,8 @@ export default function SynthesisStudio({
                       onClick={() => setActiveCitationPreview(cite)}
                       className={`min-h-[44px] rounded-full px-4 py-2 text-xs font-medium transition-all active:scale-95 ${
                         activeCitationPreview?.id === cite.id
-                          ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950"
-                          : "border border-zinc-200/60 dark:border-zinc-800/60 text-zinc-600 dark:text-zinc-300"
+                          ? "bg-selected text-heading"
+                          : "border border-line text-ink"
                       }`}
                     >
                       {cite.badge}
@@ -304,7 +306,7 @@ export default function SynthesisStudio({
           </div>
 
           {activeCitationPreview && (
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-muted">
               {activeCitationPreview.badge} · {activeCitationPreview.title}
               {activeCitationPreview.sourceType === "document"
                 ? ` · Page ${activeCitationPreview.pageNumber}`

@@ -4,7 +4,8 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MoreHorizontal } from "lucide-react";
-import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
+import AppChrome from "@/components/layout/AppChrome";
+import { tabClass, ui } from "@/components/ui/classes";
 import { createClient } from "@/lib/supabase/client";
 import { AUTHORIZED_DOCUMENTS_BUCKET } from "@/lib/supabase/storage";
 import { extractTextbookText } from "@/lib/vaults/extract-pdf";
@@ -39,7 +40,7 @@ const MAX_PDF_BYTES = 200 * 1024 * 1024;
 
 function describeFailure(message: string): string {
   if (/vault_|subject_vaults|schema cache|does not exist/i.test(message)) {
-    return "Subject Vaults are not installed on the database yet. Apply the vault migration, then try again.";
+    return "Your learning library isn't ready yet. Please try again in a moment.";
   }
   return message;
 }
@@ -60,48 +61,28 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
   const [grounded, setGrounded] = useState<"model" | "textbook" | null>(null);
 
   const load = async () => {
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) {
+    const response = await fetch(`/api/vaults?id=${encodeURIComponent(vaultId)}`, {
+      credentials: "same-origin",
+    });
+    const json = (await response.json()) as {
+      vault?: { title: string };
+      sources?: SourceRow[];
+      messages?: MessageRow[];
+      notes?: NoteRow[];
+      error?: string;
+    };
+    if (response.status === 401) {
       router.push(`/auth?next=/vaults/${vaultId}`);
       return;
     }
-    const { data: vault, error: vaultError } = await supabase
-      .from("subject_vaults")
-      .select("title")
-      .eq("id", vaultId)
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
-    if (vaultError || !vault) {
-      setError(describeFailure(vaultError?.message ?? "This subject vault could not be opened."));
+    if (!response.ok || !json.vault) {
+      setError(describeFailure(json.error ?? "This collection could not be opened."));
       return;
     }
-    setTitle(vault.title);
-    const [sourceResult, messageResult, noteResult] = await Promise.all([
-      supabase
-        .from("vault_sources")
-        .select("id, title, storage_path, page_count, created_at")
-        .eq("vault_id", vaultId)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("vault_messages")
-        .select("id, role, content, created_at")
-        .eq("vault_id", vaultId)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("vault_notes")
-        .select("id, kind, title, body_markdown, created_at")
-        .eq("vault_id", vaultId)
-        .order("created_at", { ascending: false }),
-    ]);
-    const firstError = sourceResult.error ?? messageResult.error ?? noteResult.error;
-    if (firstError) {
-      setError(describeFailure(firstError.message));
-      return;
-    }
-    setSources(sourceResult.data ?? []);
-    setMessages((messageResult.data ?? []) as MessageRow[]);
-    setNotes(noteResult.data ?? []);
+    setTitle(json.vault.title);
+    setSources(json.sources ?? []);
+    setMessages((json.messages ?? []) as MessageRow[]);
+    setNotes(json.notes ?? []);
     setError(null);
   };
 
@@ -117,18 +98,20 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
   const saveTitle = async () => {
     const next = title.trim();
     if (!next) return;
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("subject_vaults")
-      .update({ title: next })
-      .eq("id", vaultId);
-    if (updateError) setError(describeFailure(updateError.message));
+    const response = await fetch("/api/vaults", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "rename", id: vaultId, title: next }),
+    });
+    const json = (await response.json()) as { error?: string };
+    if (!response.ok) setError(describeFailure(json.error ?? "The collection could not be renamed."));
     else setRenaming(false);
   };
 
   const uploadPdf = async (file: File) => {
     if (file.type !== "application/pdf") {
-      setError("Choose a PDF textbook.");
+      setError("We couldn't upload this file. Please use a PDF and try again.");
       return;
     }
     if (file.size > MAX_PDF_BYTES) {
@@ -139,38 +122,57 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
     setError(null);
     setStatus("Reading the textbook…");
     try {
-      const supabase = createClient();
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error("Sign in before uploading.");
       const bytes = await file.arrayBuffer();
       const extracted = await extractTextbookText(bytes);
       if (!extracted.excerpt) {
         throw new Error("No readable text was found in this PDF.");
       }
-      const sourceId = crypto.randomUUID();
-      const storagePath = `users/${userData.user.id}/vaults/${vaultId}/${sourceId}.pdf`;
       setStatus("Saving the textbook…");
+      const prepared = await fetch("/api/vaults", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare_upload", vaultId }),
+      });
+      const upload = (await prepared.json()) as {
+        sourceId?: string;
+        storagePath?: string;
+        token?: string;
+        error?: string;
+      };
+      if (!prepared.ok || !upload.sourceId || !upload.storagePath || !upload.token) {
+        throw new Error(upload.error ?? "This document could not be stored.");
+      }
+      const supabase = createClient();
       const { error: uploadError } = await supabase.storage
         .from(AUTHORIZED_DOCUMENTS_BUCKET)
-        .upload(storagePath, file, { contentType: "application/pdf", upsert: false });
+        .uploadToSignedUrl(upload.storagePath, upload.token, file, {
+          contentType: "application/pdf",
+        });
       if (uploadError) throw new Error(uploadError.message);
-      const { error: insertError } = await supabase.from("vault_sources").insert({
-        id: sourceId,
-        vault_id: vaultId,
-        user_id: userData.user.id,
-        title: file.name.replace(/\.pdf$/i, ""),
-        storage_path: storagePath,
-        page_count: extracted.pageCount,
-        excerpt: extracted.excerpt,
+      const registered = await fetch("/api/vaults", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register_source",
+          vaultId,
+          sourceId: upload.sourceId,
+          storagePath: upload.storagePath,
+          title: file.name.replace(/\.pdf$/i, ""),
+          pageCount: extracted.pageCount,
+          excerpt: extracted.excerpt,
+        }),
       });
-      if (insertError) throw new Error(insertError.message);
+      const saved = (await registered.json()) as { error?: string };
+      if (!registered.ok) throw new Error(saved.error ?? "The textbook could not be saved.");
       setStatus(null);
       await load();
     } catch (uploadFailure) {
       setStatus(null);
       setError(
         describeFailure(
-          uploadFailure instanceof Error ? uploadFailure.message : "The textbook could not be saved."
+          uploadFailure instanceof Error ? uploadFailure.message : "We couldn't upload this file. Please check the format and try again."
         )
       );
     } finally {
@@ -186,6 +188,7 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
     try {
       const response = await fetch("/api/vaults/chat", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vaultId, question: trimmed }),
       });
@@ -211,6 +214,7 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
     try {
       const response = await fetch("/api/vaults/generate", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ vaultId, kind }),
       });
@@ -250,38 +254,43 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
   };
 
   const clearChat = async () => {
-    const supabase = createClient();
-    const { error: clearError } = await supabase.from("vault_messages").delete().eq("vault_id", vaultId);
-    if (clearError) setError(describeFailure(clearError.message));
+    const response = await fetch("/api/vaults", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "clear_chat", id: vaultId }),
+    });
+    const json = (await response.json()) as { error?: string };
+    if (!response.ok) setError(describeFailure(json.error ?? "Chat history could not be cleared."));
     else setMessages([]);
     setMenuOpen(false);
   };
 
   const deleteVault = async () => {
-    const supabase = createClient();
-    const paths = sources.map((source) => source.storage_path);
-    if (paths.length > 0) {
-      await supabase.storage.from(AUTHORIZED_DOCUMENTS_BUCKET).remove(paths);
-    }
-    const { error: deleteError } = await supabase.from("subject_vaults").delete().eq("id", vaultId);
-    if (deleteError) {
-      setError(describeFailure(deleteError.message));
+    const response = await fetch("/api/vaults", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", id: vaultId }),
+    });
+    const json = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setError(describeFailure(json.error ?? "The collection could not be removed."));
       return;
     }
     router.push("/vaults");
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-amber-100">
-      <header className="sticky top-0 z-30 px-4 pt-5 md:px-8">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-full border border-amber-500/30 bg-zinc-950/80 px-5 py-2.5 backdrop-blur-xl">
-          <OryzenLearnBrand subtitle="Subject Vault" />
-          <Link href="/vaults" className="inline-flex min-h-[44px] items-center gap-1 text-sm text-amber-200">
-            <ArrowLeft className="h-4 w-4" />
-            All vaults
-          </Link>
-        </div>
-      </header>
+    <AppChrome
+      subtitle="My Learning Library"
+      actions={
+        <Link href="/vaults" className={ui.ghost}>
+          <ArrowLeft className="h-4 w-4" />
+          Back to library
+        </Link>
+      }
+    >
       <main className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         <div className="flex items-start justify-between gap-3">
           {renaming ? (
@@ -295,50 +304,50 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                aria-label="Vault title"
-                className="min-h-[48px] flex-1 rounded-2xl border border-amber-500/30 bg-black px-4 text-2xl font-semibold text-white"
+                aria-label="Collection title"
+                className={`${ui.input} flex-1 text-2xl font-semibold`}
               />
-              <button type="submit" className="text-sm text-amber-100">
+              <button type="submit" className={ui.ghost}>
                 Save
               </button>
             </form>
           ) : (
-            <h1 className="text-3xl font-semibold tracking-tight text-white">{title || "Subject Vault"}</h1>
+            <h1 className={`${ui.heading} text-3xl`}>{title || "Learning library"}</h1>
           )}
           <div className="relative">
             <button
               type="button"
-              aria-label="Vault actions"
+              aria-label="Library actions"
               onClick={() => setMenuOpen((open) => !open)}
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full border border-amber-500/30 text-amber-200"
+              className={`${ui.iconBtn} border border-line`}
             >
               <MoreHorizontal className="h-4 w-4" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 z-20 mt-2 w-48 rounded-2xl border border-amber-500/30 bg-zinc-950 p-2 shadow-xl">
+              <div className="surface-card absolute right-0 z-20 mt-2 w-48 p-2 shadow-[0_16px_40px_-24px_rgba(32,36,43,0.45)]">
                 <button
                   type="button"
-                  className="block min-h-[40px] w-full rounded-xl px-3 text-left text-sm hover:bg-amber-950/40"
+                  className="block min-h-11 w-full rounded-xl px-3 text-left text-sm hover:bg-beige-2"
                   onClick={() => {
                     setRenaming(true);
                     setMenuOpen(false);
                   }}
                 >
-                  Rename Vault
+                  Rename
                 </button>
                 <button
                   type="button"
-                  className="block min-h-[40px] w-full rounded-xl px-3 text-left text-sm hover:bg-amber-950/40"
+                  className="block min-h-11 w-full rounded-xl px-3 text-left text-sm hover:bg-beige-2"
                   onClick={() => void clearChat()}
                 >
-                  Clear Chat History
+                  Clear chat history
                 </button>
                 <button
                   type="button"
-                  className="block min-h-[40px] w-full rounded-xl px-3 text-left text-sm text-red-200 hover:bg-red-950/40"
+                  className="block min-h-11 w-full rounded-xl px-3 text-left text-sm text-danger hover:bg-danger-bg"
                   onClick={() => void deleteVault()}
                 >
-                  Delete Vault
+                  Delete from library
                 </button>
               </div>
             )}
@@ -357,11 +366,7 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`inline-flex min-h-[44px] items-center rounded-full border px-4 text-sm ${
-                tab === id
-                  ? "border-amber-200/40 bg-amber-950/50 text-amber-50"
-                  : "border-amber-500/30 text-amber-200"
-              }`}
+              className={tabClass(tab === id)}
             >
               {label}
             </button>
@@ -369,20 +374,18 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
         </div>
 
         {error && (
-          <p className="mt-4 rounded-2xl border border-red-700/40 bg-red-950/40 px-4 py-3 text-sm text-red-100">
-            {error}
-          </p>
+          <p className={`${ui.alert} mt-4`}>{error}</p>
         )}
-        {status && <p className="mt-4 text-sm text-amber-200">{status}</p>}
+        {status && <p className="mt-4 text-sm text-muted">{status}</p>}
         {grounded === "textbook" && (
-          <p className="mt-3 text-xs text-amber-200">
+          <p className="mt-3 text-xs text-muted">
             Composed from the textbook text. Add a Gemini key to use the model.
           </p>
         )}
 
         {tab === "sources" && (
           <section className="mt-6 space-y-4">
-            <label className="inline-flex min-h-[48px] cursor-pointer items-center rounded-full border border-amber-500/40 bg-amber-950/50 px-5 text-sm font-medium text-amber-100">
+            <label className={`${ui.primary} cursor-pointer`}>
               {busy ? "Working…" : "Upload textbook PDF"}
               <input
                 type="file"
@@ -397,13 +400,13 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
               />
             </label>
             {sources.length === 0 ? (
-              <p className="text-sm text-amber-100">No textbooks yet. Upload a full PDF to index it.</p>
+              <p className={ui.empty}>Your library is ready. Add your first document to begin.</p>
             ) : (
               <ul className="space-y-3">
                 {sources.map((source) => (
-                  <li key={source.id} className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4">
-                    <p className="font-medium text-white">{source.title}</p>
-                    <p className="mt-1 text-sm text-amber-200">{source.page_count} pages indexed</p>
+                  <li key={source.id} className={`${ui.card} p-4`}>
+                    <p className="font-medium text-heading">{source.title}</p>
+                    <p className="mt-1 text-sm text-muted">{source.page_count} pages indexed</p>
                   </li>
                 ))}
               </ul>
@@ -415,15 +418,13 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
           <section className="mt-6 space-y-4">
             <div className="space-y-3">
               {messages.length === 0 && (
-                <p className="text-sm text-amber-100">Ask a question that the uploaded textbooks can answer.</p>
+                <p className="text-sm text-muted">Ask a question that the uploaded textbooks can answer.</p>
               )}
               {messages.map((message) => (
                 <p
                   key={message.id}
                   className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
-                    message.role === "user"
-                      ? "border-amber-200/30 bg-amber-950/40 text-amber-50"
-                      : "border-amber-500/30 bg-black text-amber-100"
+                    message.role === "user" ? ui.selected : ui.idle
                   }`}
                 >
                   {message.content}
@@ -440,14 +441,14 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
               <input
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
-                aria-label="Question for this vault"
+                aria-label="Question for this collection"
                 placeholder="What does this textbook say about the topic?"
-                className="min-h-[48px] flex-1 rounded-2xl border border-amber-500/30 bg-black px-4 text-sm text-amber-50"
+                className={`${ui.input} flex-1`}
               />
               <button
                 type="submit"
                 disabled={busy}
-                className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-amber-500/40 bg-amber-950/50 px-5 text-sm text-amber-100 disabled:opacity-50"
+                className={`${ui.primary} disabled:opacity-50`}
               >
                 Ask
               </button>
@@ -462,7 +463,7 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
                 type="button"
                 disabled={busy}
                 onClick={() => void generate("study_notes")}
-                className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm text-amber-100 disabled:opacity-50"
+                className={`${ui.primary} disabled:opacity-50`}
               >
                 Generate study notes
               </button>
@@ -470,37 +471,37 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
                 type="button"
                 disabled={busy}
                 onClick={() => void generate("recall")}
-                className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 px-4 text-sm text-amber-100 disabled:opacity-50"
+                className={`${ui.secondary} disabled:opacity-50`}
               >
                 Generate recall questions
               </button>
             </div>
             {latestNotes ? (
-              <article className="rounded-3xl border border-amber-500/30 bg-amber-950/20 p-5">
+              <article className={ui.cardPad}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-lg font-semibold text-white">{latestNotes.title}</h2>
+                  <h2 className={`${ui.heading} text-lg`}>{latestNotes.title}</h2>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => downloadNotes("md")} className="text-sm text-amber-100 underline">
+                    <button type="button" onClick={() => downloadNotes("md")} className="text-sm text-heading underline">
                       Download Notes
                     </button>
-                    <button type="button" onClick={() => downloadNotes("txt")} className="text-sm text-amber-200 underline">
+                    <button type="button" onClick={() => downloadNotes("txt")} className="text-sm text-muted underline">
                       Text
                     </button>
-                    <button type="button" onClick={() => downloadNotes("pdf")} className="text-sm text-amber-200 underline">
+                    <button type="button" onClick={() => downloadNotes("pdf")} className="text-sm text-muted underline">
                       PDF
                     </button>
                   </div>
                 </div>
-                <pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-relaxed text-amber-100">
+                <pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-relaxed text-ink">
                   {latestNotes.body_markdown}
                 </pre>
               </article>
             ) : (
-              <p className="text-sm text-amber-100">Generate study notes after a textbook is uploaded.</p>
+              <p className={ui.empty}>Add a document first, then generate study notes from it.</p>
             )}
           </section>
         )}
       </main>
-    </div>
+    </AppChrome>
   );
 }

@@ -189,28 +189,28 @@ export function applyOneTapNoteModification(params: {
 
   switch (action) {
     case "add_detail":
-      return `${cleanOriginal}\n\n➕ **Expanded Study Detail (${prakritiDosha}):** Adds the definition, the mechanism, a worked example, a common exception, and why it matters, anchored at ${citationBadge}.`;
+      return `${cleanOriginal}\n\n➕ **Explain Further:** Adds the definition, the mechanism, a worked example, a common exception, and why it matters, anchored at ${citationBadge}.`;
 
     case "subtract_detail": {
       const firstSentence =
         cleanOriginal.split(/(?<=[.!?])\s+/)[0] ?? cleanOriginal;
-      return `➖ **Core High-Yield Essence ${citationBadge}:** ${firstSentence.slice(
+      return `➖ **Make It Easier ${citationBadge}:** ${firstSentence.slice(
         0,
         180
       )}`;
     }
 
     case "illustrative_example":
-      return `${cleanOriginal}\n\n🎨 **Illustrative Analogy (${citationBadge}):** Think of the idea as a three-channel system: flow (*Vata*), heat (*Pitta*), and structure (*Kapha*) stay in sync so the concept is easy to grasp, hold, and recall.`;
+      return `${cleanOriginal}\n\n🎨 **Show an Example (${citationBadge}):** Think of the idea as a three-channel system: flow, heat, and structure stay in sync so the concept is easy to grasp, hold, and recall. In Ayurveda this is sometimes described as Vata, Pitta, and Kapha.`;
 
     case "ayurvedic_lens":
-      return `${cleanOriginal}\n\n🌿 **Constitution Correlation (${citationBadge}):** Maps the idea onto *Vata* (movement), *Pitta* (transformation), and *Kapha* (stability), then sequences *Dhee*, *Dhriti*, and *Smriti* so the note matches your energy profile.`;
+      return `${cleanOriginal}\n\n🌿 **Explore My Learning Approach (${citationBadge}):** Optional strategies you can try. In Ayurveda this is sometimes mapped to *Vata* (movement), *Pitta* (transformation), and *Kapha* (stability)—not a measure of ability.`;
 
     case "convert_table_flowchart":
       return [
         cleanOriginal,
         ``,
-        `📊 **Structured Flowchart & Differential View (${citationBadge}):**`,
+        `📊 **Turn Into a Table (${citationBadge}):**`,
         "```",
         `[Core Idea] ──► [Mechanism] ──► [Worked Example] ──► [Recall Check]`,
         "```",

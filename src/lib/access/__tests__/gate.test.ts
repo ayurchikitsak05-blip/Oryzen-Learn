@@ -21,13 +21,23 @@ describe("access gate", () => {
     expect(isEntitled(null)).toBe(false);
   });
 
-  it("sends a new sign-in to pricing, the body-type guide, the hub, or the instructor desk", () => {
+  it("sends a new sign-in to pricing, the hub, or the instructor desk", () => {
     expect(destinationAfterAuth({ accessStatus: "none", role: "student" })).toBe(
       "/pricing"
     );
+    expect(
+      destinationAfterAuth({ accessStatus: "revoked", role: "student" })
+    ).toBe("/pricing");
     expect(destinationAfterAuth({ accessStatus: "free", role: "student" })).toBe(
-      "/body-type"
+      "/hub"
     );
+    expect(
+      destinationAfterAuth({
+        accessStatus: "active_paid",
+        role: "student",
+        hasBodyType: false,
+      })
+    ).toBe("/hub");
     expect(
       destinationAfterAuth({
         accessStatus: "active_paid",
@@ -107,6 +117,46 @@ describe("access gate", () => {
         role: "student",
       })
     ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/hub",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/reader",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/notes",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/vaults",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/notes",
+        isAuthenticated: false,
+        accessStatus: null,
+        role: null,
+      })
+    ).toBe("/auth");
   });
 
   it("keeps the instructor desk limited to instructor and admin roles", () => {

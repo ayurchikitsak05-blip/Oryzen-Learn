@@ -22,8 +22,8 @@ export default function MultiSourceSynthesisPage() {
 
   return (
     <StudioFrame
-      title="Synthesize & Merge"
-      eyebrow="Unified Master Study Book"
+      title="Bring Your Knowledge Together"
+      eyebrow="Connect Your Knowledge"
       activeDosha={activeDosha}
       onChangeDosha={setActiveDosha}
     >

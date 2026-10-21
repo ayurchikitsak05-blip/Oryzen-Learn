@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       .eq("user_id", userData.user.id);
     if (sourceError) {
       return NextResponse.json(
-        { error: "Subject Vaults are not installed yet. Apply the vault migration, then try again." },
+        { error: "Your learning library isn't ready yet. Please try again in a moment." },
         { status: 503 }
       );
     }

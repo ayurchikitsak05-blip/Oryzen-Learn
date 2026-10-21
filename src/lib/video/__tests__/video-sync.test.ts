@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createStudentLecture,
   DEFAULT_VIDEO_LECTURES,
   detectVideoRewindFriction,
   extractYouTubeVideoId,
@@ -52,6 +53,23 @@ describe("Layer 4: Parallel Video Lecture Studio Sync Engine (`sync-engine.ts`)"
     expect(stateAt258.revealedNotes).toHaveLength(4);
     expect(stateAt258.activeNote?.timestampBadge).toBe("[04:18]");
     expect(stateAt258.upcomingCount).toBe(0);
+  });
+
+  it("does not invent a transcript for a student-added lecture", () => {
+    const youtube = createStudentLecture({
+      sourceType: "youtube",
+      youtubeVideoId: "abcdefghijk",
+      youtubeUrl: "https://www.youtube.com/watch?v=abcdefghijk",
+    });
+    const local = createStudentLecture({
+      sourceType: "local_mp4",
+      localFileName: "lecture.mp4",
+    });
+    expect(youtube.notes).toEqual([]);
+    expect(local.notes).toEqual([]);
+    expect(getSyncedNotesStateAtTime(youtube.notes, 30, false).revealedNotes).toEqual(
+      []
+    );
   });
 
   it("detects 10-second rewind friction events accurately", () => {

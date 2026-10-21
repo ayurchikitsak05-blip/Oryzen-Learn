@@ -356,11 +356,11 @@ export function buildDeterministicLensPayload(params: {
       return {
         lens_type: "ayurvedic",
         prakriti_dosha: dosha,
-        title: `🌿 Constitution & Energy Correlation (${dosha} Pedagogy)`,
+        title: `Explore My Learning Approach`,
         markdown_body: [
-          `### Prakriti Energy Correlation`,
+          `### Explore My Learning Approach`,
           `Grounded in **"${excerpt}"** ${primaryCitationLabel}:`,
-          `- **Constitution Axis:** Maps the highlighted idea onto *Vata* (movement and change), *Pitta* (precision and transformation), and *Kapha* (stability and retention) ${primaryCitationLabel}.`,
+          `- **Study preferences:** Optional strategies you can try. In Ayurveda this is sometimes mapped to *Vata* (movement and change), *Pitta* (precision and transformation), and *Kapha* (stability and retention) ${primaryCitationLabel}.`,
           `- **Dhee-Dhriti-Smriti Application:** Grasp the claim (*Dhee*), hold attention on the mechanism (*Dhriti*), and schedule a recall check (*Smriti*) ${
             citations[1]?.label ?? primaryCitationLabel
           }.`,
@@ -427,13 +427,13 @@ export function buildDeterministicLensPayload(params: {
       return {
         lens_type: "save_passage",
         prakriti_dosha: dosha,
-        title: `📓 Saved to Deep-Linked Study Compendium`,
+        title: `Saved to My Notebook`,
         markdown_body: [
-          `### Bi-Directional Deep-Linked Note ${primaryCitationLabel}`,
+          `### Saved to My Notebook ${primaryCitationLabel}`,
           `> "${request.selectedText.trim()}"`,
           ``,
-          `- **Deep-Link Coordinates:** \`x:${defaultBox.x}, y:${defaultBox.y}, w:${defaultBox.width}, h:${defaultBox.height}\` on ${primaryCitationLabel}.`,
-          `- **Prakriti Study Note (${dosha}):** Tap the inline citation badge ${primaryCitationLabel} at any time to scroll the virtualized PDF canvas directly back to this exact coordinate.`,
+          `- **Page link:** \`x:${defaultBox.x}, y:${defaultBox.y}, w:${defaultBox.width}, h:${defaultBox.height}\` on ${primaryCitationLabel}.`,
+          `- **Return anytime:** Tap the citation ${primaryCitationLabel} to go back to this exact place in your reading.`,
         ].join("\n"),
         key_points: [
           `Bi-directional coordinate link saved: ${primaryCitationLabel}`,

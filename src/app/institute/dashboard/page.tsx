@@ -271,23 +271,11 @@ export default function InstituteB2BDashboardPage() {
   const currentEntitlements = PLAN_ENTITLEMENTS[quotaState.planTier];
 
   return (
-    <div
-      className="min-h-screen transition-colors duration-200 select-none print:hidden"
-      style={{
-        backgroundColor: theme.backgroundHex,
-        color: theme.textPrimaryHex,
-      }}
-    >
-      <header
-        className="sticky top-0 z-20 border-b px-4 py-3 md:px-8"
-        style={{
-          backgroundColor: theme.surfaceHex,
-          borderColor: theme.borderHex,
-        }}
-      >
+    <div className="min-h-screen bg-canvas text-ink transition-colors duration-200 select-none print:hidden">
+      <header className="sticky top-0 z-20 border-b border-line bg-canvas/92 px-4 py-3 backdrop-blur-md md:px-8">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-4">
-            <OryzenLearnBrand subtitle="Adaptive Intelligence & Focus Reader" />
+            <OryzenLearnBrand subtitle="Your personal learning environment" />
             <div className="min-w-0">
               <h1 className="text-lg font-semibold tracking-tight md:text-xl">
                 {DEFAULT_COACHING_ORGANIZATION.name}
@@ -320,7 +308,7 @@ export default function InstituteB2BDashboardPage() {
 
             <Link
               href="/"
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 px-5 py-2.5 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
+              className="btn-secondary text-xs"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Studio
@@ -807,7 +795,7 @@ export default function InstituteB2BDashboardPage() {
               </div>
 
               {drmAlertMessage && (
-                <div className="rounded-xl border border-amber-700/40 bg-amber-50 p-3 text-xs font-semibold text-amber-950">
+                <div className="rounded-xl border border-line bg-beige-2 p-3 text-xs font-semibold text-heading">
                   {drmAlertMessage}
                 </div>
               )}
@@ -893,7 +881,7 @@ export default function InstituteB2BDashboardPage() {
                   }}
                 >
                   <div className="font-semibold opacity-75">
-                    Body Type Profile Cohort Split
+                    Learning Profile Cohort Split
                   </div>
                   <div className="mt-1 font-mono text-xs font-bold">
                     V: {DEFAULT_BATCH_ANALYTICS.prakritiCohortDistribution.Vata}

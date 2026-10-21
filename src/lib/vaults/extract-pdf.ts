@@ -1,6 +1,7 @@
 import { ensurePdfWorkerConfigured } from "@/lib/reader/pdf-worker";
 
 const EXCERPT_LIMIT = 100_000;
+export const MAX_TEXTBOOK_PAGES = 80;
 
 export async function extractTextbookText(bytes: ArrayBuffer): Promise<{
   pageCount: number;
@@ -12,7 +13,8 @@ export async function extractTextbookText(bytes: ArrayBuffer): Promise<{
   const doc = await pdfjs.getDocument({ data: copy }).promise;
   const parts: string[] = [];
   let used = 0;
-  for (let pageNumber = 1; pageNumber <= doc.numPages; pageNumber += 1) {
+  const lastPage = Math.min(doc.numPages, MAX_TEXTBOOK_PAGES);
+  for (let pageNumber = 1; pageNumber <= lastPage; pageNumber += 1) {
     if (used >= EXCERPT_LIMIT) break;
     const page = await doc.getPage(pageNumber);
     const content = await page.getTextContent();

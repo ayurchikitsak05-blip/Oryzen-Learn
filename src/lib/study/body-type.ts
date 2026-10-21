@@ -48,6 +48,15 @@ export function readSavedBodyType(userId: string | null): SavedBodyType | null {
   }
 }
 
+/** Display-only: drop classical parentheticals without changing stored titles. */
+export function modernProfileHeadline(title: string): string {
+  return title
+    .replace(/\s*\([^)]*\)/g, "")
+    .replace(/\s*\[[^\]]*\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function recommendationBullets(dosha: Dosha): string[] {
   const preset = DOSHA_STUDY_PRESETS[dosha];
   const pacing = `Study in about ${preset.pomodoro.studySprintMinutes}-minute stretches, then rest for ${preset.pomodoro.breakMinutes} minutes.`;

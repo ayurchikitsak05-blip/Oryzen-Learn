@@ -210,7 +210,7 @@ function WordLookupPopup({
     <div
       role="dialog"
       aria-label={`Meaning of ${anchor.word}`}
-      className="fixed z-50 w-72 rounded-2xl border border-zinc-700 bg-zinc-900 p-4 text-left text-zinc-100 shadow-xl shadow-black/40"
+      className="surface-card fixed z-50 w-72 p-4 text-left shadow-[0_16px_40px_-24px_rgba(32,36,43,0.45)]"
       style={{
         top: Math.max(12, anchor.top - 12),
         left: Math.min(window.innerWidth - 300, Math.max(12, anchor.left)),
@@ -219,27 +219,27 @@ function WordLookupPopup({
     >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-zinc-100">
+          <p className="font-display text-sm text-heading">
             {anchor.word}
           </p>
           {entry?.phonetic && (
-            <p className="text-xs text-zinc-500">{entry.phonetic}</p>
+            <p className="text-xs text-muted">{entry.phonetic}</p>
           )}
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="min-h-[32px] rounded-full px-2 text-xs font-medium text-zinc-500"
+          className="min-h-8 rounded-xl px-2 text-xs font-medium text-muted"
         >
           Close
         </button>
       </div>
-      <div className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+      <div className="mt-2 text-sm leading-relaxed text-ink">
         {status === "loading" && "Looking up this word…"}
         {status === "ready" && entry && (
           <>
             {entry.partOfSpeech && (
-              <span className="mr-1 text-xs uppercase tracking-wide text-zinc-400">
+              <span className="mr-1 text-xs uppercase tracking-wide text-muted">
                 {entry.partOfSpeech}
               </span>
             )}
@@ -336,7 +336,7 @@ export default function PassageText({
           return (
             <span
               key={`${segment.start}-${segment.end}`}
-              className={`${segment.highlight ? "rounded-sm bg-amber-500/35 text-amber-50" : ""} ${segment.underline ? "underline decoration-amber-200/70 decoration-2 underline-offset-4" : ""}`}
+              className={`${segment.highlight ? "rounded-sm bg-selected text-heading" : ""} ${segment.underline ? "underline decoration-accent decoration-2 underline-offset-4" : ""}`}
             >
               {pieces.map((piece) => {
                 const start = cursor;
@@ -371,7 +371,7 @@ export default function PassageText({
                         left: rect.left,
                       });
                     }}
-                    className="cursor-pointer rounded-sm hover:bg-zinc-800"
+                    className="cursor-pointer rounded-sm hover:bg-beige-2"
                   >
                     {piece}
                   </span>
@@ -387,7 +387,7 @@ export default function PassageText({
           id="reader-selection-tools"
           role="toolbar"
           aria-label="Highlight, note, copy, and look up"
-          className="fixed z-50 w-[min(22rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-full rounded-2xl border border-amber-500/30 bg-zinc-950 p-2 shadow-xl shadow-black/50"
+          className="surface-card fixed z-50 w-[min(22rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-full p-2 shadow-[0_16px_40px_-24px_rgba(32,36,43,0.45)]"
           style={{ top: Math.max(72, toolbar.top - 8), left: toolbar.left }}
         >
           <div className="flex flex-wrap gap-1">
@@ -395,7 +395,7 @@ export default function PassageText({
               type="button"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => applyMark("highlight")}
-              className="min-h-[36px] rounded-full border border-amber-500/40 bg-amber-950/50 px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/70"
+              className="btn-primary px-3 text-xs"
             >
               Highlight
             </button>
@@ -403,7 +403,7 @@ export default function PassageText({
               type="button"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => setNoting(true)}
-              className="min-h-[36px] rounded-full px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+              className="btn-ghost px-3 text-xs"
             >
               Add Note
             </button>
@@ -415,7 +415,7 @@ export default function PassageText({
                 setToolbar(null);
                 window.getSelection()?.removeAllRanges();
               }}
-              className="min-h-[36px] rounded-full px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+              className="btn-ghost px-3 text-xs"
             >
               Copy
             </button>
@@ -427,7 +427,7 @@ export default function PassageText({
                 setToolbar(null);
                 window.getSelection()?.removeAllRanges();
               }}
-              className="min-h-[36px] rounded-full px-3 text-xs font-medium text-white hover:bg-amber-950/40"
+              className="btn-ghost px-3 text-xs"
             >
               Explain
             </button>
@@ -441,7 +441,7 @@ export default function PassageText({
                 setToolbar(null);
                 window.getSelection()?.removeAllRanges();
               }}
-              className="min-h-[36px] rounded-full px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+              className="btn-ghost px-3 text-xs"
             >
               Look Up
             </button>
@@ -460,18 +460,18 @@ export default function PassageText({
                 window.getSelection()?.removeAllRanges();
               }}
             >
-              <label className="block text-[11px] font-medium uppercase tracking-wide text-amber-200">
+              <label className="block text-[11px] font-medium uppercase tracking-wide text-muted">
                 Margin note
                 <textarea
                   value={noteDraft}
                   onChange={(event) => setNoteDraft(event.target.value)}
                   rows={3}
-                  className="mt-1 w-full rounded-xl border border-amber-500/30 bg-black px-3 py-2 text-sm text-amber-50"
+                  className="field-input mt-1 text-sm"
                 />
               </label>
               <button
                 type="submit"
-                className="inline-flex min-h-[36px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 px-3 text-xs font-medium text-amber-100"
+                className="btn-primary px-3 text-xs"
               >
                 Save note
               </button>

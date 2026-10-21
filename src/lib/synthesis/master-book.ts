@@ -242,12 +242,12 @@ export function synthesizeMasterStudyBook(params: {
     id: `master-book-${Date.now()}`,
     title:
       customTitle?.trim() ||
-      `Prakriti Master Study Book (${prakritiDosha} Edition): ${sources.length} Compendiums + ${videoLectures.length} Video Lectures`,
+      `My Study Guide: ${sources.length} sources and ${videoLectures.length} lectures`,
     prakritiDosha,
     cognitiveDnaDirectiveUsed: cognitiveDnaSummary,
     selectedSourceCount: sources.length,
     selectedVideoTranscriptCount: videoLectures.length,
-    executiveSummary: `Unified synthesis of ${sources.length} personal study compendiums and ${videoLectures.length} timestamped video lectures, formatted for ${prakritiDosha} cognitive ergonomics with ${allCitations.length} verified inline citations.`,
+    executiveSummary: `A study guide that brings together ${sources.length} sources and ${videoLectures.length} lectures, with ${allCitations.length} citations so you can return to each idea.`,
     sections,
     allCitations,
     createdAt: new Date().toISOString(),

@@ -29,7 +29,7 @@ describe("Layer 4: Adaptive Note Modification, Cognitive Memory Engine & Multi-S
         citationBadge: "[04:18]",
         prakritiDosha: "Pitta",
       });
-      expect(expanded).toContain("Expanded Study Detail");
+      expect(expanded).toContain("Explain Further");
       expect(expanded).toContain("[04:18]");
 
       const simplified = applyOneTapNoteModification({
@@ -37,28 +37,28 @@ describe("Layer 4: Adaptive Note Modification, Cognitive Memory Engine & Multi-S
         action: "subtract_detail",
         citationBadge: "[04:18]",
       });
-      expect(simplified).toContain("Core High-Yield Essence [04:18]");
+      expect(simplified).toContain("Make It Easier [04:18]");
 
       const illustrative = applyOneTapNoteModification({
         originalText: baseNote,
         action: "illustrative_example",
         citationBadge: "[04:18]",
       });
-      expect(illustrative).toContain("Illustrative Analogy ([04:18])");
+      expect(illustrative).toContain("Show an Example ([04:18])");
 
       const ayurvedic = applyOneTapNoteModification({
         originalText: baseNote,
         action: "ayurvedic_lens",
         citationBadge: "[04:18]",
       });
-      expect(ayurvedic).toContain("Constitution Correlation ([04:18])");
+      expect(ayurvedic).toContain("Explore My Learning Approach ([04:18])");
 
       const tableFlow = applyOneTapNoteModification({
         originalText: baseNote,
         action: "convert_table_flowchart",
         citationBadge: "[04:18]",
       });
-      expect(tableFlow).toContain("Structured Flowchart & Differential View");
+      expect(tableFlow).toContain("Turn Into a Table");
       expect(tableFlow).toContain("[04:18]");
     });
   });
