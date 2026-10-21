@@ -1,14 +1,20 @@
 /**
  * Layer 3: Controlled AI Gateway & 5-Shield Profit Protection System
  *
+ * Provider-independent: openai | google | mistral | deterministic.
+ * Student UI still calls /api/ai/lens with the same lens ids.
+ *
  * Implements:
  * - Shield 1 (Page-Level RAG): Active page text + top 3 matching chunks (~2,000 token budget).
- * - Shield 2 (Hybrid Model Routing): 90% tasks -> Gemini Flash (`gemini-2.5-flash`),
- *   10% deep integrative tasks -> Gemini Pro (`gemini-2.5-pro`).
+ * - Shield 2 (Task→model map): standard highlight lenses -> preferred Flash-class model,
+ *   deep integrative tasks -> Pro-class. Not locked to Gemini when another key is set.
  * - Shield 3 (Semantic & Selection Caching): `ai_response_cache` keyed by
- *   `(document_hash + page_number + normalized_selection_hash + lens_type)` so repeated highlights cost 0 tokens.
+ *   `(document_hash + page_number + normalized_selection_hash + lens_type + provider)`.
+ *   Missing table is non-fatal; in-memory hash cache always works.
  * - Shield 4 (Internal Wallet Ledger): Tracks token costs in `ai_usage_logs` against a hard
- *   monthly INR cap (e.g., ₹70.00), automatically falling back to `gemini-2.5-flash-lite` when reached.
+ *   monthly INR cap (e.g., ₹70.00), automatically falling back to the cheapest configured model.
+ * - Fallback: preferred provider → next cheapest available key → deterministic compose.
+ *   Paid APIs are never called when no provider keys are set.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -25,11 +31,21 @@ import {
   type StorySections,
   type StudyDiagram,
 } from "./lens-compose";
+import type { GeminiErrorClass } from "./gemini-structured";
 import {
-  generateStructuredGeminiLens,
-  hasUsableGeminiKey,
-  type GeminiErrorClass,
-} from "./gemini-structured";
+  MODEL_CATALOG,
+  TASK_PREFERRED_MODELS,
+  listPriceUsd,
+  usdToInrEstimate,
+  type AiProvider,
+  type GatewayModelId,
+} from "./models";
+import {
+  callProviderStructuredLens,
+  hasAnyPaidProvider,
+  planProviderAttempts,
+  type ProviderErrorClass,
+} from "./providers";
 
 export type {
   AnalogySections,
@@ -44,15 +60,17 @@ export type {
   StudyDiagramNode,
 } from "./lens-compose";
 export type { GeminiErrorClass } from "./gemini-structured";
+export type { AiProvider, GatewayModelId } from "./models";
+export type { ProviderErrorClass } from "./providers";
 
 export type GatewayTaskType =
   | HighlightLensType
   | "deep_integrative_synthesis";
 
-export type GeminiModelTier =
-  | "gemini-2.5-flash"
-  | "gemini-2.5-pro"
-  | "gemini-2.5-flash-lite";
+export type GeminiModelTier = Extract<
+  GatewayModelId,
+  "gemini-2.5-flash" | "gemini-2.5-pro" | "gemini-2.5-flash-lite"
+>;
 
 export const SHIELD_1_MAX_PROMPT_TOKENS = 2000;
 export const SHIELD_1_TOP_K_CHUNKS = 3;
@@ -63,12 +81,15 @@ export const SHIELD_4_SOFT_DOWNGRADE_RATIO = 0.85;
  * Per-1,000-token internal INR cost rates for Shield 4 wallet ledger accounting.
  */
 export const MODEL_COST_PER_1K_TOKENS_INR: Record<
-  GeminiModelTier,
+  GatewayModelId,
   { inputInr: number; outputInr: number }
 > = {
   "gemini-2.5-pro": { inputInr: 0.14, outputInr: 0.42 },
   "gemini-2.5-flash": { inputInr: 0.018, outputInr: 0.054 },
   "gemini-2.5-flash-lite": { inputInr: 0.006, outputInr: 0.018 },
+  "gpt-6-luna": { inputInr: 0.0094, outputInr: 0.0472 },
+  "ministral-3b-2512": { inputInr: 0.0094, outputInr: 0.0094 },
+  deterministic: { inputInr: 0, outputInr: 0 },
 };
 
 export interface InlineCitationCoordinate {
@@ -109,8 +130,11 @@ export interface AiGatewayExecutionResult {
   cacheHit: boolean;
   cacheKey: string;
   normalizedSelectionHash: string;
-  requestedModel: GeminiModelTier;
-  modelUsed: GeminiModelTier;
+  requestedModel: GatewayModelId;
+  modelUsed: GatewayModelId;
+  requestedProvider: AiProvider;
+  providerUsed: AiProvider;
+  usedProviderFallback: boolean;
   downgradedToFlashLite: boolean;
   promptTokens: number;
   completionTokens: number;
@@ -121,8 +145,14 @@ export interface AiGatewayExecutionResult {
   walletCapInr: number;
   ragContextChunksUsed: number;
   usedDeterministicFallback: boolean;
-  fallbackReason: "missing_gemini_key" | "model_error" | "unusable_model_output" | null;
+  fallbackReason:
+    | "missing_gemini_key"
+    | "missing_api_key"
+    | "model_error"
+    | "unusable_model_output"
+    | null;
   geminiErrorClass: GeminiErrorClass | null;
+  providerErrorClass: ProviderErrorClass | null;
   payload: AiLensResponsePayload;
 }
 
@@ -142,7 +172,7 @@ export interface AiGatewayRequest {
   billingMonth?: string;
   supabase?: SupabaseClient | null;
   llmGenerator?: (params: {
-    model: GeminiModelTier;
+    model: GatewayModelId;
     prompt: string;
     request: AiGatewayRequest;
     ragChunks: CitationReadyChunk[];
@@ -151,6 +181,7 @@ export interface AiGatewayRequest {
     promptTokens?: number;
     completionTokens?: number;
   }>;
+  fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
 /**
@@ -176,13 +207,15 @@ export async function buildShield3CacheKey(params: {
   pageNumber: number;
   selectedText: string;
   lensType: GatewayTaskType;
+  provider?: AiProvider;
 }): Promise<{ cacheKey: string; normalizedSelectionHash: string }> {
   const normalizedSelectionHash = await computeNormalizedSelectionHash(
     params.selectedText
   );
+  const providerPart = params.provider ? `|provider:${params.provider}` : "";
   const rawComposite = `${params.documentHash.trim().toLowerCase()}|p:${
     params.pageNumber
-  }|sel:${normalizedSelectionHash}|lens:${params.lensType}`;
+  }|sel:${normalizedSelectionHash}|lens:${params.lensType}${providerPart}`;
   const cacheKey = await computeSha256Hex(rawComposite);
   return { cacheKey, normalizedSelectionHash };
 }
@@ -334,15 +367,20 @@ export function resolveShieldedModelRoute(params: {
 }
 
 export function calculateCallCostInr(
-  model: GeminiModelTier,
+  model: GatewayModelId,
   promptTokens: number,
   completionTokens: number
 ): number {
   const rates = MODEL_COST_PER_1K_TOKENS_INR[model];
-  const cost =
-    (promptTokens / 1000) * rates.inputInr +
-    (completionTokens / 1000) * rates.outputInr;
-  return Number(cost.toFixed(4));
+  if (rates) {
+    const cost =
+      (promptTokens / 1000) * rates.inputInr +
+      (completionTokens / 1000) * rates.outputInr;
+    return Number(cost.toFixed(4));
+  }
+  return Number(
+    usdToInrEstimate(listPriceUsd(model, promptTokens, completionTokens)).toFixed(4)
+  );
 }
 
 /**
@@ -360,7 +398,7 @@ export function buildDeterministicLensPayload(params: {
 const localMemoryResponseCache = new Map<
   string,
   {
-    model_used: GeminiModelTier;
+    model_used: GatewayModelId;
     response_payload: AiLensResponsePayload;
     hit_count: number;
   }
@@ -390,7 +428,7 @@ async function lookupCachedResponse(
     lensType: GatewayTaskType;
   }
 ): Promise<{
-  model_used: GeminiModelTier;
+  model_used: GatewayModelId;
   response_payload: AiLensResponsePayload;
 } | null> {
   if (supabase) {
@@ -406,7 +444,7 @@ async function lookupCachedResponse(
 
       if (!error && data?.response_payload) {
         return {
-          model_used: data.model_used as GeminiModelTier,
+          model_used: data.model_used as GatewayModelId,
           response_payload: data.response_payload as AiLensResponsePayload,
         };
       }
@@ -436,7 +474,7 @@ async function storeCachedResponse(
     normalizedSelectionHash: string;
     lensType: GatewayTaskType;
     prakritiDosha: Dosha;
-    modelUsed: GeminiModelTier;
+    modelUsed: GatewayModelId;
     payload: AiLensResponsePayload;
   }
 ): Promise<void> {
@@ -509,7 +547,7 @@ async function recordWalletUsageLog(
     userId: string;
     billingMonth: string;
     lensType: GatewayTaskType;
-    modelUsed: GeminiModelTier;
+    modelUsed: GatewayModelId;
     promptTokens: number;
     completionTokens: number;
     costInr: number;
@@ -572,22 +610,40 @@ export async function executeControlledAiGateway(
     topK: SHIELD_1_TOP_K_CHUNKS,
   });
 
+  const monthlySpendBeforeInr = await getCurrentMonthlyWalletSpendInr(
+    request.supabase,
+    request.userId,
+    billingMonth
+  );
+
+  // ---------------------------------------------------------------------------
+  // SHIELD 2 (Task map) & SHIELD 4 (Internal Wallet Ceiling Check)
+  // ---------------------------------------------------------------------------
+  const route = resolveShieldedModelRoute({
+    lensType: request.lensType,
+    currentMonthlySpendInr: monthlySpendBeforeInr,
+    walletCapInr,
+  });
+  const preferredModel =
+    route.downgradedToFlashLite
+      ? "gemini-2.5-flash-lite"
+      : TASK_PREFERRED_MODELS[request.lensType];
+  const attempts = planProviderAttempts(preferredModel);
+  const plannedProvider: AiProvider = attempts[0]?.provider ?? "deterministic";
+  const requestedProvider: AiProvider =
+    MODEL_CATALOG[route.requestedModel].provider;
+
   // ---------------------------------------------------------------------------
   // SHIELD 3: Semantic & Selection Cache Lookup
-  // Keyed by (document_hash + page_number + normalized_selection_hash + lens_type)
+  // Keyed by document + page + selection + lens + provider
   // ---------------------------------------------------------------------------
   const { cacheKey, normalizedSelectionHash } = await buildShield3CacheKey({
     documentHash: request.documentHash,
     pageNumber: request.pageNumber,
     selectedText: request.selectedText,
     lensType: request.lensType,
+    provider: plannedProvider,
   });
-
-  const monthlySpendBeforeInr = await getCurrentMonthlyWalletSpendInr(
-    request.supabase,
-    request.userId,
-    billingMonth
-  );
 
   const cached = await lookupCachedResponse(request.supabase, {
     cacheKey,
@@ -598,7 +654,6 @@ export async function executeControlledAiGateway(
   });
 
   if (cached) {
-    // 0 tokens & ₹0.00 cost on cache hit!
     await recordWalletUsageLog(request.supabase, {
       userId: request.userId,
       billingMonth,
@@ -611,12 +666,16 @@ export async function executeControlledAiGateway(
       downgradedToFlashLite: false,
     });
 
+    const cachedFallback = Boolean(cached.response_payload.used_fallback);
     return {
       cacheHit: true,
       cacheKey,
       normalizedSelectionHash,
       requestedModel: cached.model_used,
       modelUsed: cached.model_used,
+      requestedProvider,
+      providerUsed: cachedFallback ? "deterministic" : plannedProvider,
+      usedProviderFallback: false,
       downgradedToFlashLite: false,
       promptTokens: 0,
       completionTokens: 0,
@@ -626,25 +685,13 @@ export async function executeControlledAiGateway(
       monthlySpendAfterInr: monthlySpendBeforeInr,
       walletCapInr,
       ragContextChunksUsed: rag.selectedChunks.length,
-      usedDeterministicFallback: Boolean(cached.response_payload.used_fallback),
-      fallbackReason: cached.response_payload.used_fallback
-        ? "missing_gemini_key"
-        : null,
-      geminiErrorClass: cached.response_payload.used_fallback
-        ? "missing_key"
-        : null,
+      usedDeterministicFallback: cachedFallback,
+      fallbackReason: cachedFallback ? "missing_api_key" : null,
+      geminiErrorClass: cachedFallback ? "missing_key" : null,
+      providerErrorClass: cachedFallback ? "missing_key" : null,
       payload: cached.response_payload,
     };
   }
-
-  // ---------------------------------------------------------------------------
-  // SHIELD 2 (Hybrid Routing) & SHIELD 4 (Internal Wallet Ceiling Check)
-  // ---------------------------------------------------------------------------
-  const route = resolveShieldedModelRoute({
-    lensType: request.lensType,
-    currentMonthlySpendInr: monthlySpendBeforeInr,
-    walletCapInr,
-  });
 
   const systemPrompt = [
     `You are the Oryzen Learn study engine.`,
@@ -652,6 +699,7 @@ export async function executeControlledAiGateway(
     `Explain only the selected passage. Do not invent facts beyond it.`,
     `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
     `Return JSON matching the study lens schema. Diagrams must use nodes and edges, not mermaid or arrow prose.`,
+    `Never use image generation for ordinary diagrams.`,
     `Never reprint the entire source passage.`,
     rag.boundedPromptContext,
   ].join("\n\n");
@@ -663,9 +711,13 @@ export async function executeControlledAiGateway(
 
   let generatedPayload: AiLensResponsePayload = fallbackPayload;
   let usedDeterministicFallback = true;
+  let usedProviderFallback = false;
   let fallbackReason: AiGatewayExecutionResult["fallbackReason"] =
-    "missing_gemini_key";
+    requestedProvider === "google" ? "missing_gemini_key" : "missing_api_key";
   let geminiErrorClass: GeminiErrorClass | null = "missing_key";
+  let providerErrorClass: ProviderErrorClass | null = "missing_key";
+  let providerUsed: AiProvider = "deterministic";
+  let modelUsed: GatewayModelId = route.effectiveModel;
   let promptTokens = rag.estimatedTokens;
   let completionTokens = 160;
 
@@ -693,51 +745,70 @@ export async function executeControlledAiGateway(
     usedDeterministicFallback = false;
     fallbackReason = null;
     geminiErrorClass = null;
+    providerErrorClass = null;
+    providerUsed = requestedProvider;
+    modelUsed = route.effectiveModel;
     promptTokens = Math.min(
       SHIELD_1_MAX_PROMPT_TOKENS,
       customResult.promptTokens ?? rag.estimatedTokens
     );
     completionTokens = customResult.completionTokens ?? 160;
-  } else if (hasUsableGeminiKey()) {
-    const modeled = await generateStructuredGeminiLens({
-      model: route.effectiveModel,
-      prompt: systemPrompt,
-      fallback: fallbackPayload,
-    });
-    generatedPayload = modeled.payload;
-    promptTokens = Math.min(
-      SHIELD_1_MAX_PROMPT_TOKENS,
-      modeled.promptTokens ?? rag.estimatedTokens
-    );
-    completionTokens = modeled.completionTokens ?? 160;
-    geminiErrorClass = modeled.errorClass;
-    if (modeled.errorClass === null) {
-      usedDeterministicFallback = false;
-      fallbackReason = null;
-    } else if (modeled.errorClass === "missing_key") {
-      usedDeterministicFallback = true;
-      fallbackReason = "missing_gemini_key";
-    } else if (modeled.errorClass === "unusable_output") {
-      usedDeterministicFallback = true;
-      fallbackReason = "unusable_model_output";
-    } else {
-      usedDeterministicFallback = true;
-      fallbackReason = "model_error";
+  } else if (hasAnyPaidProvider()) {
+    let lastClass: ProviderErrorClass = "unknown";
+    for (const [index, attempt] of attempts.entries()) {
+      const modeled = await callProviderStructuredLens({
+        provider: attempt.provider,
+        model: attempt.model,
+        prompt: systemPrompt,
+        fallback: fallbackPayload,
+        fetchImpl: request.fetchImpl,
+      });
+      lastClass = modeled.errorClass ?? "unknown";
+      if (modeled.errorClass === null) {
+        generatedPayload = modeled.payload;
+        usedDeterministicFallback = false;
+        usedProviderFallback = index > 0;
+        fallbackReason = null;
+        geminiErrorClass = null;
+        providerErrorClass = null;
+        providerUsed = attempt.provider;
+        modelUsed = attempt.model;
+        promptTokens = Math.min(
+          SHIELD_1_MAX_PROMPT_TOKENS,
+          modeled.promptTokens ?? rag.estimatedTokens
+        );
+        completionTokens = modeled.completionTokens ?? 160;
+        break;
+      }
+    }
+    if (usedDeterministicFallback) {
+      generatedPayload = fallbackPayload;
+      providerUsed = "deterministic";
+      modelUsed = "deterministic";
+      providerErrorClass = lastClass;
+      geminiErrorClass = lastClass;
+      fallbackReason =
+        lastClass === "unusable_output"
+          ? "unusable_model_output"
+          : lastClass === "missing_key"
+            ? requestedProvider === "google"
+              ? "missing_gemini_key"
+              : "missing_api_key"
+            : "model_error";
     }
   } else {
     generatedPayload = fallbackPayload;
     usedDeterministicFallback = true;
-    fallbackReason = "missing_gemini_key";
+    fallbackReason =
+      requestedProvider === "google" ? "missing_gemini_key" : "missing_api_key";
     geminiErrorClass = "missing_key";
+    providerErrorClass = "missing_key";
+    providerUsed = "deterministic";
+    modelUsed = "deterministic";
   }
 
-  const costInr = calculateCallCostInr(
-    route.effectiveModel,
-    promptTokens,
-    completionTokens
-  );
+  const costInr = calculateCallCostInr(modelUsed, promptTokens, completionTokens);
 
-  // Store in Shield 3 Cache
   await storeCachedResponse(request.supabase, {
     cacheKey,
     documentHash: request.documentHash,
@@ -745,16 +816,15 @@ export async function executeControlledAiGateway(
     normalizedSelectionHash,
     lensType: request.lensType,
     prakritiDosha,
-    modelUsed: route.effectiveModel,
+    modelUsed,
     payload: generatedPayload,
   });
 
-  // Record in Shield 4 Wallet Ledger
   const monthlySpendAfterInr = await recordWalletUsageLog(request.supabase, {
     userId: request.userId,
     billingMonth,
     lensType: request.lensType,
-    modelUsed: route.effectiveModel,
+    modelUsed,
     promptTokens,
     completionTokens,
     costInr,
@@ -767,7 +837,10 @@ export async function executeControlledAiGateway(
     cacheKey,
     normalizedSelectionHash,
     requestedModel: route.requestedModel,
-    modelUsed: route.effectiveModel,
+    modelUsed,
+    requestedProvider,
+    providerUsed,
+    usedProviderFallback,
     downgradedToFlashLite: route.downgradedToFlashLite,
     promptTokens,
     completionTokens,
@@ -780,6 +853,7 @@ export async function executeControlledAiGateway(
     usedDeterministicFallback,
     fallbackReason,
     geminiErrorClass,
+    providerErrorClass,
     payload: generatedPayload,
   };
 }

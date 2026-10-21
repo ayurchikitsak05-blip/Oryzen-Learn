@@ -19,6 +19,13 @@ import {
 } from "../passage-store";
 import type { CitationReadyChunk } from "@/lib/reader/extractor";
 
+function restoreEnv(previous: Record<string, string | undefined>) {
+  for (const [name, value] of Object.entries(previous)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+}
+
 const SAMPLE_CANDIDATE_CHUNKS: CitationReadyChunk[] = [
   {
     chunk_id: "c1",
@@ -378,6 +385,100 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
   });
 
   describe("5. Deterministic fallback when GEMINI is missing", () => {
+    it("does not call paid adapters when every provider key is empty", async () => {
+      const previous = {
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
+        AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
+      };
+      process.env.GEMINI_API_KEY = "";
+      process.env.OPENAI_API_KEY = "";
+      process.env.MISTRAL_API_KEY = "";
+      process.env.AI_GATEWAY_API_KEY = "";
+      const fetchImpl = vi.fn();
+      try {
+        const result = await executeControlledAiGateway({
+          userId: "local-student",
+          documentId: "study-companion-vol1",
+          documentHash: "no-paid-keys",
+          pageNumber: 4,
+          sectionHeading: "CHAPTER 4: ACROSS THE FACULTIES",
+          selectedText:
+            "The same passage tools apply to a physics derivation, a historical argument, a formal proof, or a laboratory method.",
+          lensType: "explain",
+          candidateChunks: SAMPLE_CANDIDATE_CHUNKS,
+          fetchImpl,
+        });
+        expect(result.usedDeterministicFallback).toBe(true);
+        expect(result.providerUsed).toBe("deterministic");
+        expect(fetchImpl).not.toHaveBeenCalled();
+      } finally {
+        restoreEnv(previous);
+      }
+    });
+
+    it("falls through to the next cheapest mocked provider", async () => {
+      const previous = {
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
+      };
+      process.env.GEMINI_API_KEY = "gemini-test";
+      process.env.MISTRAL_API_KEY = "mistral-test";
+      const fetchImpl = vi.fn(async (url: string) => {
+        if (String(url).includes("generativelanguage.googleapis.com")) {
+          return new Response("quota exceeded", { status: 429 });
+        }
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    title: "Explain This Passage",
+                    markdown_body:
+                      "The same passage tools apply to a physics derivation, a historical argument, a formal proof, or a laboratory method.",
+                    key_points: ["physics", "proof"],
+                    explain: {
+                      simpleExplanation: "The tools stay inside the selected lines.",
+                      standardExplanation:
+                        "A physics derivation, historical argument, proof, or laboratory method can use the same passage tools.",
+                      deeperExplanation: "Stay inside the cited lines.",
+                      importantConcepts: ["physics", "proof"],
+                      relevantExample: "A laboratory method from these lines.",
+                      keyTakeaway: "Do not invent a second chapter.",
+                    },
+                  }),
+                },
+              },
+            ],
+            usage: { prompt_tokens: 40, completion_tokens: 20 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      });
+      try {
+        const result = await executeControlledAiGateway({
+          userId: "fallback-student",
+          documentId: "study-companion-vol1",
+          documentHash: "provider-fallback",
+          pageNumber: 4,
+          sectionHeading: "CHAPTER 4: ACROSS THE FACULTIES",
+          selectedText:
+            "The same passage tools apply to a physics derivation, a historical argument, a formal proof, or a laboratory method.",
+          lensType: "explain",
+          candidateChunks: SAMPLE_CANDIDATE_CHUNKS,
+          fetchImpl,
+        });
+        expect(result.usedDeterministicFallback).toBe(false);
+        expect(result.usedProviderFallback).toBe(true);
+        expect(result.providerUsed).toBe("mistral");
+        expect(result.modelUsed).toBe("ministral-3b-2512");
+      } finally {
+        restoreEnv(previous);
+      }
+    });
+
     it("still returns usable structured output and marks fallback used", async () => {
       const previous = process.env.GEMINI_API_KEY;
       process.env.GEMINI_API_KEY = "";
@@ -400,7 +501,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         expect(result.payload.markdown_body).toMatch(/physics|historical|proof|laboratory/i);
         expect(result.payload.title).toBe("Explain This Passage");
       } finally {
-        process.env.GEMINI_API_KEY = previous;
+        restoreEnv({ GEMINI_API_KEY: previous });
       }
     });
   });

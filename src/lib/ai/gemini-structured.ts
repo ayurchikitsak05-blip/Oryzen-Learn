@@ -31,7 +31,9 @@ export type GeminiErrorClass =
   | "unusable_output"
   | "unknown";
 
-export function hasUsableGeminiKey(value = process.env.GEMINI_API_KEY): boolean {
+export function hasUsableGeminiKey(
+  value = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY
+): boolean {
   return Boolean(value?.trim());
 }
 

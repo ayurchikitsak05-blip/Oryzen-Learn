@@ -119,15 +119,25 @@ export function StudyWorkspace({
                 data-testid="ai-fallback-banner"
                 className="text-xs font-medium text-muted"
               >
-                {result.fallbackReason === "missing_gemini_key"
-                  ? "Gemini is not configured. Showing a source-grounded study draft."
-                  : result.geminiErrorClass === "billing"
-                    ? "Gemini billing is not enabled. Showing a source-grounded study draft."
-                    : result.geminiErrorClass === "quota"
-                      ? "Gemini quota was reached. Showing a source-grounded study draft."
-                  : result.fallbackReason === "model_error"
-                    ? "Gemini did not respond. Showing a source-grounded study draft."
-                    : "Model output could not be used. Showing a source-grounded study draft."}
+                {result.fallbackReason === "missing_gemini_key" ||
+                result.fallbackReason === "missing_api_key"
+                  ? "No AI provider is configured. Showing a source-grounded study draft."
+                  : result.providerErrorClass === "billing" ||
+                      result.geminiErrorClass === "billing"
+                    ? "The study model cannot be billed. Showing a source-grounded study draft."
+                    : result.providerErrorClass === "quota" ||
+                        result.geminiErrorClass === "quota"
+                      ? "The study model quota was reached. Showing a source-grounded study draft."
+                      : result.fallbackReason === "model_error"
+                        ? "The study model did not respond. Showing a source-grounded study draft."
+                        : "Model output could not be used. Showing a source-grounded study draft."}
+              </p>
+            ) : result.usedProviderFallback ? (
+              <p
+                data-testid="ai-fallback-banner"
+                className="text-xs font-medium text-muted"
+              >
+                Preferred provider was unavailable. Showing a result from the next cheapest configured model.
               </p>
             ) : null}
             <StudyLensOutput

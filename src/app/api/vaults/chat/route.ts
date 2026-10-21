@@ -1,22 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
+import { generateStudyText } from "@/lib/ai/providers";
 import { answerFromTextbook, type TextbookSlice } from "@/lib/vaults/compose";
 
 async function modelText(prompt: string): Promise<string | null> {
-  const key = process.env.GEMINI_API_KEY?.trim();
-  if (!key) return null;
-  try {
-    const ai = new GoogleGenAI({ apiKey: key });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-    const text = response.text?.trim();
-    return text || null;
-  } catch {
-    return null;
-  }
+  const modeled = await generateStudyText({ prompt });
+  return modeled?.text ?? null;
 }
 
 export async function POST(request: NextRequest) {
