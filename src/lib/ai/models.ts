@@ -169,19 +169,29 @@ export const CHEAPEST_PROVIDER_ORDER: PaidAiProvider[] = [
 
 /**
  * Task → preferred model. Config only — student UI keeps calling lens ids.
- * Standard highlight lenses stay on Flash; deep synthesis stays on Pro;
- * wallet-cap routing still downgrades to Flash-Lite.
+ *
+ * Supported highlight / explain / story / revise / quiz / diagram tasks
+ * prefer Gemini 2.5 Flash-Lite (cheapest Google structured-output SKU).
+ * Flash-Lite is not claimed to match Flash or Pro quality.
+ *
+ * Quality fallback: GPT-6 Luna. Cheap extractive fallback: Ministral 3B.
+ * Deep synthesis stays on Pro and is gated by a tighter remaining-wallet check.
  */
 export const TASK_PREFERRED_MODELS: Record<CatalogTaskType, GatewayModelId> = {
-  ayurvedic: "gemini-2.5-flash",
-  illustrative: "gemini-2.5-flash",
-  high_yield_revision: "gemini-2.5-flash",
-  save_passage: "gemini-2.5-flash",
-  test_me: "gemini-2.5-flash",
-  explain: "gemini-2.5-flash",
-  story: "gemini-2.5-flash",
+  ayurvedic: "gemini-2.5-flash-lite",
+  illustrative: "gemini-2.5-flash-lite",
+  high_yield_revision: "gemini-2.5-flash-lite",
+  save_passage: "gemini-2.5-flash-lite",
+  test_me: "gemini-2.5-flash-lite",
+  explain: "gemini-2.5-flash-lite",
+  story: "gemini-2.5-flash-lite",
   deep_integrative_synthesis: "gemini-2.5-pro",
 };
+
+export const QUALITY_FALLBACK_MODEL: GatewayModelId = "gpt-6-luna";
+export const CHEAP_EXTRACTIVE_FALLBACK_MODEL: GatewayModelId = "ministral-3b-2512";
+export const QUALITY_FALLBACK_PROVIDER: PaidAiProvider = "openai";
+export const CHEAP_EXTRACTIVE_FALLBACK_PROVIDER: PaidAiProvider = "mistral";
 
 export const TYPICAL_LENS_INPUT_TOKENS = 2000;
 export const TYPICAL_LENS_OUTPUT_TOKENS = 400;

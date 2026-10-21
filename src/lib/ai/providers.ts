@@ -2,12 +2,29 @@ import type { AiLensResponsePayload } from "./gateway";
 import { mergeStructuredLensPayload } from "./gemini-structured";
 import {
   CHEAPEST_PROVIDER_ORDER,
+  CHEAP_EXTRACTIVE_FALLBACK_PROVIDER,
   MODEL_CATALOG,
+  QUALITY_FALLBACK_PROVIDER,
   modelForProvider,
   type AiProvider,
   type GatewayModelId,
   type PaidAiProvider,
 } from "./models";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  calculateCallCostInr,
+  canConsumeReservation,
+  consumeReservation,
+  getCurrentMonthlyWalletSpendInr,
+  recordWalletUsageLog,
+  releaseMonthlyAiReservation,
+  reservationEstimateForAttempts,
+  reserveMonthlyAiBudget,
+  recordAiUsageObservation,
+  settleMonthlyAiReservation,
+  SHIELD_4_DEFAULT_WALLET_CAP_INR,
+  type SpendClass,
+} from "./spend-guard";
 
 export const PROVIDER_CALL_TIMEOUT_MS = 20_000;
 export const PROVIDER_MAX_ATTEMPTS = 2;
@@ -154,6 +171,47 @@ export function planProviderAttempts(
     if (!ordered.includes(provider) && available.includes(provider)) {
       ordered.push(provider);
     }
+  }
+
+  return ordered.map((provider) => {
+    const model = modelForProvider(provider, preferredModel);
+    return {
+      provider,
+      model,
+      officialId: MODEL_CATALOG[model].officialId,
+    };
+  });
+}
+
+/**
+ * Study-task fallback order: preferred → Luna (quality) → Ministral (cheap extractive).
+ * Flash-Lite is not treated as equal to Flash or Pro.
+ */
+export function planStudyProviderAttempts(
+  preferredModel: GatewayModelId
+): ProviderAttempt[] {
+  const preferredProvider = MODEL_CATALOG[preferredModel].provider;
+  const available = availablePaidProviders();
+  if (available.length === 0) return [];
+
+  const ordered: PaidAiProvider[] = [];
+  if (preferredProvider !== "deterministic" && available.includes(preferredProvider)) {
+    ordered.push(preferredProvider);
+  }
+  if (
+    available.includes(QUALITY_FALLBACK_PROVIDER) &&
+    !ordered.includes(QUALITY_FALLBACK_PROVIDER)
+  ) {
+    ordered.push(QUALITY_FALLBACK_PROVIDER);
+  }
+  if (
+    available.includes(CHEAP_EXTRACTIVE_FALLBACK_PROVIDER) &&
+    !ordered.includes(CHEAP_EXTRACTIVE_FALLBACK_PROVIDER)
+  ) {
+    ordered.push(CHEAP_EXTRACTIVE_FALLBACK_PROVIDER);
+  }
+  for (const provider of available) {
+    if (!ordered.includes(provider)) ordered.push(provider);
   }
 
   return ordered.map((provider) => {
@@ -600,34 +658,175 @@ export async function callProviderStructuredLens(params: {
 export async function generateStudyText(params: {
   prompt: string;
   fetchImpl?: FetchLike;
-}): Promise<{ text: string; provider: PaidAiProvider; model: GatewayModelId } | null> {
-  const attempts = planProviderAttempts("gemini-2.5-flash-lite");
+  userId?: string;
+  supabase?: SupabaseClient | null;
+  walletCapInr?: number;
+  billingMonth?: string;
+  spendClass?: SpendClass;
+}): Promise<{
+  text: string;
+  provider: PaidAiProvider;
+  model: GatewayModelId;
+  promptTokens: number;
+  completionTokens: number;
+  costInr: number;
+  budgetBlocked: boolean;
+} | null> {
+  const userId = params.userId ?? "local-student-scholar";
+  const billingMonth = params.billingMonth ?? new Date().toISOString().slice(0, 7);
+  const spendClass = params.spendClass ?? "standard";
+  const attempts = planStudyProviderAttempts("gemini-2.5-flash-lite");
   if (attempts.length === 0) return null;
 
-  const fetchImpl = params.fetchImpl ?? (fetch as FetchLike);
-  for (const attempt of attempts) {
-    const result = await callProviderStructuredLens({
-      provider: attempt.provider,
-      model: attempt.model,
-      prompt: `${params.prompt}\n\nReturn JSON with title, markdown_body, and key_points only.`,
-      fallback: {
-        lens_type: "explain",
-        prakriti_dosha: "Vata",
-        title: "Study notes",
-        markdown_body: "",
-        key_points: [],
-        citations: [],
-        used_fallback: true,
-      },
-      fetchImpl,
+  const promptTokensEst =
+    spendClass === "vault_generate" ? 8000 : spendClass === "deep_synthesis" ? 4000 : 2000;
+  const completionTokensEst =
+    spendClass === "vault_generate" ? 2000 : spendClass === "deep_synthesis" ? 1200 : 400;
+  const spentInr = await getCurrentMonthlyWalletSpendInr(
+    params.supabase,
+    userId,
+    billingMonth
+  );
+  const remainingWallet =
+    (params.walletCapInr ?? SHIELD_4_DEFAULT_WALLET_CAP_INR) - spentInr;
+  const estimateInr = reservationEstimateForAttempts(
+    attempts.map((item) => item.model),
+    promptTokensEst,
+    completionTokensEst,
+    remainingWallet
+  );
+  const decision = reserveMonthlyAiBudget({
+    userId,
+    billingMonth,
+    spentInr,
+    estimateInr,
+    capInr: params.walletCapInr,
+    spendClass,
+  });
+
+  if (!decision.allowed || !decision.reservation) {
+    recordAiUsageObservation(userId, {
+      billingMonth,
+      provider: "deterministic",
+      model: "deterministic",
+      promptTokens: 0,
+      completionTokens: 0,
+      costInr: 0,
+      success: false,
+      fallback: true,
+      cacheHit: false,
+      budgetBlocked: true,
     });
-    if (result.errorClass === null && result.payload.markdown_body.trim()) {
-      return {
-        text: result.payload.markdown_body,
+    await recordWalletUsageLog(params.supabase, {
+      userId,
+      billingMonth,
+      lensType: spendClass,
+      modelUsed: "deterministic",
+      promptTokens: 0,
+      completionTokens: 0,
+      costInr: 0,
+      cacheHit: false,
+      downgradedToFlashLite: false,
+    });
+    return {
+      text: "",
+      provider: attempts[0]!.provider,
+      model: "deterministic",
+      promptTokens: 0,
+      completionTokens: 0,
+      costInr: 0,
+      budgetBlocked: true,
+    };
+  }
+
+  const fetchImpl = params.fetchImpl ?? (fetch as FetchLike);
+  try {
+    for (const attempt of attempts) {
+      const nextEstimate = calculateCallCostInr(
+        attempt.model,
+        promptTokensEst,
+        completionTokensEst
+      );
+      if (!canConsumeReservation(decision.reservation, nextEstimate)) {
+        continue;
+      }
+      const result = await callProviderStructuredLens({
         provider: attempt.provider,
         model: attempt.model,
-      };
+        prompt: `${params.prompt}\n\nReturn JSON with title, markdown_body, and key_points only.`,
+        fallback: {
+          lens_type: "explain",
+          prakriti_dosha: "Vata",
+          title: "Study notes",
+          markdown_body: "",
+          key_points: [],
+          citations: [],
+          used_fallback: true,
+        },
+        fetchImpl,
+      });
+      const promptTokens = result.promptTokens ?? promptTokensEst;
+      const completionTokens = result.completionTokens ?? completionTokensEst;
+      const costInr =
+        result.errorClass === null
+          ? calculateCallCostInr(attempt.model, promptTokens, completionTokens)
+          : calculateCallCostInr(
+              attempt.model,
+              result.promptTokens ?? 0,
+              result.completionTokens ?? 0
+            );
+      consumeReservation(decision.reservation, costInr);
+      if (result.errorClass === null && result.payload.markdown_body.trim()) {
+        await recordWalletUsageLog(params.supabase, {
+          userId,
+          billingMonth,
+          lensType: spendClass,
+          modelUsed: attempt.model,
+          promptTokens,
+          completionTokens,
+          costInr,
+          cacheHit: false,
+          downgradedToFlashLite: false,
+        });
+        recordAiUsageObservation(userId, {
+          billingMonth,
+          provider: attempt.provider,
+          model: attempt.model,
+          promptTokens,
+          completionTokens,
+          costInr,
+          success: true,
+          fallback: attempt !== attempts[0],
+          cacheHit: false,
+          budgetBlocked: false,
+        });
+        settleMonthlyAiReservation(decision.reservation, 0);
+        return {
+          text: result.payload.markdown_body,
+          provider: attempt.provider,
+          model: attempt.model,
+          promptTokens,
+          completionTokens,
+          costInr,
+          budgetBlocked: false,
+        };
+      }
     }
+  } finally {
+    releaseMonthlyAiReservation(decision.reservation);
   }
+
+  recordAiUsageObservation(userId, {
+    billingMonth,
+    provider: "deterministic",
+    model: "deterministic",
+    promptTokens: 0,
+    completionTokens: 0,
+    costInr: 0,
+    success: false,
+    fallback: true,
+    cacheHit: false,
+    budgetBlocked: false,
+  });
   return null;
 }

@@ -9,8 +9,8 @@
  * syllabus hashes. Never share notes, private uploads, prakriti, or individualized
  * outputs. Tenant isolation, a cache version, and a revocation epoch are required.
  *
- * This module does not apply database policy changes. Shield 3 in gateway.ts is
- * still a local selection cache and is not an authorized institute share.
+ * This module does not apply database policy changes. Gateway lookup is by
+ * isolated cache_key only. Shared hits require membership + authorized hash.
  */
 
 import { computeSha256Hex } from "@/lib/reader/hashing";
@@ -52,6 +52,113 @@ export function mayShareAppCache(auth: AppCacheAuthorization): boolean {
 
 export function resolveAppCacheScope(auth: AppCacheAuthorization): AppCacheScope {
   return mayShareAppCache(auth) ? "institute_authorized" : "private";
+}
+
+export const NEVER_SHARED_DOCUMENT_CLASSES: DocumentClass[] = [
+  "private_upload",
+  "notes",
+  "prakriti",
+  "individualized",
+];
+
+export interface InstituteCacheMembership {
+  tenantId: string;
+  userId: string;
+  authorizedSyllabusHashes: string[];
+  revocationEpoch: string;
+  revoked?: boolean;
+}
+
+export function isPrakritiPersonalizedLens(lensType: string): boolean {
+  return lensType === "ayurvedic" || lensType === "prakriti";
+}
+
+/**
+ * Shared cache requires membership on this tenant AND the document hash on
+ * the institute's authorized syllabus list. Notes, uploads, prakriti, and
+ * individualized outputs stay private even when the caller claims a share.
+ */
+export function authorizeInstituteAppCache(params: {
+  userId: string;
+  documentHash: string;
+  membership?: InstituteCacheMembership | null;
+  documentClass?: DocumentClass;
+  lensType?: string;
+  individualized?: boolean;
+  prakritiDosha?: string | null;
+}): AppCacheAuthorization {
+  const hash = params.documentHash.trim().toLowerCase();
+  const membership = params.membership;
+  const memberMatches =
+    Boolean(membership) &&
+    membership!.userId.trim().toLowerCase() === params.userId.trim().toLowerCase() &&
+    membership!.tenantId.trim() !== "" &&
+    !membership!.revoked &&
+    membership!.authorizedSyllabusHashes.some(
+      (item) => item.trim().toLowerCase() === hash
+    );
+
+  const requestedClass = params.documentClass ?? "private_upload";
+  const prakritiPersonalized =
+    Boolean(params.prakritiDosha) ||
+    (params.lensType ? isPrakritiPersonalizedLens(params.lensType) : false);
+  const individualized =
+    Boolean(params.individualized) ||
+    prakritiPersonalized ||
+    NEVER_SHARED_DOCUMENT_CLASSES.includes(requestedClass) ||
+    params.lensType === "deep_integrative_synthesis";
+
+  const shareable =
+    memberMatches &&
+    !individualized &&
+    requestedClass === "institute_authorized_syllabus";
+
+  return {
+    documentClass: shareable ? "institute_authorized_syllabus" : requestedClass,
+    tenantId: shareable ? membership!.tenantId : "",
+    syllabusHash: shareable ? hash : null,
+    authorizedShare: shareable,
+    revoked: Boolean(membership?.revoked),
+    revocationEpoch: membership?.revocationEpoch ?? "0",
+    prakritiDosha: prakritiPersonalized ? params.prakritiDosha ?? null : null,
+    individualized,
+  };
+}
+
+export function callerMayReadCachedEntry(params: {
+  auth: AppCacheAuthorization;
+  userId: string;
+  entryScope: AppCacheScope;
+  entryUserId?: string;
+  entryTenantId?: string;
+  entryRevocationEpoch?: string;
+  entryCacheVersion?: string;
+}): boolean {
+  if (params.entryCacheVersion && params.entryCacheVersion !== APP_CACHE_KEY_VERSION) {
+    return false;
+  }
+  if (params.auth.revoked) return false;
+  if (params.entryScope === "private") {
+    return (
+      Boolean(params.entryUserId) &&
+      params.entryUserId!.trim().toLowerCase() === params.userId.trim().toLowerCase()
+    );
+  }
+  if (!mayShareAppCache(params.auth)) return false;
+  if (
+    params.entryTenantId &&
+    params.entryTenantId.trim().toLowerCase() !==
+      params.auth.tenantId.trim().toLowerCase()
+  ) {
+    return false;
+  }
+  if (
+    params.entryRevocationEpoch &&
+    params.entryRevocationEpoch !== params.auth.revocationEpoch
+  ) {
+    return false;
+  }
+  return true;
 }
 
 /**

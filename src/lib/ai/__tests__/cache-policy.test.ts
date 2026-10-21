@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   APP_CACHE_KEY_VERSION,
+  authorizeInstituteAppCache,
   buildIsolatedAppCacheKey,
+  callerMayReadCachedEntry,
   mayShareAppCache,
   resolveAppCacheScope,
   type AppCacheAuthorization,
@@ -97,5 +99,91 @@ describe("institute-authorized app cache policy", () => {
       lensType: "explain",
     });
     expect(revoked.cacheKey).not.toBe(sharedA.cacheKey);
+  });
+
+  it("authorizes shared cache only for members and authorized hashes", () => {
+    const membership = {
+      tenantId: "inst-north",
+      userId: "student-a",
+      authorizedSyllabusHashes: ["syl-physics-v3"],
+      revocationEpoch: "2026-10-01",
+    };
+    const shared = authorizeInstituteAppCache({
+      userId: "student-a",
+      documentHash: "syl-physics-v3",
+      membership,
+      documentClass: "institute_authorized_syllabus",
+      lensType: "explain",
+    });
+    expect(mayShareAppCache(shared)).toBe(true);
+
+    const outsider = authorizeInstituteAppCache({
+      userId: "student-b",
+      documentHash: "syl-physics-v3",
+      membership,
+      documentClass: "institute_authorized_syllabus",
+      lensType: "explain",
+    });
+    expect(mayShareAppCache(outsider)).toBe(false);
+
+    const otherHash = authorizeInstituteAppCache({
+      userId: "student-a",
+      documentHash: "private-notes-hash",
+      membership,
+      documentClass: "institute_authorized_syllabus",
+      lensType: "explain",
+    });
+    expect(mayShareAppCache(otherHash)).toBe(false);
+
+    const notes = authorizeInstituteAppCache({
+      userId: "student-a",
+      documentHash: "syl-physics-v3",
+      membership,
+      documentClass: "notes",
+      lensType: "explain",
+    });
+    expect(mayShareAppCache(notes)).toBe(false);
+
+    const prakriti = authorizeInstituteAppCache({
+      userId: "student-a",
+      documentHash: "syl-physics-v3",
+      membership,
+      documentClass: "institute_authorized_syllabus",
+      lensType: "ayurvedic",
+      prakritiDosha: "Pitta",
+    });
+    expect(mayShareAppCache(prakriti)).toBe(false);
+  });
+
+  it("denies stale or foreign cache entries after revocation", () => {
+    const auth = authorizedSyllabus();
+    expect(
+      callerMayReadCachedEntry({
+        auth,
+        userId: "student-a",
+        entryScope: "institute_authorized",
+        entryTenantId: "inst-north",
+        entryRevocationEpoch: "2026-10-01",
+        entryCacheVersion: APP_CACHE_KEY_VERSION,
+      })
+    ).toBe(true);
+    expect(
+      callerMayReadCachedEntry({
+        auth: authorizedSyllabus({ revocationEpoch: "2026-10-21" }),
+        userId: "student-a",
+        entryScope: "institute_authorized",
+        entryTenantId: "inst-north",
+        entryRevocationEpoch: "2026-10-01",
+        entryCacheVersion: APP_CACHE_KEY_VERSION,
+      })
+    ).toBe(false);
+    expect(
+      callerMayReadCachedEntry({
+        auth: authorizedSyllabus({ documentClass: "notes", authorizedShare: false }),
+        userId: "student-b",
+        entryScope: "private",
+        entryUserId: "student-a",
+      })
+    ).toBe(false);
   });
 });

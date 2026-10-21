@@ -103,8 +103,8 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
     });
   });
 
-  describe("2. Shield 2: Hybrid Model Routing (90% Flash vs 10% Pro)", () => {
-    it("routes all highlight lenses to gemini-2.5-flash and deep synthesis to gemini-2.5-pro when under wallet ceiling", () => {
+  describe("2. Shield 2: Hybrid Model Routing (Flash-Lite preferred, Pro gated)", () => {
+    it("routes supported highlight lenses to gemini-2.5-flash-lite and deep synthesis to gemini-2.5-pro when under wallet ceiling", () => {
       for (const lens of [
         "ayurvedic",
         "illustrative",
@@ -119,8 +119,8 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
           currentMonthlySpendInr: 12.5,
           walletCapInr: 70,
         });
-        expect(route.requestedModel).toBe("gemini-2.5-flash");
-        expect(route.effectiveModel).toBe("gemini-2.5-flash");
+        expect(route.requestedModel).toBe("gemini-2.5-flash-lite");
+        expect(route.effectiveModel).toBe("gemini-2.5-flash-lite");
         expect(route.downgradedToFlashLite).toBe(false);
       }
 
@@ -132,6 +132,14 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       expect(proRoute.requestedModel).toBe("gemini-2.5-pro");
       expect(proRoute.effectiveModel).toBe("gemini-2.5-pro");
       expect(proRoute.downgradedToFlashLite).toBe(false);
+
+      const tightPro = resolveShieldedModelRoute({
+        lensType: "deep_integrative_synthesis",
+        currentMonthlySpendInr: 60,
+        walletCapInr: 70,
+      });
+      expect(tightPro.effectiveModel).toBe("gemini-2.5-flash-lite");
+      expect(tightPro.downgradedToFlashLite).toBe(true);
     });
   });
 
@@ -194,9 +202,9 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       expect(firstCall.usedDeterministicFallback).toBe(false);
       expect(mockGenerator).toHaveBeenCalledTimes(1);
 
-      // 2nd Call with extra whitespace on same passage/page/lens: Cache Hit -> 0 tokens, ₹0.00 cost, generator not called again
+      // 2nd Call, same student, extra whitespace: Cache Hit -> 0 tokens, ₹0.00
       const secondCall = await executeControlledAiGateway({
-        userId: "student-cache-02",
+        userId: "student-cache-01",
         documentId: "study-companion-vol1",
         documentHash: "doc-sha256-001",
         pageNumber: 1,
@@ -219,14 +227,152 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       );
       expect(mockGenerator).toHaveBeenCalledTimes(1);
     });
+
+    it("does not leak a private document cache hit to another student", async () => {
+      const mockGenerator = vi.fn(async ({ request }) => ({
+        payload: {
+          lens_type: request.lensType,
+          prakriti_dosha: "Vata" as const,
+          title: `Private for ${request.userId}`,
+          markdown_body: `Grounded note for ${request.userId} [Page ${request.pageNumber}, Section ${request.sectionHeading}]`,
+          key_points: ["private"],
+          citations: [
+            {
+              label: `[Page ${request.pageNumber}, Section ${request.sectionHeading}]`,
+              document_id: request.documentId,
+              page_number: request.pageNumber,
+              section_heading: request.sectionHeading,
+              bounding_box: { x: 48, y: 680, width: 460, height: 24 },
+            },
+          ],
+        },
+        promptTokens: 200,
+        completionTokens: 80,
+      }));
+
+      const sharedDoc = {
+        documentId: "study-companion-vol1",
+        documentHash: "same-pdf-hash",
+        pageNumber: 1,
+        sectionHeading: "CHAPTER 1: ENERGY AND CONSTITUTION",
+        selectedText: "Vayu, Pitta, and Kapha are the three Sharira Doshas.",
+        lensType: "explain" as const,
+        candidateChunks: SAMPLE_CANDIDATE_CHUNKS,
+        llmGenerator: mockGenerator,
+      };
+
+      const first = await executeControlledAiGateway({
+        ...sharedDoc,
+        userId: "student-a",
+        documentClass: "private_upload",
+      });
+      const second = await executeControlledAiGateway({
+        ...sharedDoc,
+        userId: "student-b",
+        documentClass: "private_upload",
+      });
+
+      expect(first.cacheHit).toBe(false);
+      expect(second.cacheHit).toBe(false);
+      expect(first.cacheKey).not.toBe(second.cacheKey);
+      expect(first.cacheScope).toBe("private");
+      expect(second.payload.title).toBe("Private for student-b");
+      expect(mockGenerator).toHaveBeenCalledTimes(2);
+    });
+
+    it("shares only among institute members with an authorized hash and invalidates on revocation", async () => {
+      const mockGenerator = vi.fn(async ({ request }) => ({
+        payload: {
+          lens_type: request.lensType,
+          prakriti_dosha: "Vata" as const,
+          title: "Shared syllabus explain",
+          markdown_body: `Cohort note [Page ${request.pageNumber}, Section ${request.sectionHeading}]`,
+          key_points: ["shared"],
+          citations: [
+            {
+              label: `[Page ${request.pageNumber}, Section ${request.sectionHeading}]`,
+              document_id: request.documentId,
+              page_number: request.pageNumber,
+              section_heading: request.sectionHeading,
+              bounding_box: { x: 48, y: 680, width: 460, height: 24 },
+            },
+          ],
+        },
+        promptTokens: 180,
+        completionTokens: 70,
+      }));
+
+      const base = {
+        documentId: "batch-physics",
+        documentHash: "syl-physics-v3",
+        pageNumber: 2,
+        sectionHeading: "Forces",
+        selectedText: "Net force equals mass times acceleration.",
+        lensType: "explain" as const,
+        documentClass: "institute_authorized_syllabus" as const,
+        candidateChunks: SAMPLE_CANDIDATE_CHUNKS,
+        llmGenerator: mockGenerator,
+      };
+
+      const memberA = await executeControlledAiGateway({
+        ...base,
+        userId: "member-a",
+        instituteMembership: {
+          tenantId: "inst-north",
+          userId: "member-a",
+          authorizedSyllabusHashes: ["syl-physics-v3"],
+          revocationEpoch: "2026-10-01",
+        },
+      });
+      const memberB = await executeControlledAiGateway({
+        ...base,
+        userId: "member-b",
+        instituteMembership: {
+          tenantId: "inst-north",
+          userId: "member-b",
+          authorizedSyllabusHashes: ["syl-physics-v3"],
+          revocationEpoch: "2026-10-01",
+        },
+      });
+      expect(memberA.cacheHit).toBe(false);
+      expect(memberB.cacheHit).toBe(true);
+      expect(memberA.cacheKey).toBe(memberB.cacheKey);
+      expect(memberA.cacheScope).toBe("institute_authorized");
+      expect(mockGenerator).toHaveBeenCalledTimes(1);
+
+      const otherInstitute = await executeControlledAiGateway({
+        ...base,
+        userId: "member-c",
+        instituteMembership: {
+          tenantId: "inst-south",
+          userId: "member-c",
+          authorizedSyllabusHashes: ["syl-physics-v3"],
+          revocationEpoch: "2026-10-01",
+        },
+      });
+      expect(otherInstitute.cacheHit).toBe(false);
+      expect(otherInstitute.cacheKey).not.toBe(memberA.cacheKey);
+
+      const revoked = await executeControlledAiGateway({
+        ...base,
+        userId: "member-b",
+        instituteMembership: {
+          tenantId: "inst-north",
+          userId: "member-b",
+          authorizedSyllabusHashes: ["syl-physics-v3"],
+          revocationEpoch: "2026-10-21",
+        },
+      });
+      expect(revoked.cacheHit).toBe(false);
+      expect(revoked.cacheKey).not.toBe(memberA.cacheKey);
+    });
   });
 
-  describe("4. Shield 4: Internal Wallet Ledger (`ai_usage_logs`) & ₹70 Hard Cap Fallback", () => {
-    it("automatically downgrades to gemini-2.5-flash-lite when a student reaches the ₹70 monthly wallet ceiling", async () => {
+  describe("4. Shield 4: Internal Wallet Ledger (`ai_usage_logs`) & ₹70 Hard Cap", () => {
+    it("hard-stops paid generation at the ₹70 monthly wallet ceiling and stays deterministic", async () => {
       const userId = "student-power-user";
       const billingMonth = "2026-10";
 
-      // Seed user's monthly spend at ₹70.00 (hitting the ₹70 hard cap)
       setLocalWalletSpendForUser(
         userId,
         billingMonth,
@@ -271,12 +417,15 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         },
       });
 
-      expect(result.requestedModel).toBe("gemini-2.5-flash");
-      expect(result.modelUsed).toBe("gemini-2.5-flash-lite");
-      expect(result.downgradedToFlashLite).toBe(true);
-      expect(usedModels).toEqual(["gemini-2.5-flash-lite"]);
+      expect(result.requestedModel).toBe("gemini-2.5-flash-lite");
+      expect(result.modelUsed).toBe("deterministic");
+      expect(result.usedDeterministicFallback).toBe(true);
+      expect(result.budgetBlocked).toBe(true);
+      expect(result.fallbackReason).toBe("wallet_exhausted");
+      expect(usedModels).toEqual([]);
       expect(result.monthlySpendBeforeInr).toBe(70);
-      expect(result.monthlySpendAfterInr).toBeGreaterThan(70);
+      expect(result.monthlySpendAfterInr).toBe(70);
+      expect(result.costInr).toBe(0);
     });
 
     it("integrates with Supabase `ai_response_cache` and `ai_usage_logs` tables when client is provided", async () => {

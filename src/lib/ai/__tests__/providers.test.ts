@@ -6,6 +6,7 @@ import {
   generateStudyText,
   hasAnyPaidProvider,
   planProviderAttempts,
+  planStudyProviderAttempts,
 } from "../providers";
 import type { AiLensResponsePayload } from "../gateway";
 
@@ -86,6 +87,21 @@ describe("provider-independent adapters", () => {
     expect(planned.map((item) => item.provider)).toEqual(["mistral", "openai"]);
     expect(planned[0].model).toBe("ministral-3b-2512");
     expect(planned[1].model).toBe("gpt-6-luna");
+  });
+
+  it("plans Flash-Lite then Luna quality then Ministral extractive fallbacks", () => {
+    setEnv("GEMINI_API_KEY", "gemini-test");
+    setEnv("OPENAI_API_KEY", "sk-test");
+    setEnv("MISTRAL_API_KEY", "mst-test");
+    const planned = planStudyProviderAttempts("gemini-2.5-flash-lite");
+    expect(planned.map((item) => item.provider)).toEqual([
+      "google",
+      "openai",
+      "mistral",
+    ]);
+    expect(planned[0].model).toBe("gemini-2.5-flash-lite");
+    expect(planned[1].model).toBe("gpt-6-luna");
+    expect(planned[2].model).toBe("ministral-3b-2512");
   });
 
   it("parses a mocked Google REST payload without printing keys", async () => {
