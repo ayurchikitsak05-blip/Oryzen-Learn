@@ -15,16 +15,16 @@ import {
 
 export default function TransformDialog({
   open,
-  document,
+  pdfDocument,
   onClose,
 }: {
   open: boolean;
-  document: LocalPdfDocumentRecord | null;
+  pdfDocument: LocalPdfDocumentRecord | null;
   onClose: () => void;
 }) {
   const chapters = useMemo(
-    () => (document ? listTransformChapters(document) : []),
-    [document]
+    () => (pdfDocument ? listTransformChapters(pdfDocument) : []),
+    [pdfDocument]
   );
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
   const [edition, setEdition] = useState<TransformChapterEdition | null>(null);
@@ -35,19 +35,19 @@ export default function TransformDialog({
   if (!open) return null;
 
   const generate = () => {
-    if (!document || !selected) return;
-    const cached = readTransformEdition(document.id, selected.title);
+    if (!pdfDocument || !selected) return;
+    const cached = readTransformEdition(pdfDocument.id, selected.title);
     const next =
       cached ??
       writeTransformEdition(
         composeChapterRevisionSheet({
-          documentId: document.id,
+          documentId: pdfDocument.id,
           chapter: selected,
-          chunks: chunksForChapter(document, selected),
+          chunks: chunksForChapter(pdfDocument, selected),
         })
       );
     setEdition(next);
-    setDone(countTransformedChapters(document.id, chapters));
+    setDone(countTransformedChapters(pdfDocument.id, chapters));
   };
 
   return (
@@ -92,7 +92,7 @@ export default function TransformDialog({
               onClick={() => {
                 setSelectedTitle(chapter.title);
                 setEdition(
-                  document ? readTransformEdition(document.id, chapter.title) : null
+                  pdfDocument ? readTransformEdition(pdfDocument.id, chapter.title) : null
                 );
               }}
               className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm ${

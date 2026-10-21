@@ -1038,7 +1038,7 @@ export default function PdfViewer({
       ) : null}
       <TransformDialog
         open={transformOpen}
-        document={activeDoc}
+        pdfDocument={activeDoc}
         onClose={() => setTransformOpen(false)}
       />
     </div>
