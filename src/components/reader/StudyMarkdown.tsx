@@ -2,6 +2,7 @@
 
 import React from "react";
 import type { StudyDiagram } from "@/lib/ai/lens-compose";
+import { StudyDiagramView } from "@/components/reader/StudyDiagrams";
 
 function escapeHtml(value: string): string {
   return value
@@ -41,112 +42,7 @@ export function StudyFlowchart({
 }: {
   diagram: StudyDiagram;
 }) {
-  const nodes = diagram.nodes.slice(0, 6);
-  if (nodes.length === 0) return null;
-  const width = Math.max(320, nodes.length * 168);
-  const height = 176;
-  const boxWidth = 138;
-  const boxHeight = 64;
-  const startX = 16;
-  const y = 52;
-
-  const wrapLabel = (label: string) => {
-    const words = label.split(/\s+/).filter(Boolean);
-    const lines: string[] = [];
-    let current = "";
-    for (const word of words) {
-      const next = current ? `${current} ${word}` : word;
-      if (next.length > 16) {
-        if (current) lines.push(current);
-        current = word.length > 16 ? `${word.slice(0, 15)}…` : word;
-      } else {
-        current = next;
-      }
-      if (lines.length === 2) break;
-    }
-    if (current && lines.length < 2) lines.push(current);
-    return lines.slice(0, 2);
-  };
-
-  return (
-    <div
-      data-testid="study-flowchart"
-      className="overflow-x-auto rounded-2xl border border-line bg-surface p-3"
-      role="img"
-      aria-label={diagram.title}
-    >
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-40 w-full min-w-[18rem]"
-      >
-        {nodes.map((node, index) => {
-          const x = startX + index * 168;
-          const next = nodes[index + 1];
-          const lines = wrapLabel(node.label);
-          return (
-            <g key={node.id}>
-              <rect
-                x={x}
-                y={y}
-                width={boxWidth}
-                height={boxHeight}
-                rx={14}
-                fill="var(--beige-secondary)"
-                stroke="var(--beige-primary)"
-              />
-              {lines.map((line, lineIndex) => (
-                <text
-                  key={`${node.id}-${line}`}
-                  x={x + boxWidth / 2}
-                  y={y + 26 + lineIndex * 16}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill="var(--heading)"
-                >
-                  {line}
-                </text>
-              ))}
-              {next && (
-                <>
-                  <line
-                    x1={x + boxWidth}
-                    y1={y + boxHeight / 2}
-                    x2={x + 168}
-                    y2={y + boxHeight / 2}
-                    stroke="var(--accent)"
-                    strokeWidth="2"
-                    markerEnd="url(#study-arrow)"
-                  />
-                  {diagram.edges[index]?.label && (
-                    <text
-                      x={x + boxWidth + 8}
-                      y={y + 16}
-                      fontSize="9"
-                      fill="var(--text-secondary)"
-                    >
-                      {diagram.edges[index]?.label}
-                    </text>
-                  )}
-                </>
-              )}
-            </g>
-          );
-        })}
-        <defs>
-          <marker
-            id="study-arrow"
-            markerWidth="8"
-            markerHeight="8"
-            refX="6"
-            refY="4"
-            orient="auto"
-          >
-            <path d="M0,0 L8,4 L0,8 Z" fill="var(--accent)" />
-          </marker>
-        </defs>
-      </svg>
-    </div>
-  );
+  return <StudyDiagramView diagram={{ ...diagram, kind: diagram.kind ?? "flowchart" }} />;
 }
 
 function renderTable(rows: string[]): React.ReactNode {

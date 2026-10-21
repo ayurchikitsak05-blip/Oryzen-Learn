@@ -20,10 +20,25 @@ import {
   composeDeterministicLensPayload,
   isUsableModelText,
   mergeModelTextIntoPayload,
+  type AnalogySections,
+  type ExplainSections,
+  type IllustrativeBundle,
+  type RevisionSections,
+  type ShortAnswerItem,
   type StudyDiagram,
 } from "./lens-compose";
 
-export type { StudyDiagram, StudyDiagramEdge, StudyDiagramNode } from "./lens-compose";
+export type {
+  AnalogySections,
+  ExplainSections,
+  IllustrativeBundle,
+  RevisionSections,
+  ShortAnswerItem,
+  StudyDiagram,
+  StudyDiagramEdge,
+  StudyDiagramKind,
+  StudyDiagramNode,
+} from "./lens-compose";
 
 export type GatewayTaskType =
   | HighlightLensType
@@ -74,8 +89,13 @@ export interface AiLensResponsePayload {
   markdown_body: string;
   key_points: string[];
   mcqs?: TestMeMcqItem[];
+  short_answers?: ShortAnswerItem[];
   citations: InlineCitationCoordinate[];
   diagram?: StudyDiagram;
+  explain?: ExplainSections;
+  revision?: RevisionSections;
+  illustrative?: IllustrativeBundle;
+  analogy?: AnalogySections;
   used_fallback?: boolean;
 }
 
@@ -621,7 +641,7 @@ export async function executeControlledAiGateway(
     `Lens: ${request.lensType}.`,
     `Explain only the selected passage. Do not invent facts beyond it.`,
     `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
-    `Use Markdown (headings, bullets, tables). For illustrative views, include a mermaid flowchart.`,
+    `Use Markdown (headings, bullets, tables). Do not emit mermaid, JSON, or reasoning.`,
     `Never reprint the entire source passage.`,
     rag.boundedPromptContext,
   ].join("\n\n");
@@ -649,7 +669,13 @@ export async function executeControlledAiGateway(
       ...fallbackPayload,
       ...customResult.payload,
       mcqs: customResult.payload.mcqs ?? fallbackPayload.mcqs,
+      short_answers:
+        customResult.payload.short_answers ?? fallbackPayload.short_answers,
       diagram: customResult.payload.diagram ?? fallbackPayload.diagram,
+      explain: customResult.payload.explain ?? fallbackPayload.explain,
+      revision: customResult.payload.revision ?? fallbackPayload.revision,
+      illustrative:
+        customResult.payload.illustrative ?? fallbackPayload.illustrative,
       used_fallback: false,
     };
     usedDeterministicFallback = false;
@@ -670,7 +696,11 @@ export async function executeControlledAiGateway(
       if (isUsableModelText(text)) {
         generatedPayload = mergeModelTextIntoPayload(fallbackPayload, text);
         generatedPayload.mcqs = fallbackPayload.mcqs;
+        generatedPayload.short_answers = fallbackPayload.short_answers;
         generatedPayload.diagram = fallbackPayload.diagram;
+        generatedPayload.explain = fallbackPayload.explain;
+        generatedPayload.revision = fallbackPayload.revision;
+        generatedPayload.illustrative = fallbackPayload.illustrative;
         usedDeterministicFallback = false;
         fallbackReason = null;
       } else {

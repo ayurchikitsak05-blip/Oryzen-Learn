@@ -2,15 +2,21 @@
 
 import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import AppChrome from "@/components/layout/AppChrome";
+import { ui } from "@/components/ui/classes";
 import PdfViewer from "@/components/reader/PdfViewer";
-import StudySidePanel from "@/components/study/StudySidePanel";
-import StudioFrame from "@/components/studio/StudioFrame";
 import {
   calculatePrakritiProfile,
   type Dosha,
 } from "@/lib/prakriti/config";
 import { LOCAL_PRAKRITI_STORAGE_KEY } from "@/lib/supabase/profile-sync";
 import type { StoredPrakritiProfilePayload } from "@/lib/supabase/types";
+
+const BODY_TYPE_OPTIONS: readonly { dosha: Dosha; label: string }[] = [
+  { dosha: "Vata", label: "Spark & Sprint (Vata)" },
+  { dosha: "Pitta", label: "Laser & Logic (Pitta)" },
+  { dosha: "Kapha", label: "Anchor & Endurance (Kapha)" },
+];
 
 function getInitialDoshaTheme(): Dosha {
   if (typeof window !== "undefined") {
@@ -67,21 +73,33 @@ function ReaderStudio() {
   const profile = calculatePrakritiProfile(scores, scores);
 
   return (
-    <StudioFrame
-      title="Your Reading Space"
-      eyebrow="Read & Explore"
-      activeDosha={activeDosha}
-      onChangeDosha={setActiveDosha}
+    <AppChrome
+      subtitle="Read"
+      maxWidthClass="max-w-none"
+      actions={
+        <label className="shrink-0">
+          <span className="sr-only">Your Learning Profile</span>
+          <select
+            aria-label="Your Learning Profile"
+            value={activeDosha}
+            onChange={(event) => setActiveDosha(event.target.value as Dosha)}
+            className={`${ui.input} max-w-[10.5rem] cursor-pointer text-xs sm:max-w-none`}
+          >
+            {BODY_TYPE_OPTIONS.map((option) => (
+              <option key={option.dosha} value={option.dosha}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      }
     >
-      <div className="space-y-6">
+      <div className="flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden max-md:h-[calc(100dvh-3.5rem-5rem)] max-md:-mb-20">
         <PdfViewer
           theme={profile.activeConfiguration.theme}
           promptUpload={searchParams.get("upload") === "1"}
         />
-        <div className="max-w-xl">
-          <StudySidePanel dosha={activeDosha} />
-        </div>
       </div>
-    </StudioFrame>
+    </AppChrome>
   );
 }

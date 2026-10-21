@@ -70,6 +70,22 @@ describe("Layer 2: Tablet-First PDF Engine & Local-First Storage Pipeline", () =
     });
   });
 
+  describe("1b. Fit-page and fit-width scales", () => {
+    it("fits a complete page without stretching and can go below pinch-min for phones", async () => {
+      const { computeFitPageScale, computeFitWidthScale } = await import(
+        "../fit"
+      );
+      const page = { width: 612, height: 792 };
+      const phone = { width: 390, height: 640 };
+      const fitPage = computeFitPageScale(page, phone, 32);
+      const fitWidth = computeFitWidthScale(page, phone, 32);
+      expect(fitPage).toBeLessThanOrEqual(fitWidth);
+      expect(Math.abs(page.width * fitPage) ).toBeLessThanOrEqual(phone.width);
+      expect(Math.abs(page.height * fitPage)).toBeLessThanOrEqual(phone.height);
+      expect(fitWidth).toBeGreaterThan(0.2);
+    });
+  });
+
   describe("2. SHA-256 Hashing & Duplicate Detection (hashing.ts)", () => {
     it("produces deterministic 64-character SHA-256 hex digests for identical PDF binaries", async () => {
       const pdfBytesA = buildEmbeddedAyurvedaSamplePdf([

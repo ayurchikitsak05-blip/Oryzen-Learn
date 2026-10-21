@@ -25,7 +25,7 @@ interface LookupAnchor {
   left: number;
 }
 
-interface SelectionToolbarState {
+export interface SelectionToolbarState {
   top: number;
   left: number;
   start: number;
@@ -37,9 +37,11 @@ export interface PassageTextProps {
   chunkId: string;
   text: string;
   marks: readonly ReaderTextMark[];
+  overlay?: boolean;
   onAddMark: (mark: Omit<ReaderTextMark, "id">) => void;
   onExplain: (selectedText: string) => void;
   onAddNote: (quote: string, note: string) => void;
+  onSelectionChange?: (selection: SelectionToolbarState | null) => void;
 }
 
 function plainOffsets(
@@ -257,16 +259,23 @@ export default function PassageText({
   chunkId,
   text,
   marks,
+  overlay = false,
   onAddMark,
   onExplain,
   onAddNote,
+  onSelectionChange,
 }: PassageTextProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const onSelectionChangeRef = useRef(onSelectionChange);
   const [lookup, setLookup] = useState<LookupAnchor | null>(null);
   const [toolbar, setToolbar] = useState<SelectionToolbarState | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [noting, setNoting] = useState(false);
   const chunkMarks = marks.filter((mark) => mark.chunkId === chunkId);
+
+  useEffect(() => {
+    onSelectionChangeRef.current = onSelectionChange;
+  }, [onSelectionChange]);
 
   useEffect(() => {
     const closeOnOutside = (event: MouseEvent) => {
@@ -278,6 +287,7 @@ export default function PassageText({
       if (popup?.contains(target) || tools?.contains(target)) return;
       setLookup(null);
       setToolbar(null);
+      onSelectionChangeRef.current?.(null);
     };
     document.addEventListener("mousedown", closeOnOutside);
     return () => document.removeEventListener("mousedown", closeOnOutside);
@@ -299,13 +309,15 @@ export default function PassageText({
     const rect = range.getBoundingClientRect();
     setNoting(false);
     setNoteDraft("");
-    setToolbar({
+    const next = {
       top: rect.top,
       left: rect.left + rect.width / 2,
       start: offsets.start,
       end: offsets.end,
       text: selected,
-    });
+    };
+    setToolbar(next);
+    onSelectionChange?.(next);
   };
 
   const applyMark = (kind: ReaderMarkKind) => {
@@ -327,7 +339,12 @@ export default function PassageText({
       <div
         ref={rootRef}
         onMouseUp={handleMouseUp}
-        className="text-sm leading-relaxed"
+        onTouchEnd={handleMouseUp}
+        className={
+          overlay
+            ? "h-full w-full text-[11px] leading-tight text-transparent selection:bg-selected selection:text-heading"
+            : "text-sm leading-relaxed"
+        }
       >
         {segments.map((segment) => {
           const wordPattern = /(\s+|\S+)/g;
@@ -382,7 +399,7 @@ export default function PassageText({
         })}
       </div>
 
-      {toolbar && (
+      {toolbar && !overlay && (
         <div
           id="reader-selection-tools"
           role="toolbar"

@@ -3,6 +3,8 @@ import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
 
 type ComposeTaskType = HighlightLensType | "deep_integrative_synthesis";
 
+export type StudyDiagramKind = "flowchart" | "mind_map" | "concept_diagram";
+
 export interface StudyDiagramNode {
   id: string;
   label: string;
@@ -16,8 +18,48 @@ export interface StudyDiagramEdge {
 
 export interface StudyDiagram {
   title: string;
+  kind?: StudyDiagramKind;
   nodes: StudyDiagramNode[];
   edges: StudyDiagramEdge[];
+}
+
+export interface ExplainSections {
+  simpleExplanation: string;
+  importantConcepts: string[];
+  relevantExample: string;
+  keyTakeaway: string;
+}
+
+export interface RevisionTableRow {
+  topic: string;
+  remember: string;
+}
+
+export interface RevisionSections {
+  quickSummary: string;
+  keyPoints: string[];
+  revisionTable: RevisionTableRow[];
+  memoryAid: string;
+  examPractice: string[];
+}
+
+export interface AnalogySections {
+  setup: string;
+  mapping: string;
+  takeaway: string;
+}
+
+export interface ShortAnswerItem {
+  prompt: string;
+  expectedPoints: string[];
+  sampleAnswer: string;
+}
+
+export interface IllustrativeBundle {
+  flowchart: StudyDiagram;
+  mindMap: StudyDiagram;
+  conceptDiagram: StudyDiagram;
+  analogy: AnalogySections;
 }
 
 export interface ComposedCitation {
@@ -43,8 +85,12 @@ export interface ComposedLensPayload {
   markdown_body: string;
   key_points: string[];
   mcqs?: ComposedMcqItem[];
+  short_answers?: ShortAnswerItem[];
   citations: ComposedCitation[];
   diagram?: StudyDiagram;
+  explain?: ExplainSections;
+  revision?: RevisionSections;
+  illustrative?: IllustrativeBundle;
   used_fallback?: boolean;
 }
 
@@ -60,6 +106,12 @@ export interface ComposeLensRequest {
 
 const AYURVEDA_SIGNAL =
   /\b(ayurved(a|ic)|dosha|vata|pitta|kapha|prakriti|tridosha|dhee|dhriti|smriti|dinacharya|srotas|agni|ama)\b/i;
+
+const PHYSICS_SIGNAL =
+  /\b(newton|velocity|force|inertia|momentum|acceleration|mass|gravity|energy|watt|joule|ampere|circuit|atom|electron|photon|wave|optics|thermodynamic)\b/i;
+
+const MARKETING_SIGNAL =
+  /\b(landing page|campaign|customer|call to action|cta|brand|funnel|conversion|marketing|audience|proof|outcome)\b/i;
 
 export function passageDiscussesAyurveda(text: string): boolean {
   return AYURVEDA_SIGNAL.test(text);
@@ -176,8 +228,14 @@ function clipClaim(sentence: string): string {
   return sentence.replace(/^["“]+|["”]+$/g, "").replace(/\s+/g, " ").trim();
 }
 
-function buildDiagram(params: {
-  title: string;
+function passageDomain(text: string): "ayurveda" | "physics" | "marketing" | "general" {
+  if (passageDiscussesAyurveda(text)) return "ayurveda";
+  if (PHYSICS_SIGNAL.test(text)) return "physics";
+  if (MARKETING_SIGNAL.test(text)) return "marketing";
+  return "general";
+}
+
+function buildFlowchart(params: {
   sentences: string[];
   phrases: string[];
 }): StudyDiagram {
@@ -185,20 +243,105 @@ function buildDiagram(params: {
   const support = clipClaim(
     params.sentences[1] ?? params.phrases[1] ?? "Supporting point from the passage"
   );
-  const check = clipClaim(params.phrases[0] ?? "Recall the main idea");
+  const extra = clipClaim(params.sentences[2] ?? params.phrases[2] ?? "Check the claim");
   return {
-    title: params.title,
+    title: "Passage flowchart",
+    kind: "flowchart",
     nodes: [
       { id: "idea", label: excerptForDisplay(params.phrases[0] ?? "Core idea", 28) },
       { id: "claim", label: excerptForDisplay(claim, 42) },
       { id: "support", label: excerptForDisplay(support, 42) },
-      { id: "recall", label: `Recall: ${excerptForDisplay(check, 24)}` },
+      { id: "check", label: excerptForDisplay(extra, 36) },
     ],
     edges: [
       { from: "idea", to: "claim", label: "states" },
       { from: "claim", to: "support", label: "supported by" },
-      { from: "support", to: "recall", label: "check" },
+      { from: "support", to: "check", label: "then" },
     ],
+  };
+}
+
+function buildMindMap(params: {
+  sentences: string[];
+  phrases: string[];
+}): StudyDiagram {
+  const hub = excerptForDisplay(params.phrases[0] ?? "Core idea", 26);
+  const branches = uniqueKeep([
+    excerptForDisplay(params.sentences[0] ?? "Main claim", 32),
+    excerptForDisplay(params.sentences[1] ?? params.phrases[1] ?? "Support", 32),
+    excerptForDisplay(params.phrases[1] ?? "Key term", 24),
+    excerptForDisplay(params.phrases[2] ?? params.sentences[2] ?? "Recall check", 24),
+  ]).slice(0, 4);
+  const nodes: StudyDiagramNode[] = [
+    { id: "hub", label: hub },
+    ...branches.map((label, index) => ({ id: `b${index}`, label })),
+  ];
+  return {
+    title: "Passage mind map",
+    kind: "mind_map",
+    nodes,
+    edges: branches.map((_, index) => ({
+      from: "hub",
+      to: `b${index}`,
+      label: index === 0 ? "claim" : index === 1 ? "support" : "detail",
+    })),
+  };
+}
+
+function buildConceptDiagram(params: {
+  sentences: string[];
+  phrases: string[];
+}): StudyDiagram {
+  const a = excerptForDisplay(params.phrases[0] ?? "Concept A", 24);
+  const b = excerptForDisplay(params.phrases[1] ?? params.sentences[0] ?? "Concept B", 24);
+  const c = excerptForDisplay(params.phrases[2] ?? params.sentences[1] ?? "Concept C", 24);
+  const d = excerptForDisplay(params.phrases[3] ?? "Outcome", 20);
+  return {
+    title: "Concept diagram",
+    kind: "concept_diagram",
+    nodes: [
+      { id: "a", label: a },
+      { id: "b", label: b },
+      { id: "c", label: c },
+      { id: "d", label: d },
+    ],
+    edges: [
+      { from: "a", to: "b", label: "relates to" },
+      { from: "a", to: "c", label: "shapes" },
+      { from: "b", to: "d", label: "leads to" },
+      { from: "c", to: "d", label: "checks" },
+    ],
+  };
+}
+
+function buildAnalogy(text: string, sentences: string[], phrases: string[]): AnalogySections {
+  const domain = passageDomain(text);
+  const claim = clipClaim(sentences[0] ?? text);
+  if (domain === "physics") {
+    return {
+      setup: "Think of a hockey puck on smooth ice.",
+      mapping: `The passage’s “${excerptForDisplay(phrases[0] ?? "object", 28)}” is the puck. “${excerptForDisplay(phrases[1] ?? "net force", 28)}” is a stick or a patch of rough ice.`,
+      takeaway: excerptForDisplay(claim, 180),
+    };
+  }
+  if (domain === "marketing") {
+    return {
+      setup: "Think of a shop window that has one promise, then proof, then a door.",
+      mapping: `The selected lines ask you to lead with one ${excerptForDisplay(phrases[0] ?? "outcome", 24)}, then show ${excerptForDisplay(phrases[1] ?? "proof", 24)}, then one clear ask.`,
+      takeaway: excerptForDisplay(claim, 180),
+    };
+  }
+  if (domain === "ayurveda") {
+    return {
+      setup: "Think of three instruments in one ensemble: each has a job, and the piece holds when they stay in time.",
+      mapping: `The passage’s own terms (${phrases.slice(0, 3).join(", ") || "the named energies"}) are those instruments, not a lecture added on top.`,
+      takeaway: excerptForDisplay(claim, 180),
+    };
+  }
+  return {
+    setup: "Think of a claim, the evidence under it, and a check you can say aloud.",
+    mapping: `Here the claim is “${excerptForDisplay(claim, 90)}”. The next line supplies the support you should be able to restate.`,
+    takeaway: excerptForDisplay(sentences[1] ?? claim, 180),
   };
 }
 
@@ -272,62 +415,80 @@ function learningApproachBody(
   };
 }
 
-function illustrativeBody(
-  request: ComposeLensRequest,
-  sentences: string[],
-  phrases: string[],
-  diagram: StudyDiagram
-): { markdown: string; keyPoints: string[] } {
-  const claim = clipClaim(sentences[0] ?? request.selectedText);
-  return {
-    markdown: [
-      `### Visual map of this passage`,
-      `Follow the flowchart: the core idea leads to the claim, then the support, then a recall check.`,
-      `- **Core idea:** ${excerptForDisplay(phrases[0] ?? "the selected idea", 80)}`,
-      `- **Claim:** ${excerptForDisplay(claim, 160)}`,
-      `- **Next node:** ${excerptForDisplay(sentences[1] ?? "Restate the claim without looking back.", 160)}`,
-      "",
-      "```mermaid",
-      `flowchart LR`,
-      `  A[${diagram.nodes[0]?.label ?? "Idea"}] --> B[${diagram.nodes[1]?.label ?? "Claim"}]`,
-      `  B --> C[${diagram.nodes[2]?.label ?? "Support"}]`,
-      `  C --> D[${diagram.nodes[3]?.label ?? "Recall"}]`,
-      "```",
-    ].join("\n"),
-    keyPoints: diagram.nodes.map((node) => node.label),
-  };
-}
-
-function revisionBody(
-  request: ComposeLensRequest,
-  sentences: string[],
-  phrases: string[]
-): { markdown: string; keyPoints: string[] } {
+function buildRevision(request: ComposeLensRequest, sentences: string[], phrases: string[]): RevisionSections {
   const claim = clipClaim(sentences[0] ?? request.selectedText);
   const support = clipClaim(sentences[1] ?? "Restate the claim in one line.");
   const detail = clipClaim(sentences[2] ?? phrases[1] ?? "Name one supporting word from the page.");
-  const mnemonic = uniqueKeep(
-    phrases
-      .map((phrase) => phrase.charAt(0).toUpperCase())
-      .filter(Boolean)
-  )
-    .slice(0, 5)
-    .join("-");
+  const domain = passageDomain(request.selectedText);
+  const initials = uniqueKeep(
+    phrases.map((phrase) => phrase.charAt(0).toUpperCase()).filter(Boolean)
+  ).slice(0, 4);
+  const memoryAid =
+    domain === "marketing"
+      ? `Remember the page’s own sequence: ${excerptForDisplay(claim, 100)} Then keep ${excerptForDisplay(support, 80)}.`
+      : domain === "physics"
+        ? `Hold this as a cause-and-effect line: ${excerptForDisplay(claim, 120)}`
+        : initials.length >= 2
+          ? `${initials.join("-")} stands for ${phrases.slice(0, initials.length).join(", ")}.`
+          : `Say this without looking: ${excerptForDisplay(claim, 140)}`;
   return {
-    markdown: [
-      `### Revision sheet`,
-      `| Focus | What to remember |`,
-      `| :--- | :--- |`,
-      `| Main claim | ${excerptForDisplay(claim, 120)} |`,
-      `| Support | ${excerptForDisplay(support, 120)} |`,
-      `| Extra detail | ${excerptForDisplay(detail, 120)} |`,
-      `| Self-check | Cover the page and say the claim, then the support. |`,
-      ``,
-      `- **Memory aid:** ${mnemonic || "CLAIM"} = ${phrases.slice(0, 4).join(" → ") || "claim → support → check"}`,
-      `- **Do not memorize:** page chrome, decorative headings, or anything not in the selected lines.`,
-    ].join("\n"),
-    keyPoints: [claim, support, detail].map((item) => excerptForDisplay(item, 100)),
+    quickSummary: excerptForDisplay(claim, 220),
+    keyPoints: [claim, support, detail].map((item) => excerptForDisplay(item, 140)),
+    revisionTable: [
+      { topic: "Main claim", remember: excerptForDisplay(claim, 140) },
+      { topic: "Support", remember: excerptForDisplay(support, 140) },
+      { topic: "Extra detail", remember: excerptForDisplay(detail, 140) },
+      { topic: "Self-check", remember: "Cover the page and say the claim, then the support." },
+    ],
+    memoryAid,
+    examPractice: [
+      `In one sentence, what does the passage claim about ${phrases[0] ?? "this idea"}?`,
+      `What would count as a faithful example of that claim, using only these lines?`,
+    ],
   };
+}
+
+function buildExplain(request: ComposeLensRequest, sentences: string[], phrases: string[]): ExplainSections {
+  const claim = clipClaim(sentences[0] ?? request.selectedText);
+  const support = sentences[1] ? clipClaim(sentences[1]) : null;
+  const extra = sentences[2] ? clipClaim(sentences[2]) : null;
+  const domain = passageDomain(request.selectedText);
+  const relevantExample =
+    domain === "physics"
+      ? `A free-body sketch starts by asking what is actually pushing or pulling, which is how the passage uses “${excerptForDisplay(phrases[0] ?? "force", 24)}”.`
+      : domain === "marketing"
+        ? `A landing page that opens with one customer result, then proof, then a single ask, is doing what these lines describe.`
+        : support
+          ? excerptForDisplay(support, 200)
+          : `If you can restate “${excerptForDisplay(claim, 80)}” without looking back, you have the example.`;
+  return {
+    simpleExplanation: support
+      ? `This passage is making a concrete point: ${claim} It then develops that point: ${support}`
+      : `This passage is making a concrete point: ${claim}`,
+    importantConcepts: uniqueKeep([
+      excerptForDisplay(phrases[0] ?? "Main claim", 40),
+      excerptForDisplay(phrases[1] ?? support ?? "Support", 40),
+      excerptForDisplay(phrases[2] ?? extra ?? "Recall check", 40),
+    ]).slice(0, 4),
+    relevantExample,
+    keyTakeaway: extra
+      ? excerptForDisplay(extra, 180)
+      : `If you can restate that claim in one sentence without looking back, you have the passage.`,
+  };
+}
+
+function groundedShortAnswers(text: string, phrases: string[]): ShortAnswerItem[] {
+  const sentences = splitPassageSentences(text);
+  const claim = clipClaim(sentences[0] ?? text.trim());
+  return [
+    {
+      prompt: `In your own words, what should you be able to recall about “${phrases[0] ?? "this idea"}” from the selected lines?`,
+      expectedPoints: [claim, phrases[0] ?? "the main claim"].map((item) =>
+        excerptForDisplay(item, 80)
+      ),
+      sampleAnswer: excerptForDisplay(claim, 200),
+    },
+  ];
 }
 
 function saveBody(request: ComposeLensRequest): { markdown: string; keyPoints: string[] } {
@@ -347,30 +508,33 @@ function saveBody(request: ComposeLensRequest): { markdown: string; keyPoints: s
   };
 }
 
-function explainBody(
-  request: ComposeLensRequest,
-  sentences: string[]
-): { markdown: string; keyPoints: string[] } {
-  const claim = clipClaim(sentences[0] ?? request.selectedText);
-  const support = sentences[1] ? clipClaim(sentences[1]) : null;
-  const extra = sentences[2] ? clipClaim(sentences[2]) : null;
-  const lines = [
-    `### Explanation`,
-    `This passage is making a concrete point: **${claim}**`,
-    support
-      ? `It then develops that point: ${support}`
-      : `The rest of the selection stays on that same point rather than opening a new topic.`,
-  ];
-  if (extra) {
-    lines.push(`A further detail in the same lines: ${extra}`);
-  }
-  lines.push(
-    `If you can restate that claim in one sentence without looking back, you have the passage.`
-  );
-  return {
-    markdown: lines.join("\n"),
-    keyPoints: [claim, support, extra].filter((item): item is string => Boolean(item)),
-  };
+function explainMarkdown(sections: ExplainSections): string {
+  return [
+    "### Simple explanation",
+    sections.simpleExplanation,
+    "### Important concepts",
+    ...sections.importantConcepts.map((item) => `- ${item}`),
+    "### Relevant example",
+    sections.relevantExample,
+    "### Key takeaway",
+    sections.keyTakeaway,
+  ].join("\n");
+}
+
+function revisionMarkdown(sections: RevisionSections): string {
+  return [
+    "### Quick summary",
+    sections.quickSummary,
+    "### Key points",
+    ...sections.keyPoints.map((item) => `- ${item}`),
+    "| Topic | What to remember |",
+    "| :--- | :--- |",
+    ...sections.revisionTable.map((row) => `| ${row.topic} | ${row.remember} |`),
+    "### Memory aid",
+    sections.memoryAid,
+    "### Exam practice",
+    ...sections.examPractice.map((item) => `- ${item}`),
+  ].join("\n");
 }
 
 export function composeDeterministicLensPayload(params: {
@@ -405,29 +569,38 @@ export function composeDeterministicLensPayload(params: {
       };
     }
     case "illustrative": {
-      const diagram = buildDiagram({
-        title: "Passage flowchart",
-        sentences,
-        phrases,
-      });
-      const body = illustrativeBody(request, sentences, phrases, diagram);
+      const flowchart = buildFlowchart({ sentences, phrases });
+      const mindMap = buildMindMap({ sentences, phrases });
+      const conceptDiagram = buildConceptDiagram({ sentences, phrases });
+      const analogy = buildAnalogy(request.selectedText, sentences, phrases);
       return {
         ...base,
         lens_type: "illustrative",
         title: "Illustrative View",
-        markdown_body: body.markdown,
-        key_points: body.keyPoints,
-        diagram,
+        markdown_body: [
+          "### Illustrative view",
+          "Use the flowchart, mind map, or concept diagram. The analogy is written and stays inside the selected lines.",
+          `Claim to hold: ${excerptForDisplay(sentences[0] ?? request.selectedText, 160)}`,
+        ].join("\n"),
+        key_points: flowchart.nodes.map((node) => node.label),
+        diagram: flowchart,
+        illustrative: {
+          flowchart,
+          mindMap,
+          conceptDiagram,
+          analogy,
+        },
       };
     }
     case "high_yield_revision": {
-      const body = revisionBody(request, sentences, phrases);
+      const revision = buildRevision(request, sentences, phrases);
       return {
         ...base,
         lens_type: "high_yield_revision",
         title: "Revision View",
-        markdown_body: body.markdown,
-        key_points: body.keyPoints,
+        markdown_body: revisionMarkdown(revision),
+        key_points: revision.keyPoints,
+        revision,
       };
     }
     case "save_passage": {
@@ -442,6 +615,7 @@ export function composeDeterministicLensPayload(params: {
     }
     case "test_me": {
       const mcqs = groundedMcqs(request.selectedText, request.pageNumber);
+      const shortAnswers = groundedShortAnswers(request.selectedText, phrases);
       return {
         ...base,
         lens_type: "test_me",
@@ -452,17 +626,19 @@ export function composeDeterministicLensPayload(params: {
         ].join("\n"),
         key_points: mcqs.map((item) => item.question),
         mcqs,
+        short_answers: shortAnswers,
       };
     }
     case "explain":
     default: {
-      const body = explainBody(request, sentences);
+      const explain = buildExplain(request, sentences, phrases);
       return {
         ...base,
         lens_type: lens === "explain" ? "explain" : request.lensType,
         title: "Explain This Passage",
-        markdown_body: body.markdown,
-        key_points: body.keyPoints,
+        markdown_body: explainMarkdown(explain),
+        key_points: explain.importantConcepts,
+        explain,
       };
     }
   }

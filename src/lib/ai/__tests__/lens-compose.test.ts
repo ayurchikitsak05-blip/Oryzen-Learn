@@ -42,16 +42,34 @@ describe("deterministic study lenses", () => {
     );
     expect(payload.diagram?.nodes.length).toBeGreaterThanOrEqual(3);
     expect(payload.diagram?.edges.length).toBeGreaterThanOrEqual(2);
-    expect(payload.markdown_body).toMatch(/flowchart/i);
+    expect(payload.illustrative?.flowchart.nodes.length).toBeGreaterThanOrEqual(3);
+    expect(payload.illustrative?.mindMap.kind).toBe("mind_map");
+    expect(payload.illustrative?.mindMap.nodes.length).toBeGreaterThanOrEqual(3);
+    expect(payload.illustrative?.conceptDiagram.edges.length).toBeGreaterThanOrEqual(3);
+    expect(payload.illustrative?.analogy.takeaway).toMatch(/Newton|velocity|force/i);
+    expect(payload.markdown_body).not.toMatch(/```|\[Core Idea\]/);
   });
 
   it("renders a revision table and memory aid from the passage", () => {
     const payload = composeDeterministicLensPayload(
       requestFor("high_yield_revision", PHYSICS_PASSAGE)
     );
-    expect(payload.markdown_body).toContain("| Focus | What to remember |");
+    expect(payload.revision?.revisionTable.length).toBeGreaterThanOrEqual(3);
+    expect(payload.revision?.memoryAid).toMatch(/Newton|velocity|force|cause/i);
+    expect(payload.revision?.memoryAid).not.toMatch(/Vata|Pitta|Kapha|Ayurveda/i);
+    expect(payload.markdown_body).toContain("| Topic | What to remember |");
     expect(payload.markdown_body).toMatch(/Newton|velocity|force/i);
     expect(payload.markdown_body).not.toMatch(/citation junk|Vata|Pitta/i);
+  });
+
+  it("does not use Ayurveda in a marketing memory aid", () => {
+    const marketing =
+      "A landing page should lead with one customer outcome, then show proof, then one clear call to action.";
+    const payload = composeDeterministicLensPayload(
+      requestFor("high_yield_revision", marketing)
+    );
+    expect(payload.revision?.memoryAid).toMatch(/outcome|proof|ask|lead/i);
+    expect(payload.revision?.memoryAid).not.toMatch(/Vata|Pitta|Kapha|Dosha|Ayurveda/i);
   });
 
   it("grounds Test Me answers in the selected passage", () => {
@@ -61,6 +79,7 @@ describe("deterministic study lenses", () => {
     expect(payload.mcqs?.length).toBeGreaterThan(0);
     expect(payload.mcqs?.[0].options[0]).toMatch(/velocity|Newton|force/i);
     expect(payload.mcqs?.[0].explanation).toMatch(/passage/i);
+    expect(payload.short_answers?.[0].prompt).toMatch(/velocity|Newton|force|free-body|idea/i);
   });
 
   it("explains the passage without reprinting the whole source", () => {
@@ -68,6 +87,8 @@ describe("deterministic study lenses", () => {
       requestFor("explain", PHYSICS_PASSAGE)
     );
     expect(payload.title).toBe("Explain This Passage");
+    expect(payload.explain?.simpleExplanation).toMatch(/Newton|velocity|force/i);
+    expect(payload.explain?.keyTakeaway.length).toBeGreaterThan(20);
     expect(payload.markdown_body).toMatch(/Newton|velocity|force/i);
     expect(payload.markdown_body).not.toContain(PHYSICS_PASSAGE);
   });
