@@ -20,6 +20,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
   const sections = result.payload.explain;
+  const [depth, setDepth] = useState<"simple" | "standard" | "deeper">("standard");
   if (!sections) {
     return (
       <StudyMarkdown
@@ -28,11 +29,44 @@ function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
       />
     );
   }
+  const explanation =
+    depth === "simple"
+      ? sections.simpleExplanation
+      : depth === "deeper"
+        ? sections.deeperExplanation ?? sections.standardExplanation ?? sections.simpleExplanation
+        : sections.standardExplanation ?? sections.simpleExplanation;
   return (
     <div data-testid="explain-output" className="space-y-4">
+      <div className="flex flex-wrap gap-1">
+        {(
+          [
+            ["simple", "Simple"],
+            ["standard", "Standard"],
+            ["deeper", "Deeper"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            data-testid={`explain-depth-${id}`}
+            onClick={() => setDepth(id)}
+            className={`inline-flex min-h-10 items-center rounded-xl px-3 text-xs font-medium ${
+              depth === id ? "bg-selected text-heading" : "text-muted hover:bg-beige-2"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <section>
-        <SectionTitle>Simple explanation</SectionTitle>
-        <p className="mt-2 text-sm leading-relaxed text-ink">{sections.simpleExplanation}</p>
+        <SectionTitle>
+          {depth === "simple"
+            ? "Simple explanation"
+            : depth === "deeper"
+              ? "Deeper explanation"
+              : "Standard explanation"}
+        </SectionTitle>
+        <p className="mt-2 text-sm leading-relaxed text-ink">{explanation}</p>
       </section>
       <section>
         <SectionTitle>Important concepts</SectionTitle>
@@ -49,6 +83,29 @@ function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
       <section>
         <SectionTitle>Key takeaway</SectionTitle>
         <p className="mt-2 text-sm leading-relaxed text-ink">{sections.keyTakeaway}</p>
+      </section>
+    </div>
+  );
+}
+
+function StoryOutput({ result }: { result: AiGatewayExecutionResult }) {
+  const story = result.payload.story;
+  if (!story) {
+    return <StudyMarkdown markdown={result.payload.markdown_body} />;
+  }
+  return (
+    <div data-testid="story-output" className="space-y-4">
+      <section>
+        <SectionTitle>Opening</SectionTitle>
+        <p className="mt-2 text-sm leading-relaxed text-ink">{story.opening}</p>
+      </section>
+      <section>
+        <SectionTitle>Turning point</SectionTitle>
+        <p className="mt-2 text-sm leading-relaxed text-ink">{story.turningPoint}</p>
+      </section>
+      <section>
+        <SectionTitle>Close</SectionTitle>
+        <p className="mt-2 text-sm leading-relaxed text-ink">{story.close}</p>
       </section>
     </div>
   );
@@ -228,7 +285,15 @@ function TestMeOutput({
             })}
           </div>
           {selectedMcqOptions[idx] !== undefined ? (
-            <p className="pt-1 text-xs text-muted">{mcq.explanation}</p>
+            <p
+              className="pt-1 text-xs text-muted"
+              data-testid={`test-me-feedback-${idx}`}
+            >
+              {selectedMcqOptions[idx] === mcq.correctIndex
+                ? "Correct. "
+                : "Not quite. "}
+              {mcq.explanation}
+            </p>
           ) : null}
         </div>
       ))}
@@ -274,6 +339,7 @@ export function StudyLensOutput({
     ? "explain"
     : result.payload.lens_type);
   if (resolved === "explain") return <ExplainOutput result={result} />;
+  if (resolved === "story") return <StoryOutput result={result} />;
   if (resolved === "illustrative") return <IllustrateOutput result={result} />;
   if (resolved === "high_yield_revision") return <ReviseOutput result={result} />;
   if (resolved === "test_me") {

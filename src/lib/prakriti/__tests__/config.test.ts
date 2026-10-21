@@ -6,6 +6,7 @@ import {
   DWANDWAJA_THRESHOLD_PERCENT,
   normalizeDoshaScores,
   PRAKRITI_PROFILE_LABELS,
+  recommendedStudyLenses,
 } from "../config";
 
 describe("Layer 0: Prakriti Cognitive & Lifestyle Engine (config.ts)", () => {
@@ -245,6 +246,17 @@ describe("Layer 0: Prakriti Cognitive & Lifestyle Engine (config.ts)", () => {
       expect(hybridProfile.displayProfileTitle).toContain(
         "The Hybrid Dynamic Profile (Mixed Dosha)"
       );
+    });
+  });
+
+  describe("recommended study formats", () => {
+    it("recommends starting formats without locking other modes", () => {
+      expect(recommendedStudyLenses("Vata")).toEqual(["story", "illustrative"]);
+      expect(recommendedStudyLenses("Pitta")).toEqual([
+        "high_yield_revision",
+        "explain",
+      ]);
+      expect(recommendedStudyLenses("Kapha")).toEqual(["test_me", "explain"]);
     });
   });
 });

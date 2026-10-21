@@ -33,7 +33,15 @@ export type HighlightLensType =
   | "high_yield_revision"
   | "save_passage"
   | "test_me"
-  | "explain";
+  | "explain"
+  | "story";
+
+/** Profile may recommend these first; the student can still pick any mode. */
+export function recommendedStudyLenses(dosha: Dosha): HighlightLensType[] {
+  if (dosha === "Vata") return ["story", "illustrative"];
+  if (dosha === "Pitta") return ["high_yield_revision", "explain"];
+  return ["test_me", "explain"];
+}
 
 /**
  * Modern student-friendly profile labels with classical Ayurvedic terms in parentheses.

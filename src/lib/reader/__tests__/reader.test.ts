@@ -84,6 +84,24 @@ describe("Layer 2: Tablet-First PDF Engine & Local-First Storage Pipeline", () =
       expect(Math.abs(page.height * fitPage)).toBeLessThanOrEqual(phone.height);
       expect(fitWidth).toBeGreaterThan(0.2);
     });
+
+    it("persists page, zoom, and fit mode per document", async () => {
+      const { writePersistedReaderView, readPersistedReaderView } = await import(
+        "../fit"
+      );
+      writePersistedReaderView("doc-persist", {
+        page: 7,
+        zoom: 1.25,
+        fitMode: "width",
+        progress: 0.5,
+      });
+      expect(readPersistedReaderView("doc-persist")).toEqual({
+        page: 7,
+        zoom: 1.25,
+        fitMode: "width",
+        progress: 0.5,
+      });
+    });
   });
 
   describe("2. SHA-256 Hashing & Duplicate Detection (hashing.ts)", () => {

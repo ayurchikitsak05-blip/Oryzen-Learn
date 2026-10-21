@@ -25,9 +25,17 @@ export interface StudyDiagram {
 
 export interface ExplainSections {
   simpleExplanation: string;
+  standardExplanation: string;
+  deeperExplanation: string;
   importantConcepts: string[];
   relevantExample: string;
   keyTakeaway: string;
+}
+
+export interface StorySections {
+  opening: string;
+  turningPoint: string;
+  close: string;
 }
 
 export interface RevisionTableRow {
@@ -91,6 +99,7 @@ export interface ComposedLensPayload {
   explain?: ExplainSections;
   revision?: RevisionSections;
   illustrative?: IllustrativeBundle;
+  story?: StorySections;
   used_fallback?: boolean;
 }
 
@@ -461,10 +470,25 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
         : support
           ? excerptForDisplay(support, 200)
           : `If you can restate “${excerptForDisplay(claim, 80)}” without looking back, you have the example.`;
+  const simpleExplanation = support
+    ? `This passage is making a concrete point: ${claim} It then develops that point: ${support}`
+    : `This passage is making a concrete point: ${claim}`;
+  const standardExplanation = [
+    simpleExplanation,
+    support ? `The supporting line to keep is: ${support}` : null,
+    extra ? `A further detail on the page is: ${extra}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const deeperExplanation = [
+    standardExplanation,
+    `Words worth marking: ${phrases.slice(0, 3).join(", ") || "the main claim"}.`,
+    `To check yourself, cover the page and say the claim, then the support, then one example that stays inside these lines.`,
+  ].join(" ");
   return {
-    simpleExplanation: support
-      ? `This passage is making a concrete point: ${claim} It then develops that point: ${support}`
-      : `This passage is making a concrete point: ${claim}`,
+    simpleExplanation,
+    standardExplanation,
+    deeperExplanation,
     importantConcepts: uniqueKeep([
       excerptForDisplay(phrases[0] ?? "Main claim", 40),
       excerptForDisplay(phrases[1] ?? support ?? "Support", 40),
@@ -474,6 +498,22 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
     keyTakeaway: extra
       ? excerptForDisplay(extra, 180)
       : `If you can restate that claim in one sentence without looking back, you have the passage.`,
+  };
+}
+
+function buildStory(request: ComposeLensRequest, sentences: string[], phrases: string[]): StorySections {
+  const claim = clipClaim(sentences[0] ?? request.selectedText);
+  const support = sentences[1] ? clipClaim(sentences[1]) : null;
+  const extra = sentences[2] ? clipClaim(sentences[2]) : null;
+  const subject = excerptForDisplay(phrases[0] ?? "this idea", 28);
+  return {
+    opening: `Walk through “${subject}” as a short scene instead of a lecture. The page opens with this fact: ${excerptForDisplay(claim, 180)}`,
+    turningPoint: support
+      ? `The turn comes when the passage adds: ${excerptForDisplay(support, 180)}`
+      : `Hold that opening fact and ask what would have to change for it to stop being true.`,
+    close: extra
+      ? `Leave with this: ${excerptForDisplay(extra, 160)} If you can retell the scene in one breath, you have the page.`
+      : `Leave with this: ${excerptForDisplay(claim, 160)} If you can retell it without looking back, you have the page.`,
   };
 }
 
@@ -512,12 +552,27 @@ function explainMarkdown(sections: ExplainSections): string {
   return [
     "### Simple explanation",
     sections.simpleExplanation,
+    "### Standard explanation",
+    sections.standardExplanation,
+    "### Deeper explanation",
+    sections.deeperExplanation,
     "### Important concepts",
     ...sections.importantConcepts.map((item) => `- ${item}`),
     "### Relevant example",
     sections.relevantExample,
     "### Key takeaway",
     sections.keyTakeaway,
+  ].join("\n");
+}
+
+function storyMarkdown(sections: StorySections): string {
+  return [
+    "### Opening",
+    sections.opening,
+    "### Turning point",
+    sections.turningPoint,
+    "### Close",
+    sections.close,
   ].join("\n");
 }
 
@@ -627,6 +682,17 @@ export function composeDeterministicLensPayload(params: {
         key_points: mcqs.map((item) => item.question),
         mcqs,
         short_answers: shortAnswers,
+      };
+    }
+    case "story": {
+      const story = buildStory(request, sentences, phrases);
+      return {
+        ...base,
+        lens_type: "story",
+        title: "Story Mode",
+        markdown_body: storyMarkdown(story),
+        key_points: [story.opening, story.turningPoint, story.close],
+        story,
       };
     }
     case "explain":

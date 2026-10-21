@@ -10,7 +10,7 @@ const PHYSICS_PASSAGE =
 const AYURVEDA_PASSAGE =
   "Vata, Pitta, and Kapha are three study energies. Balance supports clear grasping in any subject.";
 
-function requestFor(lensType: "ayurvedic" | "illustrative" | "high_yield_revision" | "save_passage" | "test_me" | "explain", text: string) {
+function requestFor(lensType: "ayurvedic" | "illustrative" | "high_yield_revision" | "save_passage" | "test_me" | "explain" | "story", text: string) {
   return {
     request: {
       documentId: "doc-1",
@@ -91,6 +91,16 @@ describe("deterministic study lenses", () => {
     expect(payload.explain?.keyTakeaway.length).toBeGreaterThan(20);
     expect(payload.markdown_body).toMatch(/Newton|velocity|force/i);
     expect(payload.markdown_body).not.toContain(PHYSICS_PASSAGE);
+  });
+
+  it("tells a passage-grounded story without Ayurveda on a physics passage", () => {
+    const payload = composeDeterministicLensPayload(
+      requestFor("story", PHYSICS_PASSAGE)
+    );
+    expect(payload.title).toBe("Story Mode");
+    expect(payload.story?.opening).toMatch(/Newton|velocity|force/i);
+    expect(payload.story?.turningPoint.length).toBeGreaterThan(20);
+    expect(payload.markdown_body).not.toMatch(/Vata|Pitta|Kapha|Ayurveda/i);
   });
 
   it("can mention Ayurveda when the passage itself does", () => {

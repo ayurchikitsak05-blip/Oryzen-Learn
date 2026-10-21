@@ -105,6 +105,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         "save_passage",
         "test_me",
         "explain",
+        "story",
       ] as const) {
         const route = resolveShieldedModelRoute({
           lensType: lens,

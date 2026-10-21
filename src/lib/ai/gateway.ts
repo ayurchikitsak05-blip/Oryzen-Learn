@@ -25,6 +25,7 @@ import {
   type IllustrativeBundle,
   type RevisionSections,
   type ShortAnswerItem,
+  type StorySections,
   type StudyDiagram,
 } from "./lens-compose";
 
@@ -34,6 +35,7 @@ export type {
   IllustrativeBundle,
   RevisionSections,
   ShortAnswerItem,
+  StorySections,
   StudyDiagram,
   StudyDiagramEdge,
   StudyDiagramKind,
@@ -96,6 +98,7 @@ export interface AiLensResponsePayload {
   revision?: RevisionSections;
   illustrative?: IllustrativeBundle;
   analogy?: AnalogySections;
+  story?: StorySections;
   used_fallback?: boolean;
 }
 
@@ -676,6 +679,7 @@ export async function executeControlledAiGateway(
       revision: customResult.payload.revision ?? fallbackPayload.revision,
       illustrative:
         customResult.payload.illustrative ?? fallbackPayload.illustrative,
+      story: customResult.payload.story ?? fallbackPayload.story,
       used_fallback: false,
     };
     usedDeterministicFallback = false;
@@ -701,6 +705,7 @@ export async function executeControlledAiGateway(
         generatedPayload.explain = fallbackPayload.explain;
         generatedPayload.revision = fallbackPayload.revision;
         generatedPayload.illustrative = fallbackPayload.illustrative;
+        generatedPayload.story = fallbackPayload.story;
         usedDeterministicFallback = false;
         fallbackReason = null;
       } else {

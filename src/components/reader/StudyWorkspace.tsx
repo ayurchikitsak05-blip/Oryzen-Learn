@@ -3,6 +3,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Highlighter, X } from "lucide-react";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
+import {
+  LENS_FEEDBACK_ACTIONS,
+  mapFeedbackToMemoryEvent,
+  recordLensFeedback,
+  type LensFeedbackKind,
+} from "@/lib/ai/lens-feedback";
 import type { HighlightLensType } from "@/lib/prakriti/config";
 import { StudyLensOutput } from "@/components/reader/StudyLensOutput";
 
@@ -113,7 +119,11 @@ export function StudyWorkspace({
                 data-testid="ai-fallback-banner"
                 className="text-xs font-medium text-muted"
               >
-                Model blocked / fallback used
+                {result.fallbackReason === "missing_gemini_key"
+                  ? "Gemini is not configured. Showing a source-grounded study draft."
+                  : result.fallbackReason === "model_error"
+                    ? "Gemini did not respond. Showing a source-grounded study draft."
+                    : "Model output could not be used. Showing a source-grounded study draft."}
               </p>
             ) : null}
             <StudyLensOutput
@@ -122,6 +132,12 @@ export function StudyWorkspace({
               selectedMcqOptions={selectedMcqOptions}
               onPickMcq={onPickMcq}
             />
+            {lens && lens !== "save_passage" ? (
+              <StudyFeedbackChips
+                lens={lens}
+                prakritiDosha={result.payload.prakriti_dosha}
+              />
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -171,5 +187,55 @@ export function StudyWorkspace({
       />
       {body}
     </aside>
+  );
+}
+
+function StudyFeedbackChips({
+  lens,
+  prakritiDosha,
+}: {
+  lens: HighlightLensType;
+  prakritiDosha: string;
+}) {
+  const [picked, setPicked] = useState<LensFeedbackKind | null>(null);
+
+  const send = (kind: LensFeedbackKind) => {
+    recordLensFeedback(lens, kind);
+    setPicked(kind);
+    const eventType = mapFeedbackToMemoryEvent(kind);
+    if (!eventType) return;
+    fetch("/api/ai/memory", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType,
+        prakritiDosha,
+        contextLabel: `reader:${lens}:${kind}`,
+      }),
+    }).catch(() => undefined);
+  };
+
+  return (
+    <div data-testid="lens-feedback" className="space-y-2 border-t border-line pt-3">
+      <p className="text-xs font-medium text-muted">Was this useful?</p>
+      <div className="flex flex-wrap gap-1">
+        {LENS_FEEDBACK_ACTIONS.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            data-testid={`feedback-${action.id}`}
+            onClick={() => send(action.id)}
+            className={`inline-flex min-h-10 items-center rounded-xl px-3 text-xs ${
+              picked === action.id
+                ? "bg-selected text-heading"
+                : "text-ink hover:bg-beige-2"
+            }`}
+          >
+            {action.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
