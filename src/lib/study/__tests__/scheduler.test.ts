@@ -3,7 +3,11 @@ import {
   beginFocus,
   catchUpSchedule,
   createIdleSchedule,
+  extendPhase,
+  pauseSchedule,
   resetSchedule,
+  resumeSchedule,
+  skipPhase,
 } from "../scheduler";
 
 describe("study scheduler", () => {
@@ -60,5 +64,21 @@ describe("study scheduler", () => {
     expect(reset.phase).toBe("idle");
     expect(reset.focusedMs).toBe(0);
     expect(reset.phaseEndsAt).toBeNull();
+  });
+
+  it("pauses the local timer and can resume, skip, or extend", () => {
+    const started = beginFocus(
+      createIdleSchedule({ goalMinutes: 60, focusMinutes: 20, breakMinutes: 10 }),
+      0
+    );
+    const paused = pauseSchedule(started, 5 * 60_000);
+    expect(paused.pausedRemainingMs).toBe(15 * 60_000);
+    expect(catchUpSchedule(paused, 40 * 60_000).alert).toBeNull();
+    const resumed = resumeSchedule(paused, 8 * 60_000);
+    expect(resumed.phaseEndsAt).toBe(23 * 60_000);
+    const skipped = skipPhase(started, 4 * 60_000);
+    expect(skipped.phase).toBe("break");
+    const extended = extendPhase(started, 5, 0);
+    expect(extended.phaseEndsAt).toBe(25 * 60_000);
   });
 });

@@ -9,6 +9,7 @@ export interface StudySchedule {
   phase: SchedulePhase;
   phaseEndsAt: number | null;
   focusedMs: number;
+  pausedRemainingMs: number | null;
 }
 
 const MINUTE_MS = 60_000;
@@ -23,6 +24,7 @@ export function createIdleSchedule(
     phase: "idle",
     phaseEndsAt: null,
     focusedMs: 0,
+    pausedRemainingMs: null,
   };
 }
 
@@ -46,6 +48,10 @@ export function sanitizeSchedule(value: unknown): StudySchedule | null {
     typeof raw.focusedMs === "number" && Number.isFinite(raw.focusedMs)
       ? Math.max(0, raw.focusedMs)
       : 0;
+  const pausedRemainingMs =
+    typeof raw.pausedRemainingMs === "number" && Number.isFinite(raw.pausedRemainingMs)
+      ? Math.max(0, raw.pausedRemainingMs)
+      : null;
   return {
     goalMinutes: clampMinutes(Number(raw.goalMinutes), 240, 30, 12 * 60),
     focusMinutes: clampMinutes(Number(raw.focusMinutes), 20, 1, 90),
@@ -53,6 +59,7 @@ export function sanitizeSchedule(value: unknown): StudySchedule | null {
     phase,
     phaseEndsAt,
     focusedMs,
+    pausedRemainingMs,
   };
 }
 
@@ -63,6 +70,7 @@ function advanceOnce(
   if (
     schedule.phase === "idle" ||
     schedule.phase === "complete" ||
+    schedule.pausedRemainingMs != null ||
     schedule.phaseEndsAt == null ||
     now < schedule.phaseEndsAt
   ) {
@@ -78,6 +86,7 @@ function advanceOnce(
           phase: "complete",
           phaseEndsAt: null,
           focusedMs,
+          pausedRemainingMs: null,
         },
         alert: "goal",
       };
@@ -88,6 +97,7 @@ function advanceOnce(
         phase: "break",
         phaseEndsAt: schedule.phaseEndsAt + schedule.breakMinutes * MINUTE_MS,
         focusedMs,
+        pausedRemainingMs: null,
       },
       alert: "break",
     };
@@ -98,6 +108,7 @@ function advanceOnce(
       ...schedule,
       phase: "focus",
       phaseEndsAt: schedule.phaseEndsAt + schedule.focusMinutes * MINUTE_MS,
+      pausedRemainingMs: null,
     },
     alert: "resume",
   };
@@ -132,6 +143,65 @@ export function beginFocus(schedule: StudySchedule, now: number): StudySchedule 
     phase: "focus",
     phaseEndsAt: now + clean.focusMinutes * MINUTE_MS,
     focusedMs: 0,
+    pausedRemainingMs: null,
+  };
+}
+
+export function isSchedulePaused(schedule: StudySchedule): boolean {
+  return schedule.pausedRemainingMs != null;
+}
+
+export function pauseSchedule(schedule: StudySchedule, now: number): StudySchedule {
+  if (schedule.phase !== "focus" && schedule.phase !== "break") return schedule;
+  if (schedule.pausedRemainingMs != null) return schedule;
+  if (schedule.phaseEndsAt == null) return schedule;
+  return {
+    ...schedule,
+    pausedRemainingMs: Math.max(0, schedule.phaseEndsAt - now),
+    phaseEndsAt: null,
+  };
+}
+
+export function resumeSchedule(schedule: StudySchedule, now: number): StudySchedule {
+  if (schedule.pausedRemainingMs == null) return schedule;
+  return {
+    ...schedule,
+    phaseEndsAt: now + schedule.pausedRemainingMs,
+    pausedRemainingMs: null,
+  };
+}
+
+export function skipPhase(schedule: StudySchedule, now: number): StudySchedule {
+  const live =
+    schedule.pausedRemainingMs != null
+      ? resumeSchedule(schedule, now)
+      : schedule;
+  if (live.phaseEndsAt == null) return live;
+  return catchUpSchedule({ ...live, phaseEndsAt: now }, now).schedule;
+}
+
+export function extendPhase(
+  schedule: StudySchedule,
+  extraMinutes: number,
+  now = Date.now()
+): StudySchedule {
+  const extraMs = Math.max(1, extraMinutes) * MINUTE_MS;
+  if (schedule.pausedRemainingMs != null) {
+    return {
+      ...schedule,
+      pausedRemainingMs: schedule.pausedRemainingMs + extraMs,
+    };
+  }
+  if (schedule.phaseEndsAt == null) {
+    if (schedule.phase !== "focus" && schedule.phase !== "break") return schedule;
+    return {
+      ...schedule,
+      phaseEndsAt: now + extraMs,
+    };
+  }
+  return {
+    ...schedule,
+    phaseEndsAt: schedule.phaseEndsAt + extraMs,
   };
 }
 
@@ -141,6 +211,7 @@ export function resetSchedule(schedule: StudySchedule): StudySchedule {
     phase: "idle",
     phaseEndsAt: null,
     focusedMs: 0,
+    pausedRemainingMs: null,
   };
 }
 

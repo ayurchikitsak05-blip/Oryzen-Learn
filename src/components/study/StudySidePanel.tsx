@@ -18,9 +18,14 @@ import {
   beginFocus,
   catchUpSchedule,
   createIdleSchedule,
+  extendPhase,
   formatClock,
+  isSchedulePaused,
+  pauseSchedule,
   resetSchedule,
+  resumeSchedule,
   sanitizeSchedule,
+  skipPhase,
   type ScheduleAlert,
   type StudySchedule,
 } from "@/lib/study/scheduler";
@@ -211,7 +216,7 @@ export function StudySchedulerCard({
   }, [ready, schedule]);
 
   useEffect(() => {
-    if (!ready || schedule.phase === "idle" || schedule.phase === "complete") return;
+    if (!ready || schedule.phase === "idle" || schedule.phase === "complete" || isSchedulePaused(schedule)) return;
     const timer = window.setInterval(() => {
       const tickNow = Date.now();
       setNow(tickNow);
@@ -232,8 +237,12 @@ export function StudySchedulerCard({
   }, [ready, schedule.phase]);
 
   const running = schedule.phase === "focus" || schedule.phase === "break";
-  const remaining =
-    schedule.phaseEndsAt == null ? 0 : Math.max(0, schedule.phaseEndsAt - now);
+  const paused = isSchedulePaused(schedule);
+  const remaining = paused
+    ? schedule.pausedRemainingMs ?? 0
+    : schedule.phaseEndsAt == null
+      ? 0
+      : Math.max(0, schedule.phaseEndsAt - now);
   const goalMs = schedule.goalMinutes * 60_000;
   const progress = Math.min(100, Math.round((schedule.focusedMs / goalMs) * 100));
   const wellness = wellnessSuggestions(dosha);
@@ -312,10 +321,10 @@ export function StudySchedulerCard({
         </div>
       </div>
 
-      {mounted && running && (
+        {mounted && running && (
         <div className="mt-4" aria-live="polite">
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">
-            {schedule.phase === "focus" ? "Focus" : "Break"}
+            {paused ? "Paused" : schedule.phase === "focus" ? "Focus" : "Break"}
           </p>
           <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
             {formatClock(remaining)}
@@ -368,9 +377,66 @@ export function StudySchedulerCard({
             {schedule.phase === "complete" ? "Start again" : "Start"}
           </button>
         )}
+        {running && !paused && (
+          <button
+            type="button"
+            data-testid="scheduler-pause"
+            onClick={() => {
+              const tick = Date.now();
+              setNow(tick);
+              setSchedule((current) => pauseSchedule(current, tick));
+            }}
+            className="btn-secondary text-sm"
+          >
+            Pause
+          </button>
+        )}
+        {running && paused && (
+          <button
+            type="button"
+            data-testid="scheduler-resume"
+            onClick={() => {
+              const tick = Date.now();
+              setNow(tick);
+              setSchedule((current) => resumeSchedule(current, tick));
+            }}
+            className="btn-primary text-sm"
+          >
+            Resume
+          </button>
+        )}
+        {running && (
+          <>
+            <button
+              type="button"
+              data-testid="scheduler-skip"
+              onClick={() => {
+                const tick = Date.now();
+                setNow(tick);
+                setSchedule((current) => skipPhase(current, tick));
+              }}
+              className="btn-secondary text-sm"
+            >
+              Skip
+            </button>
+            <button
+              type="button"
+              data-testid="scheduler-extend"
+              onClick={() => {
+                const tick = Date.now();
+                setNow(tick);
+                setSchedule((current) => extendPhase(current, 5, tick));
+              }}
+              className="btn-secondary text-sm"
+            >
+              Extend 5 min
+            </button>
+          </>
+        )}
         {schedule.phase !== "idle" && (
           <button
             type="button"
+            data-testid="scheduler-end"
             onClick={() => {
               setAlert(null);
               setSchedule((current) => resetSchedule(current));
