@@ -121,6 +121,10 @@ export function StudyWorkspace({
               >
                 {result.fallbackReason === "missing_gemini_key"
                   ? "Gemini is not configured. Showing a source-grounded study draft."
+                  : result.geminiErrorClass === "billing"
+                    ? "Gemini billing is not enabled. Showing a source-grounded study draft."
+                    : result.geminiErrorClass === "quota"
+                      ? "Gemini quota was reached. Showing a source-grounded study draft."
                   : result.fallbackReason === "model_error"
                     ? "Gemini did not respond. Showing a source-grounded study draft."
                     : "Model output could not be used. Showing a source-grounded study draft."}

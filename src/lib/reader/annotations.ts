@@ -18,7 +18,7 @@ export interface ReaderMarginNote {
 }
 
 export interface AnnotationExportItem {
-  kind: "highlight" | "note";
+  kind: "highlight" | "underline" | "note";
   pageNumber: number;
   sectionHeading: string;
   quote: string;
@@ -33,14 +33,14 @@ export function collectAnnotations(input: {
 }): AnnotationExportItem[] {
   const highlights: AnnotationExportItem[] = [];
   for (const mark of input.marks) {
-    if (mark.kind !== "highlight") continue;
+    if (mark.kind !== "highlight" && mark.kind !== "underline") continue;
     const chunk = input.chunks.find((item) => item.chunk_id === mark.chunkId);
     if (!chunk) continue;
     if (input.documentId && chunk.document_id !== input.documentId) continue;
     const quote = chunk.text.slice(mark.start, mark.end).trim();
     if (!quote) continue;
     highlights.push({
-      kind: "highlight",
+      kind: mark.kind,
       pageNumber: chunk.page_number,
       sectionHeading: chunk.section_heading,
       quote,

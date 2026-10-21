@@ -999,6 +999,32 @@ export default function PdfViewer({
           left={selectionUi.left}
           recommendedLensIds={recommendedStudyLenses(resolvedPrakritiDosha)}
           onSelectLens={(lens) => void handleTriggerLens(lens, selectedChunk, lensText ?? undefined)}
+          onHighlight={() => {
+            if (!selectedChunk || !selectionUi) return;
+            const overlayChunkId =
+              activeDoc?.chunks.find(
+                (chunk) => chunk.page_number === selectedChunk.page_number
+              )?.chunk_id ?? selectedChunk.chunk_id;
+            handleAddMark({
+              chunkId: overlayChunkId,
+              start: selectionUi.start,
+              end: selectionUi.end,
+              kind: "highlight",
+            });
+          }}
+          onUnderline={() => {
+            if (!selectedChunk || !selectionUi) return;
+            const overlayChunkId =
+              activeDoc?.chunks.find(
+                (chunk) => chunk.page_number === selectedChunk.page_number
+              )?.chunk_id ?? selectedChunk.chunk_id;
+            handleAddMark({
+              chunkId: overlayChunkId,
+              start: selectionUi.start,
+              end: selectionUi.end,
+              kind: "underline",
+            });
+          }}
           onClearSelection={() => {
             setSelectedChunk(null);
             setLensText(null);

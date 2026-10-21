@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  boundChapterSlice,
   chunksForChapter,
   composeChapterRevisionSheet,
+  editionFromLensRevision,
   listTransformChapters,
 } from "../transform";
 import type { CitationReadyChunk } from "../extractor";
@@ -54,5 +56,37 @@ describe("Transform My Book local slice", () => {
     expect(sheet.summary).toMatch(/force|Newton|velocity/i);
     expect(sheet.keyPoints.length).toBeGreaterThanOrEqual(2);
     expect(sheet.selfCheck[0]).toMatch(/CHAPTER 1/);
+  });
+
+  it("bounds a chapter slice and does not include later chapters", () => {
+    const long = `${"force ".repeat(900)}Newton stays on this chapter.`;
+    const slice = boundChapterSlice([
+      { ...chunks[0], text: long },
+      chunks[1],
+    ], 400);
+    expect(slice.selectedText.length).toBeLessThanOrEqual(400);
+    expect(slice.selectedText).not.toMatch(/Kinetic/);
+    expect(slice.candidateChunks).toHaveLength(1);
+  });
+
+  it("maps a server revision payload onto a chapter edition", () => {
+    const edition = editionFromLensRevision({
+      documentId: "doc-1",
+      documentHash: "hash-1",
+      chapter: { title: "CHAPTER 1: FORCES", pageNumber: 1 },
+      payload: {
+        key_points: ["force"],
+        revision: {
+          quickSummary: "A net force changes velocity.",
+          keyPoints: ["Newton's first law"],
+          revisionTable: [{ topic: "Claim", remember: "Net force changes velocity" }],
+          memoryAid: "Hold force then velocity.",
+          examPractice: ["What happens when a net force acts?"],
+        },
+      },
+    });
+    expect(edition?.documentHash).toBe("hash-1");
+    expect(edition?.summary).toMatch(/force|velocity/i);
+    expect(edition?.selfCheck[0]).toMatch(/net force/i);
   });
 });

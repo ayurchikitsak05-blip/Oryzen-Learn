@@ -395,6 +395,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         });
         expect(result.usedDeterministicFallback).toBe(true);
         expect(result.fallbackReason).toBe("missing_gemini_key");
+        expect(result.geminiErrorClass).toBe("missing_key");
         expect(result.payload.markdown_body.length).toBeGreaterThan(80);
         expect(result.payload.markdown_body).toMatch(/physics|historical|proof|laboratory/i);
         expect(result.payload.title).toBe("Explain This Passage");

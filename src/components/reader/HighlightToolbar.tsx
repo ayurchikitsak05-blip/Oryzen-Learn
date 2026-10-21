@@ -24,6 +24,8 @@ export interface HighlightToolbarProps {
   activeLens: HighlightLensType | null;
   loading: boolean;
   onSelectLens: (lens: HighlightLensType) => void;
+  onHighlight?: () => void;
+  onUnderline?: () => void;
   onClearSelection?: () => void;
   recommendedLensIds?: readonly HighlightLensType[];
   top?: number;
@@ -37,6 +39,8 @@ export default function HighlightToolbar({
   activeLens,
   loading,
   onSelectLens,
+  onHighlight,
+  onUnderline,
   onClearSelection,
   recommendedLensIds = [],
   top,
@@ -62,6 +66,28 @@ export default function HighlightToolbar({
         Page {pageNumber} · {sectionHeading}
       </p>
       <div className="flex flex-wrap items-center gap-1">
+        {onHighlight ? (
+          <button
+            type="button"
+            data-testid="reader-highlight"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onHighlight}
+            className="inline-flex min-h-10 items-center rounded-xl px-3 text-xs font-medium text-ink hover:bg-beige-2"
+          >
+            Highlight
+          </button>
+        ) : null}
+        {onUnderline ? (
+          <button
+            type="button"
+            data-testid="reader-underline"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onUnderline}
+            className="inline-flex min-h-10 items-center rounded-xl px-3 text-xs font-medium text-ink hover:bg-beige-2"
+          >
+            Underline
+          </button>
+        ) : null}
         {MULTI_LENS_ACTIONS.map((lens) => {
           const recommended = recommendedLensIds.includes(lens.id);
           return (

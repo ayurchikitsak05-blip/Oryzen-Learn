@@ -11,15 +11,12 @@
  *   monthly INR cap (e.g., ₹70.00), automatically falling back to `gemini-2.5-flash-lite` when reached.
  */
 
-import { GoogleGenAI } from "@google/genai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Dosha, HighlightLensType } from "@/lib/prakriti/config";
 import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
 import { computeSha256Hex } from "@/lib/reader/hashing";
 import {
   composeDeterministicLensPayload,
-  isUsableModelText,
-  mergeModelTextIntoPayload,
   type AnalogySections,
   type ExplainSections,
   type IllustrativeBundle,
@@ -28,6 +25,11 @@ import {
   type StorySections,
   type StudyDiagram,
 } from "./lens-compose";
+import {
+  generateStructuredGeminiLens,
+  hasUsableGeminiKey,
+  type GeminiErrorClass,
+} from "./gemini-structured";
 
 export type {
   AnalogySections,
@@ -41,6 +43,7 @@ export type {
   StudyDiagramKind,
   StudyDiagramNode,
 } from "./lens-compose";
+export type { GeminiErrorClass } from "./gemini-structured";
 
 export type GatewayTaskType =
   | HighlightLensType
@@ -119,6 +122,7 @@ export interface AiGatewayExecutionResult {
   ragContextChunksUsed: number;
   usedDeterministicFallback: boolean;
   fallbackReason: "missing_gemini_key" | "model_error" | "unusable_model_output" | null;
+  geminiErrorClass: GeminiErrorClass | null;
   payload: AiLensResponsePayload;
 }
 
@@ -626,6 +630,9 @@ export async function executeControlledAiGateway(
       fallbackReason: cached.response_payload.used_fallback
         ? "missing_gemini_key"
         : null,
+      geminiErrorClass: cached.response_payload.used_fallback
+        ? "missing_key"
+        : null,
       payload: cached.response_payload,
     };
   }
@@ -644,7 +651,7 @@ export async function executeControlledAiGateway(
     `Lens: ${request.lensType}.`,
     `Explain only the selected passage. Do not invent facts beyond it.`,
     `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
-    `Use Markdown (headings, bullets, tables). Do not emit mermaid, JSON, or reasoning.`,
+    `Return JSON matching the study lens schema. Diagrams must use nodes and edges, not mermaid or arrow prose.`,
     `Never reprint the entire source passage.`,
     rag.boundedPromptContext,
   ].join("\n\n");
@@ -658,6 +665,7 @@ export async function executeControlledAiGateway(
   let usedDeterministicFallback = true;
   let fallbackReason: AiGatewayExecutionResult["fallbackReason"] =
     "missing_gemini_key";
+  let geminiErrorClass: GeminiErrorClass | null = "missing_key";
   let promptTokens = rag.estimatedTokens;
   let completionTokens = 160;
 
@@ -684,37 +692,35 @@ export async function executeControlledAiGateway(
     };
     usedDeterministicFallback = false;
     fallbackReason = null;
+    geminiErrorClass = null;
     promptTokens = Math.min(
       SHIELD_1_MAX_PROMPT_TOKENS,
       customResult.promptTokens ?? rag.estimatedTokens
     );
     completionTokens = customResult.completionTokens ?? 160;
-  } else if (process.env.GEMINI_API_KEY) {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: route.effectiveModel,
-        contents: systemPrompt,
-      });
-      const text = response.text ?? "";
-      if (isUsableModelText(text)) {
-        generatedPayload = mergeModelTextIntoPayload(fallbackPayload, text);
-        generatedPayload.mcqs = fallbackPayload.mcqs;
-        generatedPayload.short_answers = fallbackPayload.short_answers;
-        generatedPayload.diagram = fallbackPayload.diagram;
-        generatedPayload.explain = fallbackPayload.explain;
-        generatedPayload.revision = fallbackPayload.revision;
-        generatedPayload.illustrative = fallbackPayload.illustrative;
-        generatedPayload.story = fallbackPayload.story;
-        usedDeterministicFallback = false;
-        fallbackReason = null;
-      } else {
-        generatedPayload = fallbackPayload;
-        usedDeterministicFallback = true;
-        fallbackReason = "unusable_model_output";
-      }
-    } catch {
-      generatedPayload = fallbackPayload;
+  } else if (hasUsableGeminiKey()) {
+    const modeled = await generateStructuredGeminiLens({
+      model: route.effectiveModel,
+      prompt: systemPrompt,
+      fallback: fallbackPayload,
+    });
+    generatedPayload = modeled.payload;
+    promptTokens = Math.min(
+      SHIELD_1_MAX_PROMPT_TOKENS,
+      modeled.promptTokens ?? rag.estimatedTokens
+    );
+    completionTokens = modeled.completionTokens ?? 160;
+    geminiErrorClass = modeled.errorClass;
+    if (modeled.errorClass === null) {
+      usedDeterministicFallback = false;
+      fallbackReason = null;
+    } else if (modeled.errorClass === "missing_key") {
+      usedDeterministicFallback = true;
+      fallbackReason = "missing_gemini_key";
+    } else if (modeled.errorClass === "unusable_output") {
+      usedDeterministicFallback = true;
+      fallbackReason = "unusable_model_output";
+    } else {
       usedDeterministicFallback = true;
       fallbackReason = "model_error";
     }
@@ -722,6 +728,7 @@ export async function executeControlledAiGateway(
     generatedPayload = fallbackPayload;
     usedDeterministicFallback = true;
     fallbackReason = "missing_gemini_key";
+    geminiErrorClass = "missing_key";
   }
 
   const costInr = calculateCallCostInr(
@@ -772,6 +779,7 @@ export async function executeControlledAiGateway(
     ragContextChunksUsed: rag.selectedChunks.length,
     usedDeterministicFallback,
     fallbackReason,
+    geminiErrorClass,
     payload: generatedPayload,
   };
 }

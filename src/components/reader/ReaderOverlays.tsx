@@ -187,7 +187,12 @@ export function AnnotationsDrawer({
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted">
-                  {item.kind === "highlight" ? "Highlight" : "Note"} · page {item.pageNumber}
+                  {item.kind === "highlight"
+                    ? "Highlight"
+                    : item.kind === "underline"
+                      ? "Underline"
+                      : "Note"}{" "}
+                  · page {item.pageNumber}
                 </p>
                 <button
                   type="button"

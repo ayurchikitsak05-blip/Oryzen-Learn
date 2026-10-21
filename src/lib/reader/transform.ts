@@ -1,14 +1,18 @@
+import type { AiLensResponsePayload } from "@/lib/ai/gateway";
 import { excerptForDisplay, extractKeyPhrases, splitPassageSentences } from "@/lib/ai/lens-compose";
 import type { CitationReadyChunk } from "@/lib/reader/extractor";
 import type { LocalPdfChapterItem, LocalPdfDocumentRecord } from "@/lib/reader/storage";
 
 export const TRANSFORM_CACHE_STORAGE_KEY = "oryzen_transform_v1";
 export const TRANSFORM_EDITION = "revision_sheet" as const;
+export const TRANSFORM_CHAPTER_MAX_CHARS = 4000;
+export const TRANSFORM_CHAPTER_MAX_CHUNKS = 8;
 
 export type TransformEdition = typeof TRANSFORM_EDITION;
 
 export interface TransformChapterEdition {
   documentId: string;
+  documentHash?: string;
   chapterTitle: string;
   pageNumber: number;
   edition: TransformEdition;
@@ -18,8 +22,12 @@ export interface TransformChapterEdition {
   createdAt: string;
 }
 
-function cacheKey(documentId: string, chapterTitle: string, edition: TransformEdition) {
-  return `${documentId}::${chapterTitle}::${edition}`;
+function cacheKey(
+  documentHashOrId: string,
+  chapterTitle: string,
+  edition: TransformEdition
+) {
+  return `${documentHashOrId}::${chapterTitle}::${edition}`;
 }
 
 function readCacheMap(): Record<string, TransformChapterEdition> {
@@ -66,20 +74,41 @@ export function chunksForChapter(
     : document.chunks.filter((chunk) => chunk.section_heading === chapter.title);
 }
 
+export function boundChapterSlice(
+  chunks: CitationReadyChunk[],
+  maxChars = TRANSFORM_CHAPTER_MAX_CHARS
+): {
+  selectedText: string;
+  candidateChunks: CitationReadyChunk[];
+} {
+  const limited = chunks.slice(0, TRANSFORM_CHAPTER_MAX_CHUNKS);
+  const used: CitationReadyChunk[] = [];
+  let text = "";
+  for (const chunk of limited) {
+    const next = text ? `${text}\n\n${chunk.text}` : chunk.text;
+    if (used.length > 0 && next.length > maxChars) break;
+    text = next.slice(0, maxChars);
+    used.push(chunk);
+  }
+  return { selectedText: text, candidateChunks: used };
+}
+
 export function composeChapterRevisionSheet(params: {
   documentId: string;
+  documentHash?: string;
   chapter: LocalPdfChapterItem;
   chunks: CitationReadyChunk[];
 }): TransformChapterEdition {
-  const text = params.chunks
-    .slice(0, 8)
-    .map((chunk) => chunk.text)
-    .join(" ");
-  const sentences = splitPassageSentences(text);
-  const phrases = extractKeyPhrases(text, 4);
-  const summary = excerptForDisplay(sentences[0] ?? (text || params.chapter.title), 220);
+  const { selectedText } = boundChapterSlice(params.chunks);
+  const sentences = splitPassageSentences(selectedText);
+  const phrases = extractKeyPhrases(selectedText, 4);
+  const summary = excerptForDisplay(
+    sentences[0] ?? (selectedText || params.chapter.title),
+    220
+  );
   return {
     documentId: params.documentId,
+    documentHash: params.documentHash,
     chapterTitle: params.chapter.title,
     pageNumber: params.chapter.pageNumber,
     edition: TRANSFORM_EDITION,
@@ -97,19 +126,63 @@ export function composeChapterRevisionSheet(params: {
   };
 }
 
+export function editionFromLensRevision(params: {
+  documentId: string;
+  documentHash?: string;
+  chapter: LocalPdfChapterItem;
+  payload: Pick<AiLensResponsePayload, "revision" | "key_points">;
+}): TransformChapterEdition | null {
+  const revision = params.payload.revision;
+  if (!revision?.quickSummary) return null;
+  return {
+    documentId: params.documentId,
+    documentHash: params.documentHash,
+    chapterTitle: params.chapter.title,
+    pageNumber: params.chapter.pageNumber,
+    edition: TRANSFORM_EDITION,
+    summary: revision.quickSummary,
+    keyPoints:
+      revision.keyPoints.length > 0
+        ? revision.keyPoints.slice(0, 6)
+        : (params.payload.key_points ?? []).slice(0, 6),
+    selfCheck:
+      revision.examPractice.length > 0
+        ? revision.examPractice.slice(0, 4)
+        : [`In one sentence, what does “${params.chapter.title}” claim?`],
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function lookupEdition(
+  map: Record<string, TransformChapterEdition>,
+  documentId: string,
+  chapterTitle: string,
+  edition: TransformEdition,
+  documentHash?: string
+): TransformChapterEdition | null {
+  if (documentHash && map[cacheKey(documentHash, chapterTitle, edition)]) {
+    return map[cacheKey(documentHash, chapterTitle, edition)];
+  }
+  return map[cacheKey(documentId, chapterTitle, edition)] ?? null;
+}
+
 export function readTransformEdition(
   documentId: string,
   chapterTitle: string,
-  edition: TransformEdition = TRANSFORM_EDITION
+  edition: TransformEdition = TRANSFORM_EDITION,
+  documentHash?: string
 ): TransformChapterEdition | null {
-  return readCacheMap()[cacheKey(documentId, chapterTitle, edition)] ?? null;
+  return lookupEdition(readCacheMap(), documentId, chapterTitle, edition, documentHash);
 }
 
 export function writeTransformEdition(edition: TransformChapterEdition): TransformChapterEdition {
   if (typeof window !== "undefined") {
     try {
       const map = readCacheMap();
-      map[cacheKey(edition.documentId, edition.chapterTitle, edition.edition)] = edition;
+      const key = edition.documentHash
+        ? cacheKey(edition.documentHash, edition.chapterTitle, edition.edition)
+        : cacheKey(edition.documentId, edition.chapterTitle, edition.edition);
+      map[key] = edition;
       window.localStorage.setItem(TRANSFORM_CACHE_STORAGE_KEY, JSON.stringify(map));
     } catch {
       // Memory-less environments still return the composed sheet.
@@ -121,10 +194,11 @@ export function writeTransformEdition(edition: TransformChapterEdition): Transfo
 export function countTransformedChapters(
   documentId: string,
   chapters: LocalPdfChapterItem[],
-  edition: TransformEdition = TRANSFORM_EDITION
+  edition: TransformEdition = TRANSFORM_EDITION,
+  documentHash?: string
 ): number {
   const map = readCacheMap();
   return chapters.filter((chapter) =>
-    Boolean(map[cacheKey(documentId, chapter.title, edition)])
+    Boolean(lookupEdition(map, documentId, chapter.title, edition, documentHash))
   ).length;
 }

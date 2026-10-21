@@ -2,11 +2,14 @@
 
 import React, { useMemo, useState } from "react";
 import { X } from "lucide-react";
+import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 import type { LocalPdfDocumentRecord } from "@/lib/reader/storage";
 import {
+  boundChapterSlice,
   chunksForChapter,
   composeChapterRevisionSheet,
   countTransformedChapters,
+  editionFromLensRevision,
   listTransformChapters,
   readTransformEdition,
   writeTransformEdition,
@@ -29,25 +32,85 @@ export default function TransformDialog({
   const [selectedTitle, setSelectedTitle] = useState<string | null>(null);
   const [edition, setEdition] = useState<TransformChapterEdition | null>(null);
   const [done, setDone] = useState(0);
+  const [busy, setBusy] = useState(false);
 
   const selected = chapters.find((chapter) => chapter.title === selectedTitle) ?? null;
 
   if (!open) return null;
 
-  const generate = () => {
-    if (!pdfDocument || !selected) return;
-    const cached = readTransformEdition(pdfDocument.id, selected.title);
-    const next =
-      cached ??
-      writeTransformEdition(
-        composeChapterRevisionSheet({
+  const refreshCount = () => {
+    if (!pdfDocument) return;
+    setDone(
+      countTransformedChapters(
+        pdfDocument.id,
+        chapters,
+        undefined,
+        pdfDocument.fileHash
+      )
+    );
+  };
+
+  const generate = async () => {
+    if (!pdfDocument || !selected || busy) return;
+    const cached = readTransformEdition(
+      pdfDocument.id,
+      selected.title,
+      undefined,
+      pdfDocument.fileHash
+    );
+    if (cached) {
+      setEdition(cached);
+      refreshCount();
+      return;
+    }
+
+    const chapterChunks = chunksForChapter(pdfDocument, selected);
+    const slice = boundChapterSlice(chapterChunks);
+    const localFallback = composeChapterRevisionSheet({
+      documentId: pdfDocument.id,
+      documentHash: pdfDocument.fileHash,
+      chapter: selected,
+      chunks: chapterChunks,
+    });
+
+    setBusy(true);
+    try {
+      const response = await fetch("/api/ai/lens", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           documentId: pdfDocument.id,
-          chapter: selected,
-          chunks: chunksForChapter(pdfDocument, selected),
-        })
-      );
-    setEdition(next);
-    setDone(countTransformedChapters(pdfDocument.id, chapters));
+          documentHash: pdfDocument.fileHash,
+          pageNumber: selected.pageNumber,
+          sectionHeading: selected.title,
+          selectedText: slice.selectedText,
+          lensType: "high_yield_revision",
+          activePageText: slice.selectedText,
+          candidateChunks: slice.candidateChunks,
+        }),
+      });
+      const data = (await response.json()) as AiGatewayExecutionResult & {
+        error?: string;
+      };
+      const fromServer = data.payload
+        ? editionFromLensRevision({
+            documentId: pdfDocument.id,
+            documentHash: pdfDocument.fileHash,
+            chapter: selected,
+            payload: data.payload,
+          })
+        : null;
+      const next = writeTransformEdition(fromServer ?? localFallback);
+      setEdition(next);
+      refreshCount();
+    } catch {
+      const next = writeTransformEdition(localFallback);
+      setEdition(next);
+      refreshCount();
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -92,7 +155,14 @@ export default function TransformDialog({
               onClick={() => {
                 setSelectedTitle(chapter.title);
                 setEdition(
-                  pdfDocument ? readTransformEdition(pdfDocument.id, chapter.title) : null
+                  pdfDocument
+                    ? readTransformEdition(
+                        pdfDocument.id,
+                        chapter.title,
+                        undefined,
+                        pdfDocument.fileHash
+                      )
+                    : null
                 );
               }}
               className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm ${
@@ -109,11 +179,11 @@ export default function TransformDialog({
         <button
           type="button"
           data-testid="transform-generate"
-          disabled={!selected}
-          onClick={generate}
+          disabled={!selected || busy}
+          onClick={() => void generate()}
           className="btn-primary mt-4 text-sm disabled:opacity-40"
         >
-          Make revision sheet
+          {busy ? "Preparing chapter…" : "Make revision sheet"}
         </button>
         {edition ? (
           <div data-testid="transform-edition" className="mt-4 space-y-3">

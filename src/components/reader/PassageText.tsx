@@ -410,11 +410,21 @@ export default function PassageText({
           <div className="flex flex-wrap gap-1">
             <button
               type="button"
+              data-testid="reader-highlight"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => applyMark("highlight")}
               className="btn-primary px-3 text-xs"
             >
               Highlight
+            </button>
+            <button
+              type="button"
+              data-testid="reader-underline"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyMark("underline")}
+              className="btn-ghost px-3 text-xs"
+            >
+              Underline
             </button>
             <button
               type="button"
