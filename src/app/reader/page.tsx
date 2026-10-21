@@ -17,7 +17,10 @@ function getInitialDoshaTheme(): Dosha {
     try {
       const raw = window.localStorage.getItem(LOCAL_PRAKRITI_STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as StoredPrakritiProfilePayload;
+        const parsed = JSON.parse(raw) as StoredPrakritiProfilePayload & {
+          userId?: string;
+        };
+        if (!parsed.userId) return "Vata";
         const resolved =
           parsed.calculated?.secondaryDosha ?? parsed.calculated?.primaryDosha;
         if (

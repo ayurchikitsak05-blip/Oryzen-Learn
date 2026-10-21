@@ -7,6 +7,42 @@ import { verifyDeviceSessionActive } from "./device-lock";
 export const DEVICE_ID_COOKIE_NAME = "prakriti_device_id";
 export const DEVICE_TYPE_COOKIE_NAME = "prakriti_device_type";
 
+function pendingAuthCallback(request: NextRequest): URL | null {
+  if (request.nextUrl.pathname.startsWith("/api/auth/callback")) return null;
+
+  const directCode = request.nextUrl.searchParams.get("code");
+  const directHash = request.nextUrl.searchParams.get("token_hash");
+  if (directCode || directHash) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/api/auth/callback";
+    return url;
+  }
+
+  const next = request.nextUrl.searchParams.get("next");
+  if (!next) return null;
+  try {
+    const nested = new URL(next, request.nextUrl.origin);
+    const code = nested.searchParams.get("code");
+    const tokenHash = nested.searchParams.get("token_hash");
+    if (!code && !tokenHash) return null;
+    const url = request.nextUrl.clone();
+    url.pathname = "/api/auth/callback";
+    url.search = "";
+    if (code) url.searchParams.set("code", code);
+    if (tokenHash) url.searchParams.set("token_hash", tokenHash);
+    const type = nested.searchParams.get("type");
+    if (type) url.searchParams.set("type", type);
+    nested.searchParams.delete("code");
+    nested.searchParams.delete("token_hash");
+    nested.searchParams.delete("type");
+    const remainder = `${nested.pathname}${nested.search}`;
+    if (remainder && remainder !== "/") url.searchParams.set("next", remainder);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
 export async function updateSession(
   request: NextRequest
 ): Promise<NextResponse> {
@@ -38,12 +74,21 @@ export async function updateSession(
     },
   });
 
+  const callbackUrl = pendingAuthCallback(request);
+  if (callbackUrl) {
+    const redirectResponse = NextResponse.redirect(callbackUrl);
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie);
+    });
+    return redirectResponse;
+  }
+
   let user: { id: string } | null = null;
   try {
     const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch {
-    return supabaseResponse;
+    user = null;
   }
 
   const deviceId = request.cookies.get(DEVICE_ID_COOKIE_NAME)?.value;
@@ -97,6 +142,7 @@ export async function updateSession(
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/access") ||
     pathname.startsWith("/api/billing/checkout") ||
+    pathname.startsWith("/api/billing/stripe") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/api/instructor");
   if (
@@ -115,7 +161,9 @@ export async function updateSession(
     accessStatus,
     role,
   });
-  if (redirectPath) {
+  const stayOnSignInForm =
+    pathname === "/auth" && request.nextUrl.searchParams.get("form") === "1";
+  if (redirectPath && !stayOnSignInForm) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = redirectPath;
     redirectUrl.search = "";

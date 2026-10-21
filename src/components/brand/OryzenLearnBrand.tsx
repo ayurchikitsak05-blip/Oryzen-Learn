@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 interface OryzenLearnBrandProps {
@@ -11,9 +12,11 @@ export default function OryzenLearnBrand({
 }: OryzenLearnBrandProps) {
   const lockup = (
     <>
-      <img
+      <Image
         src="/logo.png"
         alt="Oryzen Learn"
+        width={48}
+        height={48}
         className="h-12 w-12 rounded-2xl object-cover"
       />
       <span className="min-w-0 text-left">

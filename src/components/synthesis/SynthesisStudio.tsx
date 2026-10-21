@@ -3,17 +3,17 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle2, FileText, Sparkles, Video } from "lucide-react";
 import type { Dosha, PrakritiThemePalette } from "@/lib/prakriti/config";
-import { listNotebookEntries } from "@/lib/ai/notebook-store";
+import { listSavedPassages } from "@/lib/ai/passage-store";
 import { getLocalCognitiveDnaState } from "@/lib/ai/adaptive-memory";
 import {
-  buildAvailableNotebookSources,
+  buildAvailableSources,
   DEFAULT_VIDEO_LECTURES,
-  MIN_REQUIRED_NOTEBOOKS,
+  MIN_REQUIRED_SOURCES,
   MIN_REQUIRED_VIDEO_TRANSCRIPTS,
   synthesizeMasterStudyBook,
   type MasterStudyBookCitation,
   type SynthesizedMasterStudyBook,
-  type SynthesisNotebookSource,
+  type SynthesisSource,
 } from "@/lib/synthesis/master-book";
 import type { VideoLectureRecord } from "@/lib/video/sync-engine";
 
@@ -25,14 +25,14 @@ export interface SynthesisStudioProps {
 export default function SynthesisStudio({
   prakritiDosha,
 }: SynthesisStudioProps) {
-  const [availableNotebooks, setAvailableNotebooks] = useState<
-    SynthesisNotebookSource[]
-  >(() => buildAvailableNotebookSources([]));
+  const [availableSources, setAvailableSources] = useState<
+    SynthesisSource[]
+  >(() => buildAvailableSources([]));
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setAvailableNotebooks(
-        buildAvailableNotebookSources(listNotebookEntries())
+      setAvailableSources(
+        buildAvailableSources(listSavedPassages())
       );
     });
     return () => window.cancelAnimationFrame(frame);
@@ -41,8 +41,8 @@ export default function SynthesisStudio({
     () => DEFAULT_VIDEO_LECTURES
   );
 
-  const [selectedNotebookIds, setSelectedNotebookIds] = useState<string[]>(() =>
-    availableNotebooks.slice(0, 2).map((n) => n.id)
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(() =>
+    availableSources.slice(0, 2).map((n) => n.id)
   );
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>(() =>
     availableVideoLectures.slice(0, 2).map((v) => v.id)
@@ -57,9 +57,9 @@ export default function SynthesisStudio({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [synthesisToast, setSynthesisToast] = useState<string | null>(null);
 
-  const toggleNotebookSelection = (id: string) => {
+  const toggleSourceSelection = (id: string) => {
     setValidationError(null);
-    setSelectedNotebookIds((prev) =>
+    setSelectedSourceIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
@@ -73,8 +73,8 @@ export default function SynthesisStudio({
 
   const handleGenerateMasterBook = () => {
     setValidationError(null);
-    const chosenNotebooks = availableNotebooks.filter((n) =>
-      selectedNotebookIds.includes(n.id)
+    const chosenSources = availableSources.filter((n) =>
+      selectedSourceIds.includes(n.id)
     );
     const chosenVideos = availableVideoLectures.filter((v) =>
       selectedVideoIds.includes(v.id)
@@ -86,7 +86,7 @@ export default function SynthesisStudio({
         prakritiDosha
       );
       const book = synthesizeMasterStudyBook({
-        notebooks: chosenNotebooks,
+        sources: chosenSources,
         videoLectures: chosenVideos,
         prakritiDosha,
         cognitiveDnaSummary: dna.summary_text,
@@ -95,19 +95,19 @@ export default function SynthesisStudio({
       setMasterBook(book);
       setActiveCitationPreview(book.allCitations[0] ?? null);
       setSynthesisToast(
-        `Merged ${chosenNotebooks.length} notebooks and ${chosenVideos.length} lectures into “${book.title}”.`
+        `Merged ${chosenSources.length} sources and ${chosenVideos.length} lectures into “${book.title}”.`
       );
     } catch (err) {
       setValidationError(
         err instanceof Error
           ? err.message
-          : "Select at least 2 notebooks and 2 video transcripts."
+          : "Select at least 2 sources and 2 video transcripts."
       );
     }
   };
 
   const canSynthesize =
-    selectedNotebookIds.length >= MIN_REQUIRED_NOTEBOOKS &&
+    selectedSourceIds.length >= MIN_REQUIRED_SOURCES &&
     selectedVideoIds.length >= MIN_REQUIRED_VIDEO_TRANSCRIPTS;
 
   return (
@@ -116,26 +116,26 @@ export default function SynthesisStudio({
         <section className="space-y-5 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border border-zinc-200/60 dark:border-zinc-800/60 rounded-3xl shadow-xl shadow-zinc-950/5 p-8 lg:col-span-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-medium text-zinc-500">Notebooks</p>
+              <p className="text-xs font-medium text-zinc-500">Compendiums</p>
               <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
                 <FileText className="h-4 w-4" />
-                Choose at least {MIN_REQUIRED_NOTEBOOKS}
+                Choose at least {MIN_REQUIRED_SOURCES}
               </h2>
             </div>
             <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-3 py-1 text-xs font-medium text-zinc-500">
-              {selectedNotebookIds.length} selected
+              {selectedSourceIds.length} selected
             </span>
           </div>
 
           <div className="space-y-3">
-            {availableNotebooks.map((nb) => {
-              const isSelected = selectedNotebookIds.includes(nb.id);
+            {availableSources.map((nb) => {
+              const isSelected = selectedSourceIds.includes(nb.id);
               return (
                 <button
                   key={nb.id}
                   type="button"
-                  data-testid={`select-notebook-${nb.id}`}
-                  onClick={() => toggleNotebookSelection(nb.id)}
+                  data-testid={`select-source-${nb.id}`}
+                  onClick={() => toggleSourceSelection(nb.id)}
                   className={`flex min-h-[56px] w-full flex-col justify-between rounded-2xl border p-4 text-left transition-all active:scale-[0.99] ${
                     isSelected
                       ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 border-zinc-950 dark:border-white"

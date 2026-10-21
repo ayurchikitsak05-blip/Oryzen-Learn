@@ -1,20 +1,20 @@
 /**
  * Layer 4: Multi-Source Synthesis Studio Engine (`master-book.ts`)
  *
- * Merges 2+ personal PDF notebooks and 2+ video lecture transcripts into a single,
+ * Merges 2+ personal study compendiums and 2+ video lecture transcripts into a single,
  * unified, Prakriti-formatted Master Study Book with strict inline citations
  * (`[Doc: <Title>, p. <N>]` and `[Video: <Title>, <MM:SS>]`).
  */
 
 import type { Dosha } from "@/lib/prakriti/config";
-import type { DeepLinkedNotebookEntry } from "@/lib/ai/notebook-store";
+import type { SavedPassageEntry } from "@/lib/ai/passage-store";
 import type { VideoLectureRecord } from "@/lib/video/sync-engine";
 import { DEFAULT_VIDEO_LECTURES } from "@/lib/video/sync-engine";
 
-export const MIN_REQUIRED_NOTEBOOKS = 2;
+export const MIN_REQUIRED_SOURCES = 2;
 export const MIN_REQUIRED_VIDEO_TRANSCRIPTS = 2;
 
-export interface SynthesisNotebookSource {
+export interface SynthesisSource {
   id: string;
   title: string;
   documentId: string;
@@ -46,7 +46,7 @@ export interface SynthesizedMasterStudyBook {
   title: string;
   prakritiDosha: Dosha;
   cognitiveDnaDirectiveUsed: string;
-  selectedNotebookCount: number;
+  selectedSourceCount: number;
   selectedVideoTranscriptCount: number;
   executiveSummary: string;
   sections: MasterStudyBookSection[];
@@ -54,7 +54,7 @@ export interface SynthesizedMasterStudyBook {
   createdAt: string;
 }
 
-export const DEFAULT_SYNTHESIS_NOTEBOOKS: SynthesisNotebookSource[] = [
+export const DEFAULT_SYNTHESIS_SOURCES: SynthesisSource[] = [
   {
     id: "nb-physics-newton-4",
     title: "University Physics • Ch. 4 (Newton's Laws of Motion)",
@@ -91,13 +91,13 @@ export const DEFAULT_SYNTHESIS_NOTEBOOKS: SynthesisNotebookSource[] = [
 ];
 
 /**
- * Converts user-saved `DeepLinkedNotebookEntry` records + default personal notebooks
- * into selectable `SynthesisNotebookSource` items.
+ * Converts user-saved `SavedPassageEntry` records + default saved passages
+ * into selectable `SynthesisSource` items.
  */
-export function buildAvailableNotebookSources(
-  userEntries: readonly DeepLinkedNotebookEntry[]
-): SynthesisNotebookSource[] {
-  const mappedUser: SynthesisNotebookSource[] = userEntries.map((entry) => ({
+export function buildAvailableSources(
+  userEntries: readonly SavedPassageEntry[]
+): SynthesisSource[] {
+  const mappedUser: SynthesisSource[] = userEntries.map((entry) => ({
     id: entry.id,
     title: `${entry.documentTitle} (p. ${entry.pageNumber})`,
     documentId: entry.documentId,
@@ -108,7 +108,7 @@ export function buildAvailableNotebookSources(
   }));
 
   const combined = [...mappedUser];
-  for (const preset of DEFAULT_SYNTHESIS_NOTEBOOKS) {
+  for (const preset of DEFAULT_SYNTHESIS_SOURCES) {
     if (!combined.some((c) => c.id === preset.id)) {
       combined.push(preset);
     }
@@ -117,27 +117,27 @@ export function buildAvailableNotebookSources(
 }
 
 /**
- * Merges 2+ selected personal notebooks and 2+ selected video lecture transcripts
+ * Merges 2+ selected saved passages and 2+ selected video lecture transcripts
  * into 1 unified, Prakriti-formatted Master Study Book with strict inline citations.
  */
 export function synthesizeMasterStudyBook(params: {
-  notebooks: readonly SynthesisNotebookSource[];
+  sources: readonly SynthesisSource[];
   videoLectures: readonly VideoLectureRecord[];
   prakritiDosha: Dosha;
   cognitiveDnaSummary?: string;
   customTitle?: string;
 }): SynthesizedMasterStudyBook {
   const {
-    notebooks,
+    sources,
     videoLectures,
     prakritiDosha,
     cognitiveDnaSummary = "Standard Oryzen Learn cognitive energy directive",
     customTitle,
   } = params;
 
-  if (notebooks.length < MIN_REQUIRED_NOTEBOOKS) {
+  if (sources.length < MIN_REQUIRED_SOURCES) {
     throw new Error(
-      `Multi-Source Synthesis requires at least ${MIN_REQUIRED_NOTEBOOKS} personal notebooks (received ${notebooks.length}).`
+      `Multi-Source Synthesis requires at least ${MIN_REQUIRED_SOURCES} saved passages (received ${sources.length}).`
     );
   }
 
@@ -147,7 +147,7 @@ export function synthesizeMasterStudyBook(params: {
     );
   }
 
-  const docCitations: MasterStudyBookCitation[] = notebooks.map((nb) => ({
+  const docCitations: MasterStudyBookCitation[] = sources.map((nb) => ({
     id: `cite-doc-${nb.id}`,
     sourceType: "document",
     badge: `[Doc: ${nb.title.split("•")[0].trim()}, p. ${nb.pageNumber}]`,
@@ -194,12 +194,12 @@ export function synthesizeMasterStudyBook(params: {
   const sections: MasterStudyBookSection[] = [
     {
       sectionNumber: 1,
-      heading: "1. Cross-Source Synthesis (Notebooks + Lectures)",
+      heading: "1. Cross-Source Synthesis (Compendiums + Lectures)",
       prakritiFormattedBody: [
         `${formatStyleIntro}`,
         ``,
-        `- **Foundational idea:** ${notebooks[0].excerpt} ${docBadge1}.`,
-        `- **Parallel source:** ${notebooks[1].excerpt} ${docBadge2}, reinforced by the lecture thread ${vidBadge1}.`,
+        `- **Foundational idea:** ${sources[0].excerpt} ${docBadge1}.`,
+        `- **Parallel source:** ${sources[1].excerpt} ${docBadge2}, reinforced by the lecture thread ${vidBadge1}.`,
         `- **Integrative note:** Hold the core claim, the mechanism, and one worked example together so *Dhee*, *Dhriti*, and *Smriti* stay aligned ${docBadge1} ${vidBadge1}.`,
       ].join("\n"),
       inlineCitations: [
@@ -212,10 +212,10 @@ export function synthesizeMasterStudyBook(params: {
       sectionNumber: 2,
       heading: "2. Comparison Matrix Across Your Sources",
       prakritiFormattedBody: [
-        `| Source | Textbook Notebook Anchor | Parallel Lecture Insight |`,
+        `| Source | Textbook Compendium Anchor | Parallel Lecture Insight |`,
         `| :--- | :--- | :--- |`,
-        `| First notebook | ${notebooks[0].excerpt.slice(0, 90)} ${docBadge1} | ${lectureAnchor} ${vidBadge1} |`,
-        `| Second notebook | ${notebooks[1].excerpt.slice(0, 90)} ${docBadge2} | Cross-check the claim against ${vidBadge2} |`,
+        `| First compendium | ${sources[0].excerpt.slice(0, 90)} ${docBadge1} | ${lectureAnchor} ${vidBadge1} |`,
+        `| Second compendium | ${sources[1].excerpt.slice(0, 90)} ${docBadge2} | Cross-check the claim against ${vidBadge2} |`,
         ``,
         `- **High-Yield Exam Synthesis:** Restate each claim in your own words, then verify it against both the page citation and the lecture timestamp ${docBadge2} ${vidBadge2}.`,
       ].join("\n"),
@@ -232,7 +232,7 @@ export function synthesizeMasterStudyBook(params: {
       heading: `3. ${prakritiDosha}-Adaptive Active Recall & 72-Hour Retention Blueprint`,
       prakritiFormattedBody: [
         `- **Recall challenge:** In one sentence, what is the core claim in ${docBadge1}, and how does the lecture at ${vidBadge1} confirm or extend it?`,
-        `- **Answer grounded in sources:** ${notebooks[0].excerpt} ${docBadge1}. The parallel lecture adds: ${lectureAnchor} ${vidBadge1}. A second source adds: ${notebooks[1].excerpt} ${docBadge2} ${vidBadge2}.`,
+        `- **Answer grounded in sources:** ${sources[0].excerpt} ${docBadge1}. The parallel lecture adds: ${lectureAnchor} ${vidBadge1}. A second source adds: ${sources[1].excerpt} ${docBadge2} ${vidBadge2}.`,
       ].join("\n"),
       inlineCitations: allCitations,
     },
@@ -242,12 +242,12 @@ export function synthesizeMasterStudyBook(params: {
     id: `master-book-${Date.now()}`,
     title:
       customTitle?.trim() ||
-      `Prakriti Master Study Book (${prakritiDosha} Edition): ${notebooks.length} Notebooks + ${videoLectures.length} Video Lectures`,
+      `Prakriti Master Study Book (${prakritiDosha} Edition): ${sources.length} Compendiums + ${videoLectures.length} Video Lectures`,
     prakritiDosha,
     cognitiveDnaDirectiveUsed: cognitiveDnaSummary,
-    selectedNotebookCount: notebooks.length,
+    selectedSourceCount: sources.length,
     selectedVideoTranscriptCount: videoLectures.length,
-    executiveSummary: `Unified synthesis of ${notebooks.length} personal PDF notebooks and ${videoLectures.length} timestamped video lectures, formatted for ${prakritiDosha} cognitive ergonomics with ${allCitations.length} verified inline citations.`,
+    executiveSummary: `Unified synthesis of ${sources.length} personal study compendiums and ${videoLectures.length} timestamped video lectures, formatted for ${prakritiDosha} cognitive ergonomics with ${allCitations.length} verified inline citations.`,
     sections,
     allCitations,
     createdAt: new Date().toISOString(),

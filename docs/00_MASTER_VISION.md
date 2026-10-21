@@ -27,7 +27,7 @@ Highlighting any paragraph or passage in the reader opens a floating, touch-opti
 1. **Ayurvedic View:** Correlates the highlighted text with classical *Samhita / Siddhanta* principles, *Dosha-Dushya-Srotas* pathogenesis (*Samprapti*), *Rasa-Guna-Virya-Vipaka-Prabhava*, and clinical *Chikitsa* principles.
 2. **Illustrative View:** Generates visual flowcharts (Mermaid/SVG), real-world analogies, and structural mind-maps for rapid conceptual grasping (*Dhee*).
 3. **High-Yield Revision View:** Condenses complex prose into differential comparison tables, exam-focused bullet points, and high-retention mnemonics (*Smriti*).
-4. **Add to Notebook:** Saves the highlight and AI synthesis into the student's structured Notebook with a **bi-directional deep link** back to the exact PDF document, page number, and bounding-box coordinates.
+4. **Add to Compendium:** Saves the highlight and AI synthesis into the student's structured Compendium with a **bi-directional deep link** back to the exact PDF document, page number, and bounding-box coordinates.
 5. **Test Me:** Instantly generates paragraph-grounded Multiple Choice Questions (MCQs) and assertion-reason prompts to verify active recall before moving forward.
 
 ---
@@ -42,7 +42,7 @@ Highlighting any paragraph or passage in the reader opens a floating, touch-opti
 ---
 
 ## 5. Multi-Source Synthesis Studio
-- Allows students to select **2+ personal notebooks** (from PDF reading sessions) and **2+ video lecture transcripts/note sets** and merge them into **1 unified, Prakriti-formatted Master Study Book**.
+- Allows students to select **2+ saved passages** (from PDF reading sessions) and **2+ video lecture transcripts/note sets** and merge them into **1 unified, Prakriti-formatted Master Study Book**.
 - Every synthesized section preserves strict inline citations (`[Doc: Charaka Vol 1, p. 142]` or `[Video: Kayachikitsa Lec 4, 18:22]`) that open the exact source upon tap.
 
 ---

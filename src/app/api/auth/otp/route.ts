@@ -1,7 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { destinationAfterAuth } from "@/lib/access/gate";
-import { describeSupabaseFailure, supabaseConfigError } from "@/lib/supabase/client";
-import { createClient } from "@/lib/supabase/server";
+import { createClient as createAuthClient } from "@supabase/supabase-js";
+import { canManageClasses } from "@/lib/access/gate";
+import {
+  describeSupabaseFailure,
+  getSupabaseEnvConfig,
+  supabaseConfigError,
+} from "@/lib/supabase/client";
+import { ensureSignedInProfile } from "@/lib/supabase/ensure-profile";
+import { createAuthRouteClient } from "@/lib/supabase/route-client";
 import {
   detectDeviceCategory,
   enforceTwoDeviceLock,
@@ -35,15 +41,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: configError }, { status: 503 });
     }
 
-    const supabase = await createClient();
-
     if (body.action === "send") {
-      const origin = request.nextUrl.origin;
-      const { error } = await supabase.auth.signInWithOtp({
+      const { url, anonKey } = getSupabaseEnvConfig();
+      const mailer = createAuthClient(url, anonKey, {
+        auth: {
+          flowType: "implicit",
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
+      const { error } = await mailer.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: `${origin}/api/auth/callback`,
+          emailRedirectTo: `${request.nextUrl.origin}/auth`,
         },
       });
 
@@ -70,11 +82,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { data, error } = await supabase.auth.verifyOtp({
+      const { supabase, withCookies } = await createAuthRouteClient();
+      let verified = await supabase.auth.verifyOtp({
         email,
         token,
         type: "email",
       });
+      if (verified.error) {
+        verified = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: "magiclink",
+        });
+      }
+      const { data, error } = verified;
 
       if (error || !data.user) {
         return NextResponse.json(
@@ -111,18 +132,11 @@ export async function POST(request: NextRequest) {
         revokedSessionIds = [];
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("access_status, role")
-        .eq("id", data.user.id)
-        .maybeSingle();
+      const profile = await ensureSignedInProfile(supabase, data.user);
 
       const response = NextResponse.json({
         status: "authenticated",
-        next: destinationAfterAuth({
-          accessStatus: profile?.access_status,
-          role: profile?.role,
-        }),
+        next: canManageClasses(profile.role) ? "/instructor" : "/hub",
         userId: data.user.id,
         email: data.user.email,
         deviceLock: {
@@ -145,7 +159,7 @@ export async function POST(request: NextRequest) {
         maxAge: 60 * 60 * 24 * 30,
       });
 
-      return response;
+      return withCookies(response);
     }
 
     return NextResponse.json(

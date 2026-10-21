@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Layer 3 Migration: Controlled AI Gateway, pgvector Document Chunks,
 -- Semantic & Selection Response Cache (`ai_response_cache`),
--- Internal Wallet Ledger (`ai_usage_logs`), and Deep-Linked `notebook_entries`
+-- Internal Wallet Ledger (`ai_usage_logs`), and Deep-Linked `passage_entries`
 -- =============================================================================
 
 -- Enable pgvector extension for Shield 1 Page-Level RAG top-3 chunk retrieval
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS public.ai_response_cache (
       'ayurvedic',
       'illustrative',
       'high_yield_revision',
-      'add_to_notebook',
+      'save_passage',
       'test_me',
       'deep_integrative_synthesis'
     )
@@ -87,7 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_usage_logs_user_month
 -- -----------------------------------------------------------------------------
 -- 4. NOTEBOOK_ENTRIES TABLE (Bi-Directional Deep Links to PDF Coordinates)
 -- -----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.notebook_entries (
+CREATE TABLE IF NOT EXISTS public.passage_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   document_id TEXT NOT NULL,
@@ -101,8 +101,8 @@ CREATE TABLE IF NOT EXISTS public.notebook_entries (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_notebook_entries_user_doc
-  ON public.notebook_entries(user_id, document_id, page_number);
+CREATE INDEX IF NOT EXISTS idx_passage_entries_user_doc
+  ON public.passage_entries(user_id, document_id, page_number);
 
 -- -----------------------------------------------------------------------------
 -- 5. ROW-LEVEL SECURITY (RLS) POLICIES FOR LAYER 3 TABLES
@@ -110,7 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_notebook_entries_user_doc
 ALTER TABLE public.document_chunks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_response_cache ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_usage_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notebook_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.passage_entries ENABLE ROW LEVEL SECURITY;
 
 -- document_chunks RLS
 DROP POLICY IF EXISTS "Authenticated users can read accessible document chunks" ON public.document_chunks;
@@ -159,24 +159,24 @@ CREATE POLICY "Users can insert own ai_usage_logs"
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
--- notebook_entries RLS: Users can only read/write their own deep-linked notebook entries
-DROP POLICY IF EXISTS "Users can select own notebook_entries" ON public.notebook_entries;
-CREATE POLICY "Users can select own notebook_entries"
-  ON public.notebook_entries
+-- passage_entries RLS: Users can only read/write their own deep-linked compendium entries
+DROP POLICY IF EXISTS "Users can select own passage_entries" ON public.passage_entries;
+CREATE POLICY "Users can select own passage_entries"
+  ON public.passage_entries
   FOR SELECT
   TO authenticated
   USING (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can insert own notebook_entries" ON public.notebook_entries;
-CREATE POLICY "Users can insert own notebook_entries"
-  ON public.notebook_entries
+DROP POLICY IF EXISTS "Users can insert own passage_entries" ON public.passage_entries;
+CREATE POLICY "Users can insert own passage_entries"
+  ON public.passage_entries
   FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
-DROP POLICY IF EXISTS "Users can delete own notebook_entries" ON public.notebook_entries;
-CREATE POLICY "Users can delete own notebook_entries"
-  ON public.notebook_entries
+DROP POLICY IF EXISTS "Users can delete own passage_entries" ON public.passage_entries;
+CREATE POLICY "Users can delete own passage_entries"
+  ON public.passage_entries
   FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);

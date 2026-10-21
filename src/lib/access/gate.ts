@@ -34,10 +34,11 @@ export function safeInternalPath(value: string | null | undefined): string | nul
 export function destinationAfterAuth(input: {
   accessStatus: string | null | undefined;
   role: string | null | undefined;
-}): "/instructor" | "/hub" | "/pricing" {
+  hasBodyType?: boolean;
+}): "/instructor" | "/hub" | "/pricing" | "/body-type" {
   if (canManageClasses(input.role)) return "/instructor";
-  if (isEntitled(input.accessStatus)) return "/hub";
-  return "/pricing";
+  if (!isEntitled(input.accessStatus)) return "/pricing";
+  return input.hasBodyType ? "/hub" : "/body-type";
 }
 
 export function decideAccessRedirect(input: {
@@ -61,6 +62,12 @@ export function decideAccessRedirect(input: {
       return null;
     }
     return "/auth";
+  }
+
+  if (pathname === "/auth" || pathname.startsWith("/auth/")) {
+    if (canManageClasses(input.role)) return "/instructor";
+    if (isEntitled(input.accessStatus)) return "/hub";
+    return "/pricing";
   }
 
   if (pathname === "/instructor" || pathname.startsWith("/instructor/")) {

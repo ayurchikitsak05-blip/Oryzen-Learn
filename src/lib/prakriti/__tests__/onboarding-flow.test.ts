@@ -122,10 +122,8 @@ describe("Layer 1: Prakriti Onboarding Questionnaire & Supabase Profile Sync", (
     const dna = buildInitialCognitiveDnaSummary(saved.payload.calculated);
     expect(dna.word_count).toBeGreaterThan(10);
     expect(dna.word_count).toBeLessThanOrEqual(200);
-    expect(upsertedMemoryRow).not.toBeNull();
-    expect(
-      (upsertedMemoryRow?.cognitive_dna_summary as { primary_dosha: string })
-        .primary_dosha
-    ).toBe("Pitta");
+    expect(upsertedMemoryRow).toMatchObject({
+      cognitive_dna_summary: expect.objectContaining({ primary_dosha: "Pitta" }),
+    });
   });
 });

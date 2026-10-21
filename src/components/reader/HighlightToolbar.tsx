@@ -30,9 +30,9 @@ export const MULTI_LENS_ACTIONS: readonly HighlightLensActionItem[] = [
     shortDesc: "Tables, bullets, and mnemonics",
   },
   {
-    id: "add_to_notebook",
+    id: "save_passage",
     emoji: "📓",
-    label: "Add to Notebook",
+    label: "Save passage",
     shortDesc: "Save with a precise page deep-link",
   },
   {
@@ -109,7 +109,7 @@ export default function HighlightToolbar({
               onClick={() => onSelectLens(lens.id)}
               className={`flex min-h-[56px] flex-col justify-between rounded-2xl border p-4 text-left transition-all active:scale-95 disabled:opacity-50 ${
                 isSelected
-                  ? "bg-white text-zinc-950 hover:bg-zinc-200 border-white"
+                  ? "border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70"
                   : "border-zinc-700 bg-zinc-900 text-zinc-100"
               }`}
             >

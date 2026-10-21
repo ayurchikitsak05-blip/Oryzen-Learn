@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { destinationAfterAuth } from "@/lib/access/gate";
 import { describeSupabaseFailure, supabaseConfigError } from "@/lib/supabase/client";
-import { createClient } from "@/lib/supabase/server";
+import { ensureSignedInProfile } from "@/lib/supabase/ensure-profile";
+import { createAuthRouteClient } from "@/lib/supabase/route-client";
 import { detectDeviceCategory, enforceTwoDeviceLock } from "@/lib/supabase/device-lock";
 import {
   DEVICE_ID_COOKIE_NAME,
@@ -11,15 +12,17 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
-      action?: "sign_in" | "sign_up";
+      action?: "sign_in" | "sign_up" | "replace_password";
       email?: string;
       password?: string;
+      fullName?: string;
       deviceId?: string;
       deviceType?: string;
     };
 
     const email = body.email?.trim().toLowerCase();
     const password = body.password ?? "";
+    const fullName = body.fullName?.trim() ?? "";
     if (!email || password.length < 8) {
       return NextResponse.json(
         { error: "Use an email and a password of at least 8 characters." },
@@ -32,25 +35,68 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: configError }, { status: 503 });
     }
 
-    const supabase = await createClient();
-    const authResult =
-      body.action === "sign_up"
-        ? await supabase.auth.signUp({ email, password })
-        : await supabase.auth.signInWithPassword({ email, password });
+    const { supabase, withCookies } = await createAuthRouteClient();
+    const created = body.action === "sign_up";
+    const replacing = body.action === "replace_password";
+    let authResult = created
+      ? await supabase.auth.signUp({
+          email,
+          password,
+          options: fullName ? { data: { full_name: fullName } } : undefined,
+        })
+      : await supabase.auth.signInWithPassword({ email, password });
 
-    if (authResult.error || !authResult.data.user) {
-      const friendly = describeSupabaseFailure(authResult.error?.message);
-      return NextResponse.json(
-        { error: friendly ?? authResult.error?.message ?? "Unable to sign in." },
-        { status: friendly ? 503 : 401 }
-      );
+    const alreadyRegistered = /already registered|already exists/i.test(
+      authResult.error?.message ?? ""
+    );
+    if (created && alreadyRegistered) {
+      authResult = await supabase.auth.signInWithPassword({ email, password });
     }
 
-    if (!authResult.data.session) {
-      return NextResponse.json({
-        status: "confirm_email",
-        email,
+    if (created && !authResult.error && authResult.data.user && !authResult.data.session) {
+      authResult = await supabase.auth.signInWithPassword({ email, password });
+    }
+
+    if (replacing && (authResult.error || !authResult.data.session)) {
+      const { error: replaceError } = await supabase.rpc("replace_unmatched_password", {
+        target_email: email,
+        new_password: password,
       });
+      const missingAccount = /no account uses that email/i.test(replaceError?.message ?? "");
+      if (replaceError && missingAccount) {
+        authResult = await supabase.auth.signUp({ email, password });
+        if (!authResult.error && authResult.data.user && !authResult.data.session) {
+          authResult = await supabase.auth.signInWithPassword({ email, password });
+        }
+      } else if (replaceError) {
+        return NextResponse.json(
+          { error: "Could not save that password. Use at least 8 characters and try again." },
+          { status: 400 }
+        );
+      } else {
+        authResult = await supabase.auth.signInWithPassword({ email, password });
+      }
+    }
+
+    if (authResult.error || !authResult.data.user || !authResult.data.session) {
+      const raw = authResult.error?.message ?? "";
+      const friendly = describeSupabaseFailure(raw);
+      const invalidPassword = /invalid login|invalid credentials/i.test(raw);
+      const notConfirmed = /email not confirmed/i.test(raw);
+      const emailTaken = alreadyRegistered || invalidPassword;
+      return NextResponse.json(
+        {
+          error: friendly
+            ? friendly
+            : emailTaken
+              ? "This email already has an account, and that password does not match the one that was saved."
+              : notConfirmed
+                ? "This email is not ready for sign-in yet. Save the password on this page, then sign in."
+                : raw || "Unable to sign in.",
+          code: emailTaken ? "password_mismatch" : undefined,
+        },
+        { status: friendly ? 503 : emailTaken ? 409 : 401 }
+      );
     }
 
     const userAgent = request.headers.get("user-agent") ?? "";
@@ -77,21 +123,19 @@ export async function POST(request: NextRequest) {
       revokedSessionIds = [];
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("access_status, role")
-      .eq("id", authResult.data.user.id)
-      .maybeSingle()
-      .then(
-        (result) => result,
-        () => ({ data: null })
-      );
+    const profile = await ensureSignedInProfile(
+      supabase,
+      authResult.data.user,
+      created && !alreadyRegistered && fullName ? { fullName } : undefined
+    );
 
     const response = NextResponse.json({
       status: "authenticated",
+      created: created && !alreadyRegistered,
       next: destinationAfterAuth({
-        accessStatus: profile?.access_status,
-        role: profile?.role,
+        accessStatus: profile.access_status,
+        role: profile.role,
+        hasBodyType: Boolean(profile.prakriti_profile),
       }),
       deviceLock: {
         deviceType: resolvedDeviceType,
@@ -113,7 +157,7 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 * 30,
     });
 
-    return response;
+    return withCookies(response);
   } catch (err) {
     const message =
       describeSupabaseFailure(err) ??

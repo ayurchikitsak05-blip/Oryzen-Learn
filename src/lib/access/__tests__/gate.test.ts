@@ -21,15 +21,19 @@ describe("access gate", () => {
     expect(isEntitled(null)).toBe(false);
   });
 
-  it("sends a new sign-in to pricing, the hub, or the instructor desk", () => {
+  it("sends a new sign-in to pricing, the body-type guide, the hub, or the instructor desk", () => {
     expect(destinationAfterAuth({ accessStatus: "none", role: "student" })).toBe(
       "/pricing"
     );
     expect(destinationAfterAuth({ accessStatus: "free", role: "student" })).toBe(
-      "/hub"
+      "/body-type"
     );
     expect(
-      destinationAfterAuth({ accessStatus: "active_paid", role: "student" })
+      destinationAfterAuth({
+        accessStatus: "active_paid",
+        role: "student",
+        hasBodyType: true,
+      })
     ).toBe("/hub");
     expect(
       destinationAfterAuth({ accessStatus: "none", role: "instructor" })
@@ -55,6 +59,22 @@ describe("access gate", () => {
         role: null,
       })
     ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/auth",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBe("/hub");
+    expect(
+      decideAccessRedirect({
+        pathname: "/auth",
+        isAuthenticated: true,
+        accessStatus: "none",
+        role: "student",
+      })
+    ).toBe("/pricing");
     expect(
       decideAccessRedirect({
         pathname: "/pricing",

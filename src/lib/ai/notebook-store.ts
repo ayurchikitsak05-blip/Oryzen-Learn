@@ -1,17 +1,17 @@
 /**
- * Layer 3: Bi-Directional Deep-Linked Study Notebook Store
+ * Layer 3: Bi-Directional Deep-Linked Study Compendium Store
  * Persists student highlights alongside exact PDF page numbers, section headings,
- * and bounding-box coordinates (`x, y, width, height`) so tapping any notebook
+ * and bounding-box coordinates (`x, y, width, height`) so tapping any compendium
  * entry or citation scrolls the virtualized PDF reader directly to that coordinate.
  */
 
 import type { BoundingBox } from "@/lib/reader/extractor";
 import type { InlineCitationCoordinate } from "./gateway";
 
-export const LOCAL_NOTEBOOK_STORAGE_KEY =
+export const SAVED_PASSAGE_STORAGE_KEY =
   "prakriti_study_ai_deep_linked_notebook_v1";
 
-export interface DeepLinkedNotebookEntry {
+export interface SavedPassageEntry {
   id: string;
   documentId: string;
   documentTitle: string;
@@ -24,16 +24,16 @@ export interface DeepLinkedNotebookEntry {
   createdAt: string;
 }
 
-const memoryNotebookStore = new Map<string, DeepLinkedNotebookEntry>();
+const memoryNotebookStore = new Map<string, SavedPassageEntry>();
 
-export function listNotebookEntries(
+export function listSavedPassages(
   documentId?: string
-): DeepLinkedNotebookEntry[] {
+): SavedPassageEntry[] {
   if (typeof window !== "undefined") {
     try {
-      const raw = window.localStorage.getItem(LOCAL_NOTEBOOK_STORAGE_KEY);
+      const raw = window.localStorage.getItem(SAVED_PASSAGE_STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as DeepLinkedNotebookEntry[];
+        const parsed = JSON.parse(raw) as SavedPassageEntry[];
         parsed.forEach((item) => memoryNotebookStore.set(item.id, item));
       }
     } catch {
@@ -49,10 +49,10 @@ export function listNotebookEntries(
   return all.filter((item) => item.documentId === documentId);
 }
 
-export function saveNotebookEntry(
-  input: Omit<DeepLinkedNotebookEntry, "id" | "createdAt">
-): DeepLinkedNotebookEntry {
-  const entry: DeepLinkedNotebookEntry = {
+export function savePassageEntry(
+  input: Omit<SavedPassageEntry, "id" | "createdAt">
+): SavedPassageEntry {
+  const entry: SavedPassageEntry = {
     ...input,
     id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     createdAt: new Date().toISOString(),
@@ -64,7 +64,7 @@ export function saveNotebookEntry(
     try {
       const all = Array.from(memoryNotebookStore.values());
       window.localStorage.setItem(
-        LOCAL_NOTEBOOK_STORAGE_KEY,
+        SAVED_PASSAGE_STORAGE_KEY,
         JSON.stringify(all)
       );
     } catch {
@@ -75,11 +75,11 @@ export function saveNotebookEntry(
   return entry;
 }
 
-export function clearNotebookEntries(): void {
+export function clearSavedPassages(): void {
   memoryNotebookStore.clear();
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.removeItem(LOCAL_NOTEBOOK_STORAGE_KEY);
+      window.localStorage.removeItem(SAVED_PASSAGE_STORAGE_KEY);
     } catch {
       // Ignored
     }

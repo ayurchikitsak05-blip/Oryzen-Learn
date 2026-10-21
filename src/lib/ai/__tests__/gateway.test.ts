@@ -13,10 +13,10 @@ import {
   type AiLensResponsePayload,
 } from "../gateway";
 import {
-  clearNotebookEntries,
-  listNotebookEntries,
-  saveNotebookEntry,
-} from "../notebook-store";
+  clearSavedPassages,
+  listSavedPassages,
+  savePassageEntry,
+} from "../passage-store";
 import type { CitationReadyChunk } from "@/lib/reader/extractor";
 
 const SAMPLE_CANDIDATE_CHUNKS: CitationReadyChunk[] = [
@@ -70,7 +70,7 @@ const SAMPLE_CANDIDATE_CHUNKS: CitationReadyChunk[] = [
 describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Lens Highlighting", () => {
   beforeEach(() => {
     clearLocalAiGatewayState();
-    clearNotebookEntries();
+    clearSavedPassages();
   });
 
   describe("1. Shield 1: Page-Level RAG (~2,000 Token Context Bounding)", () => {
@@ -102,7 +102,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         "ayurvedic",
         "illustrative",
         "high_yield_revision",
-        "add_to_notebook",
+        "save_passage",
         "test_me",
       ] as const) {
         const route = resolveShieldedModelRoute({
@@ -374,9 +374,9 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
     });
   });
 
-  describe("5. Bi-Directional Deep-Linked Study Notebook (`notebook-store.ts`)", () => {
-    it("persists notebook entries with exact PDF page number, section heading, and bounding-box coordinates", () => {
-      const saved = saveNotebookEntry({
+  describe("5. Bi-Directional Deep-Linked Study Compendium (`passage-store.ts`)", () => {
+    it("persists compendium entries with exact PDF page number, section heading, and bounding-box coordinates", () => {
+      const saved = savePassageEntry({
         documentId: "study-companion-vol1",
         documentTitle: "Energy & Constitution Companion",
         pageNumber: 2,
@@ -397,7 +397,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       });
 
       expect(saved.id).toContain("note-");
-      const listed = listNotebookEntries("study-companion-vol1");
+      const listed = listSavedPassages("study-companion-vol1");
       expect(listed).toHaveLength(1);
       expect(listed[0].pageNumber).toBe(2);
       expect(listed[0].boundingBox).toEqual({

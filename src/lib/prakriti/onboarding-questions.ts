@@ -494,7 +494,7 @@ export const READING_COGNITIVE_QUESTIONS: AssessmentQuestion[] = [
     number: 12,
     domainId: "smriti_retention",
     domainLabel: "Recall Power (Retention / Smriti)",
-    prompt: "How often do you need to revisit your digital notebook highlights?",
+    prompt: "How often do you need to revisit your study compendium highlights?",
     options: {
       Vata: "Frequent, bite-sized 5-minute flashcard bursts every 1–3 days",
       Pitta: "Structured weekly mastery review of flagged high-yield tables",
@@ -594,7 +594,7 @@ export const READING_COGNITIVE_QUESTIONS: AssessmentQuestion[] = [
     number: 20,
     domainId: "video_lecture_habits",
     domainLabel: "Parallel Video Lecture Habits",
-    prompt: "When merging video lectures and PDF notebooks into a Master Study Book:",
+    prompt: "When merging video lectures and study compendiums into a Master Study Book:",
     options: {
       Vata: "Format with visual mind-maps, concise cards, and audio-friendly summaries",
       Pitta: "Format with hierarchical numbering, tables, and strict inline citations",

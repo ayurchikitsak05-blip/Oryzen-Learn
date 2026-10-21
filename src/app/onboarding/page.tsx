@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -23,6 +23,7 @@ import {
   BASIC_PHYSICAL_PRAKRITI_QUESTIONS,
   computeScoresFromResponses,
   READING_COGNITIVE_QUESTIONS,
+  type AssessmentQuestion,
 } from "@/lib/prakriti/onboarding-questions";
 import {
   buildInitialCognitiveDnaSummary,
@@ -33,7 +34,67 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
 
-type OnboardingStep = 1 | 2 | 3 | 4;
+type OnboardingStep = 1 | 2 | 3;
+
+const QUESTIONS_PER_PAGE = 2;
+
+function pageCount(total: number): number {
+  return Math.ceil(total / QUESTIONS_PER_PAGE);
+}
+
+function pageSlice(questions: readonly AssessmentQuestion[], page: number): AssessmentQuestion[] {
+  const start = page * QUESTIONS_PER_PAGE;
+  return questions.slice(start, start + QUESTIONS_PER_PAGE);
+}
+
+function questionRangeLabel(questions: readonly AssessmentQuestion[], total: number): string {
+  const first = questions[0]?.number;
+  const last = questions[questions.length - 1]?.number;
+  if (!first || !last) return "";
+  const span = first === last ? `Question ${first}` : `Questions ${first}–${last}`;
+  return `${span} of ${total}`;
+}
+
+function QuestionCard({
+  question,
+  selected,
+  onSelect,
+}: {
+  question: AssessmentQuestion;
+  selected: Dosha | undefined;
+  onSelect: (dosha: Dosha) => void;
+}) {
+  return (
+    <article className="rounded-3xl border border-amber-500/30 bg-black p-5 shadow-xl shadow-black/30">
+      <p className="text-xs font-medium uppercase tracking-widest text-amber-200">
+        Question {question.number} · {question.domainLabel}
+      </p>
+      <h3 className="mt-3 text-xl font-semibold tracking-tight text-white">
+        {question.prompt}
+      </h3>
+      <div className="mt-5 space-y-3">
+        {(["Vata", "Pitta", "Kapha"] as const).map((dosha) => {
+          const chosen = selected === dosha;
+          return (
+            <button
+              key={`${question.id}-${dosha}`}
+              type="button"
+              onClick={() => onSelect(dosha)}
+              className={`flex min-h-[52px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm leading-relaxed transition-colors ${
+                chosen
+                  ? "border-amber-200/40 bg-amber-950/50 font-medium text-amber-50"
+                  : "border-amber-500/30 bg-zinc-950 text-amber-100 hover:border-amber-200/40"
+              }`}
+            >
+              <span>{question.options[dosha]}</span>
+              {chosen ? <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+            </button>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
 
 export default function PrakritiOnboardingPage() {
   const router = useRouter();
@@ -68,6 +129,8 @@ export default function PrakritiOnboardingPage() {
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [formNotice, setFormNotice] = useState<string | null>(null);
+  const [physicalPage, setPhysicalPage] = useState(0);
+  const [readingPage, setReadingPage] = useState(0);
 
   const basicScores = useMemo(
     () =>
@@ -94,12 +157,10 @@ export default function PrakritiOnboardingPage() {
     [basicScores, readingScores]
   );
 
-  const activeTheme = profile.activeConfiguration.theme;
-
-  useEffect(() => {
-    const rootDosha = profile.secondaryDosha ?? profile.primaryDosha;
-    document.documentElement.setAttribute("data-prakriti-theme", rootDosha);
-  }, [profile.primaryDosha, profile.secondaryDosha]);
+  const physicalPageCount = pageCount(BASIC_PHYSICAL_PRAKRITI_QUESTIONS.length);
+  const readingPageCount = pageCount(READING_COGNITIVE_QUESTIONS.length);
+  const visiblePhysical = pageSlice(BASIC_PHYSICAL_PRAKRITI_QUESTIONS, physicalPage);
+  const visibleReading = pageSlice(READING_COGNITIVE_QUESTIONS, readingPage);
 
   const physicalComplete = BASIC_PHYSICAL_PRAKRITI_QUESTIONS.every(
     (question) => physicalAnswers[question.id]
@@ -122,21 +183,22 @@ export default function PrakritiOnboardingPage() {
         storedPayload.calculated
       );
 
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
+
       if (typeof window !== "undefined") {
         window.localStorage.setItem(
           LOCAL_PRAKRITI_STORAGE_KEY,
           JSON.stringify({
             ...storedPayload,
+            userId: user?.id ?? null,
             fullName: fullName.trim() || null,
             cognitiveDna,
           })
         );
       }
-
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
 
       if (user && user.email) {
         await savePrakritiProfileToDatabase(supabase, {
@@ -179,30 +241,69 @@ export default function PrakritiOnboardingPage() {
     }
   };
 
+  const goToStep = (next: OnboardingStep) => {
+    if (next === 2 && inputMode === "questions" && !physicalComplete) {
+      setFormNotice("Answer each constitution question before opening study habits.");
+      return;
+    }
+    if (next === 3 && inputMode === "questions" && (!physicalComplete || !readingComplete)) {
+      setFormNotice("Answer each question before seeing your result.");
+      return;
+    }
+    setFormNotice(null);
+    setStep(next);
+  };
+
+  const advancePhysical = () => {
+    if (inputMode === "sliders") {
+      setFormNotice(null);
+      setStep(2);
+      return;
+    }
+    const unanswered = visiblePhysical.some((question) => !physicalAnswers[question.id]);
+    if (unanswered) {
+      setFormNotice("Choose an answer for each question on this page.");
+      return;
+    }
+    setFormNotice(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (physicalPage < physicalPageCount - 1) {
+      setPhysicalPage((page) => page + 1);
+      return;
+    }
+    setReadingPage(0);
+    setStep(2);
+  };
+
+  const advanceReading = () => {
+    if (inputMode === "sliders") {
+      setFormNotice(null);
+      setStep(3);
+      return;
+    }
+    const unanswered = visibleReading.some((question) => !readingAnswers[question.id]);
+    if (unanswered) {
+      setFormNotice("Choose an answer for each question on this page.");
+      return;
+    }
+    setFormNotice(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (readingPage < readingPageCount - 1) {
+      setReadingPage((page) => page + 1);
+      return;
+    }
+    setStep(3);
+  };
+
   return (
-    <div
-      className="min-h-screen transition-all duration-300 font-sans"
-      style={{
-        backgroundColor: activeTheme.backgroundHex,
-        backgroundImage: activeTheme.canvasGradientCss,
-        color: activeTheme.textPrimaryHex,
-      }}
-    >
-      {/* Frosted Glass Tablet-First Header */}
-      <header
-        className="sticky top-0 z-20 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md px-4 py-3.5 shadow-xl shadow-zinc-950/5 md:px-8"
-        style={{
-          borderColor: activeTheme.borderHex,
-        }}
-      >
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3">
+    <div className="min-h-screen bg-zinc-950 font-sans text-amber-100">
+      <header className="sticky top-0 z-20 border-b border-amber-500/30 bg-black/90 px-4 py-3.5 backdrop-blur-md md:px-8">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-4">
             <OryzenLearnBrand subtitle="Adaptive Intelligence & Focus Reader" />
-            <div className="min-w-0">
-              <h1 className="text-lg font-semibold tracking-tight text-zinc-950 dark:text-zinc-50 md:text-xl">
-                Find your body type
-              </h1>
-            </div>
+            <h1 className="text-lg font-semibold tracking-tight text-white md:text-xl">
+              Discover Your Cognitive Prakriti
+            </h1>
           </div>
 
           <div className="flex items-center gap-2">
@@ -213,42 +314,31 @@ export default function PrakritiOnboardingPage() {
                   prev === "questions" ? "sliders" : "questions"
                 )
               }
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border px-3.5 py-2 text-xs font-bold shadow-xs active:scale-95 transition-transform"
-              style={{
-                backgroundColor: activeTheme.backgroundHex,
-                borderColor: activeTheme.borderHex,
-              }}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-amber-500/30 px-3.5 py-2 text-xs font-medium text-amber-100"
             >
-              <Sliders className="h-4 w-4" />
-              Mode:{" "}
-              {inputMode === "questions"
-                ? "Full 45-Question Assessment"
-                : "Modular Domain Sliders"}
+              <Sliders className="h-4 w-4 text-amber-200" />
+              {inputMode === "questions" ? "Questions" : "Sliders"}
             </button>
 
             <Link
-              href="/"
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 px-5 py-2.5 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
+              href="/body-type"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full border border-amber-500/30 px-4 text-xs font-medium text-amber-100"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Studio
+              Back
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-8">
+      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-8">
         {formNotice && (
-          <p role="status" className="text-sm font-medium text-zinc-700">
+          <p role="status" className="text-sm font-medium text-amber-100">
             {formNotice}
           </p>
         )}
 
-        {/* 4-Step Progress Bar (Touch Targets >= 44x44px) */}
-        <nav
-          aria-label="Onboarding Steps"
-          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-        >
+        <nav aria-label="Onboarding Steps" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[
             {
               num: 1 as OnboardingStep,
@@ -271,20 +361,15 @@ export default function PrakritiOnboardingPage() {
               <button
                 key={item.num}
                 type="button"
-                onClick={() => setStep(item.num)}
-                className="flex min-h-[56px] flex-col justify-between rounded-2xl border p-3.5 text-left shadow-sm active:scale-95 transition-transform"
-                style={{
-                  backgroundColor: active
-                    ? activeTheme.accentHex
-                    : activeTheme.surfaceHex,
-                  color: active ? "#FFFFFF" : activeTheme.textPrimaryHex,
-                  borderColor: active
-                    ? activeTheme.accentHex
-                    : activeTheme.borderHex,
-                }}
+                onClick={() => goToStep(item.num)}
+                className={`flex min-h-[56px] flex-col justify-center rounded-2xl border px-4 py-3 text-left ${
+                  active
+                    ? "border-amber-200/40 bg-amber-950/50 text-amber-50"
+                    : "border-amber-500/30 bg-zinc-950 text-amber-200"
+                }`}
               >
-                <span className="text-xs font-bold">{item.title}</span>
-                <span className="text-[11px] opacity-85 line-clamp-1">
+                <span className="text-sm font-semibold">{item.title}</span>
+                <span className={`text-xs ${active ? "text-amber-200" : "text-amber-100"}`}>
                   {item.sub}
                 </span>
               </button>
@@ -294,48 +379,22 @@ export default function PrakritiOnboardingPage() {
 
         {/* STEP 1: Basic Physical Prakriti Assessment (25 Questions / Modular Sliders) */}
         {step === 1 && (
-          <section
-            className="space-y-5 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-5 shadow-xl shadow-zinc-950/5 md:p-6"
-            style={{
-              borderColor: activeTheme.borderHex,
-            }}
-          >
-            <div
-              className="flex flex-wrap items-center justify-between gap-2 border-b pb-4"
-              style={{ borderColor: activeTheme.borderHex }}
-            >
-              <div>
-                <h2 className="flex items-center gap-2 font-serif text-lg font-bold">
-                  <HeartPulse
-                    className="h-5 w-5"
-                    style={{ color: activeTheme.accentHex }}
-                  />
-                  Step 1: {COGNITIVE_METRIC_LABELS.dinacharya.fullLabel} Baseline (25 Questions)
-                </h2>
-                <p
-                  className="text-xs md:text-sm"
-                  style={{ color: activeTheme.textSecondaryHex }}
-                >
-                  Establishes your physical energy rhythm (*Agni*), hydration,
-                  and{" "}
-                  <strong>
-                    {COGNITIVE_METRIC_LABELS.dinacharya.fullLabel}
-                  </strong>{" "}
-                  break exercises.
-                </p>
-              </div>
+          <section className="space-y-5 rounded-3xl border border-amber-500/30 bg-zinc-950 p-5 shadow-xl shadow-black/30 md:p-6">
+            <div className="border-b border-amber-500/30 pb-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+                <HeartPulse className="h-5 w-5 text-amber-200" />
+                Constitution
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-amber-100">
+                These questions look at energy, appetite, and how you recover.{" "}
+                {COGNITIVE_METRIC_LABELS.dinacharya.fullLabel} shapes the pauses between study blocks.
+              </p>
             </div>
 
             {inputMode === "sliders" ? (
-              <div
-                className="space-y-4 rounded-2xl border p-4"
-                style={{
-                  backgroundColor: activeTheme.backgroundHex,
-                  borderColor: activeTheme.borderHex,
-                }}
-              >
-                <h3 className="font-serif text-sm font-bold">
-                  Modular Physical &amp; Flow Ritual Sliders
+              <div className="space-y-4 rounded-2xl border border-amber-500/30 bg-black p-4">
+                <h3 className="text-sm font-semibold text-white">
+                  Physical balance
                 </h3>
                 {(["Vata", "Pitta", "Kapha"] as const).map((dosha) => (
                   <div key={`phys-slider-${dosha}`} className="space-y-1">
@@ -355,90 +414,59 @@ export default function PrakritiOnboardingPage() {
                           [dosha]: Number(e.target.value),
                         }))
                       }
-                      className="h-6 w-full cursor-pointer"
+                      className="h-6 w-full cursor-pointer accent-amber-200"
                     />
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {BASIC_PHYSICAL_PRAKRITI_QUESTIONS.map((q) => {
-                  const selected = physicalAnswers[q.id];
-                  return (
-                    <div
-                      key={q.id}
-                      className="rounded-2xl border p-4 space-y-2.5 shadow-2xs"
-                      style={{
-                        backgroundColor: activeTheme.backgroundHex,
-                        borderColor: activeTheme.borderHex,
-                      }}
-                    >
-                      <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider opacity-75">
-                        <span>
-                          Q{q.number}. {q.domainLabel}
-                        </span>
-                        {selected ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
-                      </div>
-                      <p className="font-serif text-sm font-semibold">
-                        {q.prompt}
-                      </p>
-                      <div className="space-y-2 pt-1">
-                        {(["Vata", "Pitta", "Kapha"] as const).map((dosha) => {
-                          const isChosen = selected === dosha;
-                          return (
-                            <button
-                              key={`${q.id}-${dosha}`}
-                              type="button"
-                              onClick={() =>
-                                setPhysicalAnswers((prev) => ({
-                                  ...prev,
-                                  [q.id]: dosha,
-                                }))
-                              }
-                              className="flex min-h-[44px] w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs active:scale-95 transition-transform"
-                              style={{
-                                backgroundColor: isChosen
-                                  ? activeTheme.accentHex
-                                  : activeTheme.surfaceHex,
-                                color: isChosen
-                                  ? "#FFFFFF"
-                                  : activeTheme.textPrimaryHex,
-                                borderColor: isChosen
-                                  ? activeTheme.accentHex
-                                  : activeTheme.borderHex,
-                              }}
-                            >
-                              <span>{q.options[dosha]}</span>
-                              {isChosen && (
-                                <CheckCircle2 className="ml-2 h-4 w-4 shrink-0" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div
+                key={`physical-${physicalPage}`}
+                className="space-y-4 [animation:oryzen-rise_180ms_ease]"
+              >
+                <p className="text-sm text-amber-100">
+                  {questionRangeLabel(
+                    visiblePhysical,
+                    BASIC_PHYSICAL_PRAKRITI_QUESTIONS.length
+                  )}
+                </p>
+                {visiblePhysical.map((question) => (
+                  <QuestionCard
+                    key={question.id}
+                    question={question}
+                    selected={physicalAnswers[question.id]}
+                    onSelect={(dosha) =>
+                      setPhysicalAnswers((prev) => ({
+                        ...prev,
+                        [question.id]: dosha,
+                      }))
+                    }
+                  />
+                ))}
               </div>
             )}
 
-            <div className="flex justify-end pt-2">
+            <div className="flex flex-wrap justify-between gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  if (inputMode === "questions" && !physicalComplete) {
-                    setFormNotice(
-                      "Choose one answer for each constitution question before continuing."
-                    );
-                    return;
-                  }
                   setFormNotice(null);
-                  setStep(2);
+                  if (physicalPage > 0) setPhysicalPage((page) => page - 1);
                 }}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl px-6 py-3 text-sm font-bold text-white shadow-md active:scale-95 transition-transform"
-                style={{ backgroundColor: activeTheme.accentHex }}
+                disabled={inputMode === "questions" && physicalPage === 0}
+                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/30 px-5 text-sm font-medium text-amber-100 disabled:opacity-40"
               >
-                Continue to study habits
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={advancePhysical}
+                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-6 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
+              >
+                {inputMode === "questions" && physicalPage < physicalPageCount - 1
+                  ? "Next"
+                  : "Continue to study habits"}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -447,48 +475,23 @@ export default function PrakritiOnboardingPage() {
 
         {/* STEP 2: Reading & Cognitive Ability Assessment (20 Questions across 5 Domains) */}
         {step === 2 && (
-          <section
-            className="space-y-5 rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-5 shadow-xl shadow-zinc-950/5 md:p-6"
-            style={{
-              borderColor: activeTheme.borderHex,
-            }}
-          >
-            <div
-              className="flex flex-wrap items-center justify-between gap-2 border-b pb-4"
-              style={{ borderColor: activeTheme.borderHex }}
-            >
-              <div>
-                <h2 className="flex items-center gap-2 font-serif text-lg font-bold">
-                  <Brain
-                    className="h-5 w-5"
-                    style={{ color: activeTheme.accentHex }}
-                  />
-                  Step 2: Quick-Take Speed (Dhee), Focus Stamina (Dhriti) &amp; Recall Power (Smriti)
-                </h2>
-                <p
-                  className="text-xs md:text-sm"
-                  style={{ color: activeTheme.textSecondaryHex }}
-                >
-                  Evaluates{" "}
-                  <strong>{COGNITIVE_METRIC_LABELS.dhee.fullLabel}</strong>,{" "}
-                  <strong>{COGNITIVE_METRIC_LABELS.dhriti.fullLabel}</strong>,{" "}
-                  <strong>{COGNITIVE_METRIC_LABELS.smriti.fullLabel}</strong>,
-                  Screen Fatigue (*Alochaka Pitta*), and Video Lecture Habits
-                  (70% Reader UI &amp; AI Format weight).
-                </p>
-              </div>
+          <section className="space-y-5 rounded-3xl border border-amber-500/30 bg-zinc-950 p-5 shadow-xl shadow-black/30 md:p-6">
+            <div className="border-b border-amber-500/30 pb-4">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+                <Brain className="h-5 w-5 text-amber-200" />
+                Study habits
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-amber-100">
+                {COGNITIVE_METRIC_LABELS.dhee.fullLabel},{" "}
+                {COGNITIVE_METRIC_LABELS.dhriti.fullLabel}, and{" "}
+                {COGNITIVE_METRIC_LABELS.smriti.fullLabel} decide how the reader paces you.
+              </p>
             </div>
 
             {inputMode === "sliders" ? (
-              <div
-                className="space-y-4 rounded-2xl border p-4"
-                style={{
-                  backgroundColor: activeTheme.backgroundHex,
-                  borderColor: activeTheme.borderHex,
-                }}
-              >
-                <h3 className="font-serif text-sm font-bold">
-                  Modular Cognitive Sliders (Quick-Take Speed, Focus Stamina, Recall Power)
+              <div className="space-y-4 rounded-2xl border border-amber-500/30 bg-black p-4">
+                <h3 className="text-sm font-semibold text-white">
+                  Study-habit balance
                 </h3>
                 {(["Vata", "Pitta", "Kapha"] as const).map((dosha) => (
                   <div key={`read-slider-${dosha}`} className="space-y-1">
@@ -508,102 +511,62 @@ export default function PrakritiOnboardingPage() {
                           [dosha]: Number(e.target.value),
                         }))
                       }
-                      className="h-6 w-full cursor-pointer"
+                      className="h-6 w-full cursor-pointer accent-amber-200"
                     />
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {READING_COGNITIVE_QUESTIONS.map((q) => {
-                  const selected = readingAnswers[q.id];
-                  return (
-                    <div
-                      key={q.id}
-                      className="rounded-2xl border p-4 space-y-2.5 shadow-2xs"
-                      style={{
-                        backgroundColor: activeTheme.backgroundHex,
-                        borderColor: activeTheme.borderHex,
-                      }}
-                    >
-                      <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider opacity-75">
-                        <span>
-                          Q{q.number}. {q.domainLabel}
-                        </span>
-                        {selected ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
-                      </div>
-                      <p className="font-serif text-sm font-semibold">
-                        {q.prompt}
-                      </p>
-                      <div className="space-y-2 pt-1">
-                        {(["Vata", "Pitta", "Kapha"] as const).map((dosha) => {
-                          const isChosen = selected === dosha;
-                          return (
-                            <button
-                              key={`${q.id}-${dosha}`}
-                              type="button"
-                              onClick={() =>
-                                setReadingAnswers((prev) => ({
-                                  ...prev,
-                                  [q.id]: dosha,
-                                }))
-                              }
-                              className="flex min-h-[44px] w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs active:scale-95 transition-transform"
-                              style={{
-                                backgroundColor: isChosen
-                                  ? activeTheme.accentHex
-                                  : activeTheme.surfaceHex,
-                                color: isChosen
-                                  ? "#FFFFFF"
-                                  : activeTheme.textPrimaryHex,
-                                borderColor: isChosen
-                                  ? activeTheme.accentHex
-                                  : activeTheme.borderHex,
-                              }}
-                            >
-                              <span>{q.options[dosha]}</span>
-                              {isChosen && (
-                                <CheckCircle2 className="ml-2 h-4 w-4 shrink-0" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div
+                key={`reading-${readingPage}`}
+                className="space-y-4 [animation:oryzen-rise_180ms_ease]"
+              >
+                <p className="text-sm text-amber-100">
+                  {questionRangeLabel(
+                    visibleReading,
+                    READING_COGNITIVE_QUESTIONS.length
+                  )}
+                </p>
+                {visibleReading.map((question) => (
+                  <QuestionCard
+                    key={question.id}
+                    question={question}
+                    selected={readingAnswers[question.id]}
+                    onSelect={(dosha) =>
+                      setReadingAnswers((prev) => ({
+                        ...prev,
+                        [question.id]: dosha,
+                      }))
+                    }
+                  />
+                ))}
               </div>
             )}
 
-            <div className="flex justify-between pt-2">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-semibold active:scale-95 transition-transform"
-                style={{
-                  backgroundColor: activeTheme.backgroundHex,
-                  borderColor: activeTheme.borderHex,
-                }}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Step 1
-              </button>
+            <div className="flex flex-wrap justify-between gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  if (inputMode === "questions" && !readingComplete) {
-                    setFormNotice(
-                      "Choose one answer for each study-habit question before seeing your result."
-                    );
+                  setFormNotice(null);
+                  if (inputMode === "sliders" || readingPage === 0) {
+                    setStep(1);
                     return;
                   }
-                  setFormNotice(null);
-                  setStep(3);
+                  setReadingPage((page) => page - 1);
                 }}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-2xl px-6 py-3 text-sm font-bold text-white shadow-md active:scale-95 transition-transform"
-                style={{ backgroundColor: activeTheme.accentHex }}
+                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/30 px-5 text-sm font-medium text-amber-100"
               >
-                See my body type
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={advanceReading}
+                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-6 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
+              >
+                {inputMode === "questions" && readingPage < readingPageCount - 1
+                  ? "Next"
+                  : "See my cognitive prakriti"}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
@@ -611,26 +574,17 @@ export default function PrakritiOnboardingPage() {
         )}
 
         {step === 3 && (
-          <section
-            className="space-y-6 rounded-2xl border border-zinc-200/50 bg-white/80 p-5 shadow-xl shadow-zinc-950/5 backdrop-blur-md md:p-8 dark:border-zinc-800/50 dark:bg-zinc-900/80"
-            style={{ borderColor: activeTheme.borderHex }}
-          >
-            <p className="text-xs font-medium uppercase tracking-widest text-zinc-500">
-              Your primary body type
+          <section className="space-y-6 rounded-3xl border border-amber-500/30 bg-zinc-950 p-5 shadow-xl shadow-black/30 md:p-8">
+            <p className="text-xs font-medium uppercase tracking-widest text-amber-200">
+              Your cognitive prakriti
             </p>
-            <h2 className="text-3xl font-semibold tracking-tight">
+            <h2 className="text-3xl font-semibold tracking-tight text-white">
               {profile.displayProfileTitle}
             </h2>
-            <p
-              className="max-w-xl text-base leading-relaxed"
-              style={{ color: activeTheme.textSecondaryHex }}
-            >
+            <p className="max-w-xl text-base leading-relaxed text-amber-100">
               {DOSHA_STUDY_PRESETS[profile.primaryDosha].cognitiveSummary}
             </p>
-            <p
-              className="max-w-xl text-sm leading-relaxed"
-              style={{ color: activeTheme.textSecondaryHex }}
-            >
+            <p className="max-w-xl text-sm leading-relaxed text-amber-100">
               A comfortable reading stretch for you is about{" "}
               {profile.activeConfiguration.pomodoro.studySprintMinutes} minutes,
               followed by a {profile.activeConfiguration.pomodoro.breakMinutes}
@@ -640,7 +594,7 @@ export default function PrakritiOnboardingPage() {
             <div className="max-w-md space-y-2">
               <label
                 htmlFor="student-full-name"
-                className="block text-xs font-medium uppercase tracking-wider text-zinc-500"
+                className="block text-xs font-medium uppercase tracking-wider text-amber-200"
               >
                 Name (optional)
               </label>
@@ -650,18 +604,14 @@ export default function PrakritiOnboardingPage() {
                 placeholder="Your full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="min-h-[48px] w-full rounded-2xl border px-4 text-sm font-medium focus:outline-none"
-                style={{
-                  backgroundColor: activeTheme.backgroundHex,
-                  borderColor: activeTheme.borderHex,
-                }}
+                className="min-h-[48px] w-full rounded-2xl border border-amber-500/30 bg-black px-4 text-sm text-amber-100 placeholder:text-amber-100/50 focus:outline-none"
               />
             </div>
 
             {saveStatus && (
               <div
                 role="status"
-                className="rounded-2xl border border-emerald-700/30 bg-emerald-50 p-4 text-sm font-medium text-emerald-900"
+                className="rounded-2xl border border-amber-500/30 bg-black p-4 text-sm font-medium text-amber-100"
               >
                 {saveStatus}
               </div>
@@ -670,7 +620,7 @@ export default function PrakritiOnboardingPage() {
             {saveError && (
               <div
                 role="alert"
-                className="rounded-2xl border border-red-700/30 bg-red-50 p-4 text-sm font-medium text-red-900"
+                className="rounded-2xl border border-red-400/40 bg-black p-4 text-sm font-medium text-red-200"
               >
                 {saveError}
               </div>
@@ -680,11 +630,7 @@ export default function PrakritiOnboardingPage() {
               <button
                 type="button"
                 onClick={() => setStep(2)}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border px-5 py-3 text-sm font-medium"
-                style={{
-                  backgroundColor: activeTheme.backgroundHex,
-                  borderColor: activeTheme.borderHex,
-                }}
+                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/30 px-5 text-sm font-medium text-amber-100"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
@@ -693,8 +639,7 @@ export default function PrakritiOnboardingPage() {
                 type="button"
                 disabled={saving}
                 onClick={handleSaveAndFinish}
-                className="inline-flex min-h-[48px] items-center gap-2 rounded-full px-6 py-3 text-sm font-medium text-white disabled:opacity-50"
-                style={{ backgroundColor: activeTheme.accentHex }}
+                className="inline-flex min-h-[48px] items-center gap-2 rounded-full border border-amber-500/40 bg-amber-950/50 px-6 text-sm font-medium text-amber-100 hover:bg-amber-950/70 disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 {saving ? "Saving..." : "Continue"}

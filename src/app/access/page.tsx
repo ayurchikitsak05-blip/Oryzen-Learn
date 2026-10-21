@@ -36,7 +36,7 @@ function AccessRequiredScreen() {
         setError(json.error ?? "That class code could not be used.");
         return;
       }
-      router.push("/hub");
+      router.push("/body-type");
       router.refresh();
     } catch {
       setError("Network error while checking the class code.");

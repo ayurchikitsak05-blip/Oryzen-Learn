@@ -39,6 +39,7 @@ export interface PassageTextProps {
   marks: readonly ReaderTextMark[];
   onAddMark: (mark: Omit<ReaderTextMark, "id">) => void;
   onExplain: (selectedText: string) => void;
+  onAddNote: (quote: string, note: string) => void;
 }
 
 function plainOffsets(
@@ -258,10 +259,13 @@ export default function PassageText({
   marks,
   onAddMark,
   onExplain,
+  onAddNote,
 }: PassageTextProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [lookup, setLookup] = useState<LookupAnchor | null>(null);
   const [toolbar, setToolbar] = useState<SelectionToolbarState | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noting, setNoting] = useState(false);
   const chunkMarks = marks.filter((mark) => mark.chunkId === chunkId);
 
   useEffect(() => {
@@ -293,6 +297,8 @@ export default function PassageText({
     const selected = range.toString().trim();
     if (!offsets || !selected) return;
     const rect = range.getBoundingClientRect();
+    setNoting(false);
+    setNoteDraft("");
     setToolbar({
       top: rect.top,
       left: rect.left + rect.width / 2,
@@ -330,7 +336,7 @@ export default function PassageText({
           return (
             <span
               key={`${segment.start}-${segment.end}`}
-              className={`${segment.highlight ? "rounded-sm bg-zinc-200 text-zinc-950" : ""} ${segment.underline ? "underline decoration-zinc-300 decoration-2 underline-offset-4" : ""}`}
+              className={`${segment.highlight ? "rounded-sm bg-amber-500/35 text-amber-50" : ""} ${segment.underline ? "underline decoration-amber-200/70 decoration-2 underline-offset-4" : ""}`}
             >
               {pieces.map((piece) => {
                 const start = cursor;
@@ -380,38 +386,97 @@ export default function PassageText({
         <div
           id="reader-selection-tools"
           role="toolbar"
-          aria-label="Highlight and underline"
-          className="fixed z-50 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-full border border-zinc-700 bg-zinc-900 p-1 shadow-xl shadow-black/40"
-          style={{ top: Math.max(56, toolbar.top - 8), left: toolbar.left }}
+          aria-label="Highlight, note, copy, and look up"
+          className="fixed z-50 w-[min(22rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-full rounded-2xl border border-amber-500/30 bg-zinc-950 p-2 shadow-xl shadow-black/50"
+          style={{ top: Math.max(72, toolbar.top - 8), left: toolbar.left }}
         >
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => applyMark("highlight")}
-            className="min-h-[36px] rounded-full px-3 text-xs font-medium text-zinc-100 hover:bg-zinc-800"
-          >
-            Highlight
-          </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => applyMark("underline")}
-            className="min-h-[36px] rounded-full px-3 text-xs font-medium text-zinc-100 underline hover:bg-zinc-800"
-          >
-            Underline
-          </button>
-          <button
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              onExplain(toolbar.text);
-              setToolbar(null);
-              window.getSelection()?.removeAllRanges();
-            }}
-            className="min-h-[36px] rounded-full bg-white px-3 text-xs font-medium text-zinc-950 hover:bg-zinc-200"
-          >
-            Explain
-          </button>
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyMark("highlight")}
+              className="min-h-[36px] rounded-full border border-amber-500/40 bg-amber-950/50 px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/70"
+            >
+              Highlight
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setNoting(true)}
+              className="min-h-[36px] rounded-full px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+            >
+              Add Note
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                void navigator.clipboard?.writeText(toolbar.text);
+                setToolbar(null);
+                window.getSelection()?.removeAllRanges();
+              }}
+              className="min-h-[36px] rounded-full px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+            >
+              Copy
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onExplain(toolbar.text);
+                setToolbar(null);
+                window.getSelection()?.removeAllRanges();
+              }}
+              className="min-h-[36px] rounded-full px-3 text-xs font-medium text-white hover:bg-amber-950/40"
+            >
+              Explain
+            </button>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                const word = toolbar.text.replace(/[^A-Za-z0-9' -]/g, " ").trim().split(/\s+/)[0];
+                if (!word) return;
+                setLookup({ word, top: toolbar.top, left: toolbar.left });
+                setToolbar(null);
+                window.getSelection()?.removeAllRanges();
+              }}
+              className="min-h-[36px] rounded-full px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+            >
+              Look Up
+            </button>
+          </div>
+          {noting && (
+            <form
+              className="mt-2 space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const body = noteDraft.trim();
+                if (!body) return;
+                onAddNote(toolbar.text, body);
+                setNoteDraft("");
+                setNoting(false);
+                setToolbar(null);
+                window.getSelection()?.removeAllRanges();
+              }}
+            >
+              <label className="block text-[11px] font-medium uppercase tracking-wide text-amber-200">
+                Margin note
+                <textarea
+                  value={noteDraft}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-amber-500/30 bg-black px-3 py-2 text-sm text-amber-50"
+                />
+              </label>
+              <button
+                type="submit"
+                className="inline-flex min-h-[36px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 px-3 text-xs font-medium text-amber-100"
+              >
+                Save note
+              </button>
+            </form>
+          )}
         </div>
       )}
 

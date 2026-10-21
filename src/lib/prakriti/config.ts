@@ -31,7 +31,7 @@ export type HighlightLensType =
   | "ayurvedic"
   | "illustrative"
   | "high_yield_revision"
-  | "add_to_notebook"
+  | "save_passage"
   | "test_me";
 
 /**

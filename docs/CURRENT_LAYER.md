@@ -9,7 +9,7 @@
 - **Layer 0 (COMPLETED):** Repository Skeleton, Prakriti Design Tokens, 70/30 & 50/50 Scoring Engine, Testing Harness, and Health Verification Shell.
 - **Layer 1 (COMPLETED):** Auth, Multi-Tenant Database Schema, Secure Storage, 2-Device Session Lock, and Prakriti Onboarding Database Sync.
 - **Layer 2 (COMPLETED):** The Tablet-First PDF Engine & Local-First Storage Pipeline (`IndexedDB`/`OPFS`, SHA-256 Deduplication, 3-Page Virtualized RAM Window `Page N-1, N, N+1`, Split-Screen Touch Reader, and Citation-Ready Text Extraction).
-- **Layer 3 (COMPLETED):** Controlled AI Gateway, 5-Shield Profit Protection Ledger (`ai_response_cache`, `ai_usage_logs`, `document_chunks`, `notebook_entries`), and Multi-Lens Highlighting (`HighlightToolbar.tsx`).
+- **Layer 3 (COMPLETED):** Controlled AI Gateway, 5-Shield Profit Protection Ledger (`ai_response_cache`, `ai_usage_logs`, `document_chunks`, `passage_entries`), and Multi-Lens Highlighting (`HighlightToolbar.tsx`).
 - **Layer 4 (COMPLETED):** Parallel Video Lecture Studio (`VideoPlayer.tsx`, `ParallelNotes.tsx`), Multi-Source Synthesis Studio (`SynthesisStudio.tsx`), and Adaptive AI Memory Engine (`NoteModToolbar.tsx`, `adaptive-memory.ts`).
 - **Layer 5 (ACTIVE — COMPLETED):** Freemium Quotas & Exam Booster Packs (`src/lib/billing/`), Coaching Institute B2B Portal (`src/app/institute/dashboard/page.tsx`), Dynamic Student Watermarking & DRM Protection, and Final Production Verification.
 
@@ -43,15 +43,15 @@
 - [x] Pass `npm run test`, `npm run build`, and `npm run lint` with zero errors
 
 ### Layer 3 — Controlled AI Gateway, Profit Protection Shields & Multi-Lens Highlighting
-- [x] Create Supabase migration (`supabase/migrations/20261020000002_layer3_ai_gateway_cache_and_ledger.sql`) for `document_chunks` (`pgvector`), `ai_response_cache`, `ai_usage_logs`, and `notebook_entries`
+- [x] Create Supabase migration (`supabase/migrations/20261020000002_layer3_ai_gateway_cache_and_ledger.sql`) for `document_chunks` (`pgvector`), `ai_response_cache`, `ai_usage_logs`, and `passage_entries`
 - [x] Build the Controlled AI Gateway & 5-Shield Profit Protection Engine (`src/lib/ai/gateway.ts`) and `/api/ai/lens` endpoint enforcing Shield 1 (~2,000 token Page-Level RAG), Shield 2 (90% Flash / 10% Pro routing), Shield 3 (`ai_response_cache`), and Shield 4 (`ai_usage_logs` ₹70 hard cap with Flash-Lite fallback)
-- [x] Build the Multi-Lens Highlight Action Bar (`src/components/reader/HighlightToolbar.tsx`) with 5 1-tap lenses (Ayurvedic View, Illustrative View, Revision View, Add to Notebook, Test Me) and clickable inline citations (`[Page X, Section Y]`) integrated into `PdfViewer.tsx`
+- [x] Build the Multi-Lens Highlight Action Bar (`src/components/reader/HighlightToolbar.tsx`) with 5 1-tap lenses (Ayurvedic View, Illustrative View, Revision View, Add to Compendium, Test Me) and clickable inline citations (`[Page X, Section Y]`) integrated into `PdfViewer.tsx`
 - [x] Write integration tests (`src/lib/ai/__tests__/gateway.test.ts`) verifying AI gateway responses, semantic & selection caching hits, Page-Level RAG bounding, and wallet ledger ceiling fallback
 - [x] Pass `npm run test`, `npm run build`, and `npm run lint` with zero errors
 
 ### Layer 4 — Parallel Video Lecture Studio, Multi-Source Synthesis Studio & Adaptive AI Memory Engine
 - [x] Build the YouTube IFrame & Local `.mp4` Video Player (`src/components/video/VideoPlayer.tsx`) and Parallel Live-Sync Note Streamer (`src/components/video/ParallelNotes.tsx` & `src/lib/video/sync-engine.ts`) with clickable `[04:18]` timestamp badges and bi-directional scrolling, plus `/video` route (`src/app/video/page.tsx`)
-- [x] Build the Multi-Source Synthesis Studio (`src/components/synthesis/SynthesisStudio.tsx` & `src/lib/synthesis/master-book.ts`) merging 2+ personal notebooks and 2+ video lecture transcripts into a unified Prakriti-formatted Master Study Book with inline citations, plus `/synthesis` route (`src/app/synthesis/page.tsx`)
+- [x] Build the Multi-Source Synthesis Studio (`src/components/synthesis/SynthesisStudio.tsx` & `src/lib/synthesis/master-book.ts`) merging 2+ saved passages and 2+ video lecture transcripts into a unified Prakriti-formatted Master Study Book with inline citations, plus `/synthesis` route (`src/app/synthesis/page.tsx`)
 - [x] Build the Student Note Modification Bar (`src/components/notes/NoteModToolbar.tsx`) and Adaptive Cognitive Memory Engine (`src/lib/ai/adaptive-memory.ts` & `src/app/api/ai/memory/route.ts`) updating the rolling 200-word Student Cognitive DNA Card in `student_cognitive_memory`
 - [x] Write automated tests (`src/lib/ai/__tests__/adaptive-memory.test.ts` and `src/lib/video/__tests__/video-sync.test.ts`) verifying parallel note sync, multi-source synthesis, and adaptive DNA updates
 - [x] Pass `npm run test`, `npm run build`, and `npm run lint` with zero errors

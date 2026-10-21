@@ -1,17 +1,68 @@
 "use client";
 
 import React, { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  CheckCircle2,
-  KeyRound,
-  Mail,
-  Smartphone,
-  Tablet,
-} from "lucide-react";
-import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
+import { Mail, Smartphone, Tablet } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { detectDeviceCategory } from "@/lib/supabase/device-lock";
 import type { DeviceCategory } from "@/lib/supabase/types";
+
+const labelClass =
+  "mb-1.5 block text-xs tracking-[0.14em] text-[#A1A1AA] uppercase";
+const inputClass =
+  "min-h-12 w-full rounded-xl border border-white/10 bg-[#050505] px-4 text-sm text-[#FAFAFA] placeholder:text-[#71717A] outline-none focus:border-white/30";
+const primaryButtonClass =
+  "flex min-h-12 w-full items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50";
+const secondaryButtonClass =
+  "flex min-h-12 w-full items-center justify-center rounded-xl border border-white/20 px-5 py-3 text-sm text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50";
+const noticeClass =
+  "rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-sm leading-relaxed text-[#E2E8F0]";
+
+function describeAuthLinkError(params: URLSearchParams): string | null {
+  const code = params.get("error_code");
+  const description = params.get("error_description")?.replace(/\+/g, " ") ?? "";
+  const error = params.get("error")?.replace(/\+/g, " ") ?? "";
+  if (/code challenge/i.test(error) || /code challenge/i.test(description)) {
+    return "That sign-in link could not be matched to this browser. Request a new email, or use your password.";
+  }
+  if (code === "otp_expired" || /expired|invalid/i.test(description)) {
+    return "That email link is invalid or has already expired. Request a new email, or use your password.";
+  }
+  if (error) {
+    return description || "The sign-in link could not be completed. Request a new email, or use your password.";
+  }
+  return null;
+}
+
+function readAuthLinkError(searchParams: { get(name: string): string | null }): string | null {
+  const direct = describeAuthLinkError(
+    new URLSearchParams(
+      ["error", "error_code", "error_description"]
+        .flatMap((key) => {
+          const value = searchParams.get(key);
+          return value ? [[key, value]] : [];
+        })
+    )
+  );
+  if (direct) return direct;
+  const next = searchParams.get("next");
+  if (!next) return null;
+  try {
+    return describeAuthLinkError(new URL(next, "http://localhost").searchParams);
+  } catch {
+    return null;
+  }
+}
+
+function tabClass(active: boolean): string {
+  return `min-h-11 rounded-xl border px-3 py-2 text-sm transition ${
+    active
+      ? "border-white/30 bg-white/5 text-[#E2E8F0]"
+      : "border-transparent text-[#71717A] hover:text-[#A1A1AA]"
+  }`;
+}
 
 export default function AuthPage() {
   return (
@@ -24,13 +75,20 @@ export default function AuthPage() {
 function AuthScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [mode, setMode] = useState<"sign_in" | "sign_up">("sign_in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [otpToken, setOtpToken] = useState("");
+  const [fullName, setFullName] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [useOneTimeCode, setUseOneTimeCode] = useState(false);
   const [deviceType, setDeviceType] = useState<DeviceCategory>("tablet");
   const [deviceId, setDeviceId] = useState("tablet-primary");
+  const [loading, setLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"sign_in" | "sign_up" | null>(null);
+  const [passwordMismatch, setPasswordMismatch] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const linkError = readAuthLinkError(searchParams);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -48,9 +106,62 @@ function AuthScreen() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
-  const [loading, setLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const accessToken = hash.get("access_token");
+        const refreshToken = hash.get("refresh_token");
+        const hashError = hash.get("error_description") || hash.get("error");
+        if (!accessToken || !refreshToken) {
+          if (hashError) setErrorMessage(hashError.replace(/\+/g, " "));
+          return;
+        }
+        setLoading(true);
+        setErrorMessage(null);
+        setStatusMessage("Signing you in from the email link...");
+        try {
+          const supabase = createClient();
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) {
+            setErrorMessage(error.message);
+            setLoading(false);
+            return;
+          }
+          window.history.replaceState(
+            null,
+            "",
+            `${window.location.pathname}${window.location.search}`
+          );
+          const res = await fetch("/api/auth/establish", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              deviceId: window.localStorage.getItem("prakriti_local_device_id"),
+              deviceType: detectDeviceCategory(window.navigator.userAgent),
+            }),
+          });
+          const json = (await res.json()) as { next?: string; error?: string };
+          if (!res.ok || !json.next) {
+            setErrorMessage(json.error ?? "The sign-in link could not be completed.");
+            setLoading(false);
+            return;
+          }
+          setStatusMessage("Signed in.");
+          router.replace(json.next);
+          router.refresh();
+        } catch {
+          setErrorMessage("The sign-in link could not be completed.");
+          setLoading(false);
+        }
+      })();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [router]);
 
   const finishSignIn = (nextPath: string) => {
     const requested = searchParams.get("next");
@@ -66,10 +177,21 @@ function AuthScreen() {
     router.refresh();
   };
 
-  const handlePasswordAuth = async (action: "sign_in" | "sign_up") => {
+  const selectMode = (nextMode: "sign_in" | "sign_up") => {
+    setMode(nextMode);
+    setUseOneTimeCode(false);
     setErrorMessage(null);
     setStatusMessage(null);
+    setPasswordMismatch(false);
+  };
+
+  const handlePasswordAuth = async (action: "sign_in" | "sign_up" | "replace_password") => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setPasswordMismatch(false);
+    setPendingAction(action === "replace_password" ? "sign_in" : action);
     setLoading(true);
+    let redirecting = false;
     try {
       const res = await fetch("/api/auth/password", {
         method: "POST",
@@ -80,24 +202,42 @@ function AuthScreen() {
           password,
           deviceId,
           deviceType,
+          ...(action === "sign_up" ? { fullName: fullName.trim() } : {}),
         }),
       });
       const json = (await res.json()) as {
         status?: string;
         next?: string;
+        created?: boolean;
+        code?: string;
         error?: string;
       };
       if (!res.ok) {
+        setPasswordMismatch(json.code === "password_mismatch");
         setErrorMessage(json.error ?? "Unable to sign in.");
-      } else if (json.status === "confirm_email") {
-        setStatusMessage("Check your email to confirm the account, then sign in.");
+      } else if (!json.next) {
+        setErrorMessage("Signed in, but the next page was not returned.");
+      } else if (json.created) {
+        setStatusMessage("Account created successfully. Welcome.");
+        redirecting = true;
+        const nextPath = json.next;
+        window.setTimeout(() => finishSignIn(nextPath), 900);
+      } else if (action === "replace_password") {
+        setStatusMessage("Password saved. You're signed in.");
+        redirecting = true;
+        const nextPath = json.next;
+        window.setTimeout(() => finishSignIn(nextPath), 900);
       } else {
-        finishSignIn(json.next ?? "/pricing");
+        redirecting = true;
+        finishSignIn(json.next);
       }
     } catch {
       setErrorMessage("Network error while signing in.");
     } finally {
-      setLoading(false);
+      if (!redirecting) {
+        setPendingAction(null);
+        setLoading(false);
+      }
     }
   };
 
@@ -120,193 +260,235 @@ function AuthScreen() {
       });
       const json = (await res.json()) as { status?: string; error?: string };
       if (!res.ok) {
-        setErrorMessage(json.error ?? "Unable to send OTP.");
+        setErrorMessage(json.error ?? "Unable to send the sign-in email.");
       } else {
         setOtpSent(true);
         setStatusMessage(
-          `6-digit verification code dispatched to ${email}. Enter it below to unlock your ${deviceType} slot.`
+          "Check your email for “Your sign-in link”. Open the Sign in link in that message. That email does not include a numeric code."
         );
       }
     } catch {
-      setErrorMessage("Network error while requesting Email OTP.");
+      setErrorMessage("Network error while sending the sign-in email.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setStatusMessage(null);
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/auth/otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "verify",
-          email,
-          token: otpToken,
-          deviceId,
-          deviceType,
-          deviceLabel:
-            deviceType === "tablet"
-              ? "Primary Study Tablet"
-              : "Companion Study Phone",
-        }),
-      });
-      const json = (await res.json()) as {
-        status?: string;
-        next?: string;
-        error?: string;
-        deviceLock?: { revokedSessionIds: string[] };
-      };
-
-      if (!res.ok) {
-        setErrorMessage(json.error ?? "Invalid OTP code.");
-      } else {
-        const revokedCount = json.deviceLock?.revokedSessionIds.length ?? 0;
-        setStatusMessage(
-          revokedCount > 0
-            ? `Authenticated! Replaced ${revokedCount} older ${deviceType} session under the Strict 2-Device Lock.`
-            : "Authenticated! Redirecting to Cognitive Energy Blueprint Assessment..."
-        );
-        finishSignIn(json.next ?? "/pricing");
-      }
-    } catch {
-      setErrorMessage("Network error while verifying OTP.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleOAuth = async () => {
-    setErrorMessage(null);
-    setStatusMessage(null);
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/auth/oauth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deviceId,
-          deviceType,
-          next: searchParams.get("next") ?? "/hub",
-        }),
-      });
-      const json = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !json.url) {
-        setErrorMessage(
-          json.error ??
-            "Configure NEXT_PUBLIC_SUPABASE_URL & NEXT_PUBLIC_SUPABASE_ANON_KEY to launch Google OAuth."
-        );
-      } else {
-        window.location.href = json.url;
-      }
-    } catch {
-      setErrorMessage("Failed to initiate Google OAuth redirect.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const heading = mode === "sign_up" ? "Create account" : "Sign in";
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-      <header className="border-b border-zinc-800 bg-zinc-950 px-4 py-3 md:px-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-4">
-            <OryzenLearnBrand subtitle="Adaptive Intelligence & Focus Reader" />
-            <div className="min-w-0">
-              <h1 className="text-lg font-semibold tracking-tight">
-                Sign in to Oryzen Learn
-              </h1>
-            </div>
+    <div className="min-h-screen bg-[#050505] text-[#FAFAFA]">
+      <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col px-4 py-8">
+        <Link href="/" className="mb-6 inline-flex min-h-11 items-center gap-3 self-start">
+          <Image
+            src="/logo.png"
+            alt="Oryzen Learn"
+            width={48}
+            height={48}
+            className="h-12 w-12 rounded-2xl object-cover"
+          />
+          <span>
+            <span className="block text-sm font-medium tracking-tight text-[#FAFAFA]">
+              Oryzen Learn
+            </span>
+            <span className="block text-[11px] text-[#71717A]">
+              Adaptive Intelligence & Focus Reader
+            </span>
+          </span>
+        </Link>
+
+        <section className="rounded-2xl border border-white/10 bg-[#101010] p-6 sm:p-8">
+          <h1 className="text-3xl font-medium tracking-tight text-[#FAFAFA]">{heading}</h1>
+          <p className="mt-2 text-sm text-[#71717A]">
+            {mode === "sign_up"
+              ? "Email, password, and an optional name."
+              : "Email and password for your account."}
+          </p>
+
+          <div role="tablist" aria-label="Account" className="mt-6 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              role="tab"
+              id="auth-tab-sign-in"
+              aria-selected={mode === "sign_in"}
+              aria-controls="auth-panel"
+              suppressHydrationWarning
+              onClick={() => selectMode("sign_in")}
+              className={tabClass(mode === "sign_in")}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="auth-tab-sign-up"
+              aria-selected={mode === "sign_up"}
+              aria-controls="auth-panel"
+              suppressHydrationWarning
+              onClick={() => selectMode("sign_up")}
+              className={tabClass(mode === "sign_up")}
+            >
+              Sign Up
+            </button>
           </div>
-        </div>
-      </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 items-center px-4 py-8 md:px-8">
-        <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-12">
-          <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 lg:col-span-5">
-            <h2 className="text-xl font-bold">This device</h2>
-            <div className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                Study Tablet or Study Phone
-              </span>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  suppressHydrationWarning
-                  onClick={() => setDeviceType("tablet")}
-                  className={`flex min-h-[64px] flex-col items-start justify-between rounded-xl border p-3.5 text-left transition-all ${
-                    deviceType === "tablet"
-                      ? "border-white bg-white text-zinc-950"
-                      : "border-zinc-700 bg-zinc-950 text-zinc-100"
-                  }`}
-                >
-                  <div className="flex w-full items-center justify-between">
-                    <Tablet className="h-5 w-5" />
-                    {deviceType === "tablet" && (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                  </div>
-                  <div className="mt-2">
-                    <div className="text-sm font-bold">Study Tablet</div>
-                    <div className="text-[11px] opacity-85">
-                      iPad / Android Tab
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  suppressHydrationWarning
-                  onClick={() => setDeviceType("phone")}
-                  className={`flex min-h-[64px] flex-col items-start justify-between rounded-xl border p-3.5 text-left transition-all ${
-                    deviceType === "phone"
-                      ? "border-white bg-white text-zinc-950"
-                      : "border-zinc-700 bg-zinc-950 text-zinc-100"
-                  }`}
-                >
-                  <div className="flex w-full items-center justify-between">
-                    <Smartphone className="h-5 w-5" />
-                    {deviceType === "phone" && (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                  </div>
-                  <div className="mt-2">
-                    <div className="text-sm font-bold">Study Phone</div>
-                    <div className="text-[11px] opacity-85">
-                      iPhone / Android
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* Right Pane: Email OTP & Google OAuth Sign-In */}
-          <section className="space-y-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 lg:col-span-7">
-            <h2 className="text-lg font-bold">
-              Email and password, or Google
-            </h2>
-
+          <div id="auth-panel" role="tabpanel" className="mt-6 space-y-4">
             {statusMessage && (
-              <div className="rounded-xl border border-emerald-700/30 bg-emerald-50 p-3.5 text-xs font-medium text-emerald-900">
+              <div role="status" className={noticeClass}>
                 {statusMessage}
               </div>
             )}
 
-            {errorMessage && (
-              <div className="rounded-xl border border-red-700/30 bg-red-50 p-3.5 text-xs font-medium text-red-900">
-                {errorMessage}
+            {(errorMessage ?? linkError) && (
+              <div className="space-y-3">
+                <div role="alert" className={noticeClass}>
+                  {errorMessage ?? linkError}
+                </div>
+                {passwordMismatch && (
+                  <button
+                    type="button"
+                    suppressHydrationWarning
+                    disabled={loading}
+                    onClick={() => void handlePasswordAuth("replace_password")}
+                    className={secondaryButtonClass}
+                  >
+                    {loading ? "Saving password..." : "Save this password and sign in"}
+                  </button>
+                )}
               </div>
             )}
 
-            {!useOneTimeCode ? (
+            {useOneTimeCode ? (
+              !otpSent ? (
+                <form suppressHydrationWarning onSubmit={handleSendOtp} className="space-y-4">
+                  <div>
+                    <label htmlFor="student-email" className={labelClass}>
+                      Email
+                    </label>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-[#71717A]" />
+                      <input
+                        id="student-email"
+                        type="email"
+                        required
+                        suppressHydrationWarning
+                        autoComplete="email"
+                        placeholder="student@university.edu"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className={`${inputClass} pr-4 pl-11`}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    suppressHydrationWarning
+                    disabled={loading}
+                    className={primaryButtonClass}
+                  >
+                    {loading ? "Sending email..." : "Email me a sign-in link"}
+                  </button>
+                  <button
+                    type="button"
+                    suppressHydrationWarning
+                    onClick={() => setUseOneTimeCode(false)}
+                    className="text-xs text-[#A1A1AA] underline-offset-4 hover:text-[#E2E8F0] hover:underline"
+                  >
+                    Use email and password instead
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm leading-relaxed text-[#A1A1AA]">
+                    The email titled “Your sign-in link” has a Sign in link and no numeric code. Open that link to continue.
+                  </p>
+                  <button
+                    type="button"
+                    suppressHydrationWarning
+                    onClick={() => {
+                      setOtpSent(false);
+                      setUseOneTimeCode(false);
+                    }}
+                    className="text-xs text-[#A1A1AA] underline-offset-4 hover:text-[#E2E8F0] hover:underline"
+                  >
+                    Use a different email
+                  </button>
+                </div>
+              )
+            ) : mode === "sign_up" ? (
               <form
+                suppressHydrationWarning
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handlePasswordAuth("sign_up");
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label htmlFor="student-name" className={labelClass}>
+                    Full name <span className="normal-case tracking-normal text-[#71717A]">(optional)</span>
+                  </label>
+                  <input
+                    id="student-name"
+                    type="text"
+                    suppressHydrationWarning
+                    autoComplete="name"
+                    placeholder="Your name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="student-email" className={labelClass}>
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-[#71717A]" />
+                    <input
+                      id="student-email"
+                      type="email"
+                      required
+                      suppressHydrationWarning
+                      autoComplete="email"
+                      placeholder="student@university.edu"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={`${inputClass} pr-4 pl-11`}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="student-password" className={labelClass}>
+                    Password
+                  </label>
+                  <input
+                    id="student-password"
+                    type="password"
+                    required
+                    suppressHydrationWarning
+                    minLength={8}
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  suppressHydrationWarning
+                  disabled={loading}
+                  className={primaryButtonClass}
+                >
+                  {pendingAction === "sign_up" ? "Creating account..." : "Create account"}
+                </button>
+                <p className="text-xs leading-relaxed text-[#71717A]">
+                  Creating an account signs you in on this page. No confirmation email.
+                </p>
+              </form>
+            ) : (
+              <form
+                suppressHydrationWarning
                 onSubmit={(event) => {
                   event.preventDefault();
                   void handlePasswordAuth("sign_in");
@@ -314,31 +496,26 @@ function AuthScreen() {
                 className="space-y-4"
               >
                 <div>
-                  <label
-                    htmlFor="student-email"
-                    className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-400"
-                  >
+                  <label htmlFor="student-email" className={labelClass}>
                     Email
                   </label>
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-zinc-400" />
+                    <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-[#71717A]" />
                     <input
                       id="student-email"
                       type="email"
                       required
                       suppressHydrationWarning
+                      autoComplete="email"
                       placeholder="student@university.edu"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="min-h-[48px] w-full rounded-xl border border-zinc-700 bg-zinc-950 pr-4 pl-11 text-sm font-medium focus:border-zinc-400 focus:outline-none"
+                      className={`${inputClass} pr-4 pl-11`}
                     />
                   </div>
                 </div>
                 <div>
-                  <label
-                    htmlFor="student-password"
-                    className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-400"
-                  >
+                  <label htmlFor="student-password" className={labelClass}>
                     Password
                   </label>
                   <input
@@ -350,140 +527,75 @@ function AuthScreen() {
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="min-h-[48px] w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 text-sm font-medium focus:border-zinc-400 focus:outline-none"
+                    className={inputClass}
                   />
                 </div>
                 <button
                   type="submit"
                   suppressHydrationWarning
                   disabled={loading}
-                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold transition disabled:opacity-50"
+                  className={primaryButtonClass}
                 >
-                  {loading ? "Signing in..." : "Sign in"}
+                  {pendingAction === "sign_in" ? "Signing in..." : "Sign in"}
                 </button>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => void handlePasswordAuth("sign_up")}
-                  className="flex min-h-[48px] w-full items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950 px-5 py-3 text-sm font-bold"
-                >
-                  Create account
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUseOneTimeCode(true)}
-                  className="text-xs font-semibold text-zinc-400 underline"
-                >
-                  Email me a one-time code instead
-                </button>
-              </form>
-            ) : !otpSent ? (
-              <form onSubmit={handleSendOtp} className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="student-email"
-                    className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-400"
-                  >
-                    Student or Coaching Institute Email
-                  </label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-zinc-400" />
-                    <input
-                      id="student-email"
-                      type="email"
-                      required
-                      suppressHydrationWarning
-                      placeholder="student@university.edu"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="min-h-[48px] w-full rounded-xl border border-zinc-700 bg-zinc-950 pr-4 pl-11 text-sm font-medium focus:border-zinc-400 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  suppressHydrationWarning
-                  disabled={loading}
-                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold transition disabled:opacity-50"
-                >
-                  <Mail className="h-4 w-4" />
-                  {loading ? "Sending OTP..." : "Send 6-Digit Email OTP"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUseOneTimeCode(false)}
-                  className="text-xs font-semibold text-zinc-400 underline"
-                >
-                  Use email and password instead
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOtp} className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="otp-code"
-                    className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-zinc-400"
-                  >
-                    Enter 6-Digit Verification Code sent to {email}
-                  </label>
-                  <div className="relative">
-                    <KeyRound className="pointer-events-none absolute top-3.5 left-3.5 h-5 w-5 text-zinc-400" />
-                    <input
-                      id="otp-code"
-                      type="text"
-                      required
-                      suppressHydrationWarning
-                      maxLength={8}
-                      placeholder="123456"
-                      value={otpToken}
-                      onChange={(e) => setOtpToken(e.target.value)}
-                      className="min-h-[48px] w-full rounded-xl border border-zinc-700 bg-zinc-950 pr-4 pl-11 font-mono text-base font-bold tracking-widest focus:border-zinc-400 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-200 px-5 py-3 text-sm font-bold"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    {loading
-                      ? "Verifying & Locking Slot..."
-                      : `Verify & Lock ${deviceType.toUpperCase()} Slot`}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOtpSent(false)}
-                    className="min-h-[48px] rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-xs font-semibold"
-                  >
-                    Change Email
-                  </button>
-                </div>
               </form>
             )}
 
-            <div className="relative flex items-center py-1">
-              <div className="grow border-t border-zinc-800" />
-              <span className="mx-3 shrink text-xs font-semibold uppercase text-zinc-400">
-                or continue with
-              </span>
-              <div className="grow border-t border-zinc-800" />
-            </div>
+            {!useOneTimeCode && (
+              <button
+                type="button"
+                suppressHydrationWarning
+                onClick={() => {
+                  setUseOneTimeCode(true);
+                  setErrorMessage(null);
+                  setStatusMessage(null);
+                  setPasswordMismatch(false);
+                }}
+                className="text-xs text-[#71717A] underline-offset-4 hover:text-[#A1A1AA] hover:underline"
+              >
+                Email me a sign-in link instead
+              </button>
+            )}
+          </div>
+        </section>
 
+        <section className="mt-4 rounded-2xl border border-[#222222] bg-[#161616] p-4">
+          <p className="text-xs tracking-[0.14em] text-[#71717A] uppercase">This device</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
               suppressHydrationWarning
-              onClick={handleGoogleOAuth}
-              disabled={loading}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-5 py-3 text-sm font-bold text-zinc-100 transition hover:bg-white disabled:opacity-50"
+              onClick={() => setDeviceType("tablet")}
+              className={`flex min-h-16 items-center gap-3 rounded-xl border px-3 py-3 text-left ${
+                deviceType === "tablet"
+                  ? "border-white/30 bg-white/5 text-[#E2E8F0]"
+                  : "border-white/10 text-[#A1A1AA]"
+              }`}
             >
-              Continue with Google OAuth ({deviceType} slot)
+              <Tablet className="h-4 w-4 shrink-0" />
+              <span>
+                <span className="block text-sm">Study Tablet</span>
+                <span className="block text-[11px] text-[#71717A]">iPad / Android Tab</span>
+              </span>
             </button>
-          </section>
-        </div>
+            <button
+              type="button"
+              suppressHydrationWarning
+              onClick={() => setDeviceType("phone")}
+              className={`flex min-h-16 items-center gap-3 rounded-xl border px-3 py-3 text-left ${
+                deviceType === "phone"
+                  ? "border-white/30 bg-white/5 text-[#E2E8F0]"
+                  : "border-white/10 text-[#A1A1AA]"
+              }`}
+            >
+              <Smartphone className="h-4 w-4 shrink-0" />
+              <span>
+                <span className="block text-sm">Study Phone</span>
+                <span className="block text-[11px] text-[#71717A]">iPhone / Android</span>
+              </span>
+            </button>
+          </div>
+        </section>
       </main>
     </div>
   );

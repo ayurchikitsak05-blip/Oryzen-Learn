@@ -8,7 +8,7 @@ import {
   recordCognitiveTelemetryEvent,
 } from "../adaptive-memory";
 import {
-  DEFAULT_SYNTHESIS_NOTEBOOKS,
+  DEFAULT_SYNTHESIS_SOURCES,
   DEFAULT_VIDEO_LECTURES,
   synthesizeMasterStudyBook,
 } from "@/lib/synthesis/master-book";
@@ -119,8 +119,7 @@ describe("Layer 4: Adaptive Note Modification, Cognitive Memory Engine & Multi-S
       expect(finalDna.word_count).toBeLessThanOrEqual(MAX_COGNITIVE_DNA_WORDS);
       expect(finalDna.summary_text).toContain("VideoRewinds(2)");
       expect(finalDna.summary_text).toContain("[04:18]");
-      expect(upsertedMemoryRow).not.toBeNull();
-      expect(upsertedMemoryRow?.user_id).toBe("student-dna-01");
+      expect(upsertedMemoryRow).toMatchObject({ user_id: "student-dna-01" });
     });
 
     it("strictly caps the rolling Cognitive DNA Card at 200 words even with extreme telemetry descriptions", () => {
@@ -146,16 +145,16 @@ describe("Layer 4: Adaptive Note Modification, Cognitive Memory Engine & Multi-S
   });
 
   describe("3. Multi-Source Synthesis Studio (`synthesizeMasterStudyBook`)", () => {
-    it("merges 2+ personal notebooks and 2+ video lecture transcripts into a unified Prakriti-formatted Master Study Book with inline citations", () => {
+    it("merges 2+ saved passages and 2+ video lecture transcripts into a unified Prakriti-formatted Master Study Book with inline citations", () => {
       const book = synthesizeMasterStudyBook({
-        notebooks: DEFAULT_SYNTHESIS_NOTEBOOKS.slice(0, 2),
+        sources: DEFAULT_SYNTHESIS_SOURCES.slice(0, 2),
         videoLectures: DEFAULT_VIDEO_LECTURES.slice(0, 2),
         prakritiDosha: "Pitta",
         cognitiveDnaSummary:
           "Student Cognitive DNA Card (Pitta): Prefers differential tables and exact citations.",
       });
 
-      expect(book.selectedNotebookCount).toBe(2);
+      expect(book.selectedSourceCount).toBe(2);
       expect(book.selectedVideoTranscriptCount).toBe(2);
       expect(book.prakritiDosha).toBe("Pitta");
       expect(book.sections.length).toBeGreaterThanOrEqual(3);
@@ -166,18 +165,18 @@ describe("Layer 4: Adaptive Note Modification, Cognitive Memory Engine & Multi-S
       expect(badges.some((b) => b.startsWith("[Video:"))).toBe(true);
     });
 
-    it("rejects synthesis if fewer than 2 notebooks or fewer than 2 video transcripts are selected", () => {
+    it("rejects synthesis if fewer than 2 sources or fewer than 2 video transcripts are selected", () => {
       expect(() =>
         synthesizeMasterStudyBook({
-          notebooks: DEFAULT_SYNTHESIS_NOTEBOOKS.slice(0, 1),
+          sources: DEFAULT_SYNTHESIS_SOURCES.slice(0, 1),
           videoLectures: DEFAULT_VIDEO_LECTURES.slice(0, 2),
           prakritiDosha: "Vata",
         })
-      ).toThrow(/at least 2 personal notebooks/);
+      ).toThrow(/at least 2 saved passages/);
 
       expect(() =>
         synthesizeMasterStudyBook({
-          notebooks: DEFAULT_SYNTHESIS_NOTEBOOKS.slice(0, 2),
+          sources: DEFAULT_SYNTHESIS_SOURCES.slice(0, 2),
           videoLectures: DEFAULT_VIDEO_LECTURES.slice(0, 1),
           prakritiDosha: "Vata",
         })

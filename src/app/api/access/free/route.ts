@@ -19,7 +19,17 @@ export async function POST() {
 
     const { data, error } = await supabase.rpc("activate_free_plan");
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      const missingFunction =
+        /activate_free_plan/i.test(error.message) &&
+        /schema cache|does not exist/i.test(error.message);
+      return NextResponse.json(
+        {
+          error: missingFunction
+            ? "The free plan is not installed on the database yet. Run the activate_free_plan migration in the Supabase SQL editor, then click Start free again."
+            : error.message,
+        },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({

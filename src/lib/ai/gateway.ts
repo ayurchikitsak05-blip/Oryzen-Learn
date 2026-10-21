@@ -423,11 +423,11 @@ export function buildDeterministicLensPayload(params: {
         citations,
       };
 
-    case "add_to_notebook":
+    case "save_passage":
       return {
-        lens_type: "add_to_notebook",
+        lens_type: "save_passage",
         prakriti_dosha: dosha,
-        title: `📓 Saved to Deep-Linked Study Notebook`,
+        title: `📓 Saved to Deep-Linked Study Compendium`,
         markdown_body: [
           `### Bi-Directional Deep-Linked Note ${primaryCitationLabel}`,
           `> "${request.selectedText.trim()}"`,

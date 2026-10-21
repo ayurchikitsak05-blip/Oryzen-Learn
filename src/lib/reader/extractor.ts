@@ -2,7 +2,7 @@
  * Layer 2: Citation-Ready PDF Text & Bounding-Box Extraction Engine
  * Extracts text per page alongside normalized bounding-box coordinates and
  * section headings (`document_id`, `page_number`, `section_heading`) for
- * Shield 1 (Page-Level RAG) and bi-directional deep-linked notebooks.
+ * Shield 1 (Page-Level RAG) and bi-directional deep-linked sources.
  */
 
 export interface BoundingBox {

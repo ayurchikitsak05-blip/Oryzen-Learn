@@ -37,6 +37,12 @@ import type {
   PrakritiThemePalette,
 } from "@/lib/prakriti/config";
 import HighlightToolbar from "@/components/reader/HighlightToolbar";
+import {
+  AnnotationsDrawer,
+  ContentsModal,
+  PageGridModal,
+} from "@/components/reader/ReaderOverlays";
+import type { ReaderMarginNote } from "@/lib/reader/annotations";
 import PassageText, {
   type ReaderTextMark,
 } from "@/components/reader/PassageText";
@@ -45,10 +51,10 @@ import type {
   InlineCitationCoordinate,
 } from "@/lib/ai/gateway";
 import {
-  listNotebookEntries,
-  saveNotebookEntry,
-  type DeepLinkedNotebookEntry,
-} from "@/lib/ai/notebook-store";
+  listSavedPassages,
+  savePassageEntry,
+  type SavedPassageEntry,
+} from "@/lib/ai/passage-store";
 
 export interface PdfViewerProps {
   theme?: PrakritiThemePalette;
@@ -57,6 +63,7 @@ export interface PdfViewerProps {
 }
 
 const READER_MARKS_STORAGE_KEY = "oryzen_reader_text_marks_v1";
+const READER_NOTES_STORAGE_KEY = "oryzen_reader_margin_notes_v1";
 
 const DEFAULT_THEME: PrakritiThemePalette = {
   cssVariable: "--theme-vata",
@@ -83,6 +90,7 @@ interface VirtualizedPageCanvasProps {
   theme: PrakritiThemePalette;
   marks: readonly ReaderTextMark[];
   onAddMark: (mark: Omit<ReaderTextMark, "id">) => void;
+  onAddNote: (quote: string, note: string, chunk: CitationReadyChunk) => void;
 }
 
 /**
@@ -102,6 +110,7 @@ function VirtualizedPageCanvas({
   theme,
   marks,
   onAddMark,
+  onAddNote,
 }: VirtualizedPageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [renderStatus, setRenderStatus] = useState<
@@ -266,6 +275,7 @@ function VirtualizedPageCanvas({
                   marks={marks}
                   onAddMark={onAddMark}
                   onExplain={(selectedText) => onSelectChunk(chunk, selectedText)}
+                  onAddNote={(quote, note) => onAddNote(quote, note, chunk)}
                 />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[11px] text-zinc-400">
@@ -310,15 +320,19 @@ export default function PdfViewer({
     null
   );
   const [aiLoading, setAiLoading] = useState<boolean>(false);
-  const [notebookEntries, setNotebookEntries] = useState<
-    DeepLinkedNotebookEntry[]
+  const [savedPassages, setSavedPassages] = useState<
+    SavedPassageEntry[]
   >([]);
   const [selectedMcqOption, setSelectedMcqOption] = useState<number | null>(
     null
   );
   const [lensText, setLensText] = useState<string | null>(null);
   const [textMarks, setTextMarks] = useState<ReaderTextMark[]>([]);
+  const [marginNotes, setMarginNotes] = useState<ReaderMarginNote[]>([]);
   const [marksReady, setMarksReady] = useState<boolean>(false);
+  const [contentsOpen, setContentsOpen] = useState(false);
+  const [gridOpen, setGridOpen] = useState(false);
+  const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [autoScroll, setAutoScroll] = useState<boolean>(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState<number>(36);
 
@@ -336,6 +350,11 @@ export default function PdfViewer({
           const parsed = JSON.parse(raw) as ReaderTextMark[];
           if (Array.isArray(parsed)) setTextMarks(parsed);
         }
+        const notesRaw = window.localStorage.getItem(READER_NOTES_STORAGE_KEY);
+        if (notesRaw) {
+          const parsedNotes = JSON.parse(notesRaw) as ReaderMarginNote[];
+          if (Array.isArray(parsedNotes)) setMarginNotes(parsedNotes);
+        }
       } catch {
         // Ignore corrupt mark storage
       } finally {
@@ -351,7 +370,11 @@ export default function PdfViewer({
       READER_MARKS_STORAGE_KEY,
       JSON.stringify(textMarks)
     );
-  }, [textMarks, marksReady]);
+    window.localStorage.setItem(
+      READER_NOTES_STORAGE_KEY,
+      JSON.stringify(marginNotes)
+    );
+  }, [textMarks, marginNotes, marksReady]);
 
   useEffect(() => {
     if (!promptUpload) return;
@@ -393,6 +416,25 @@ export default function PdfViewer({
       {
         ...mark,
         id: `mark-${Date.now()}-${current.length}`,
+      },
+    ]);
+  };
+
+  const handleAddMarginNote = (
+    quote: string,
+    body: string,
+    chunk: CitationReadyChunk
+  ) => {
+    setMarginNotes((current) => [
+      ...current,
+      {
+        id: `note-${Date.now()}-${current.length}`,
+        documentId: chunk.document_id,
+        pageNumber: chunk.page_number,
+        sectionHeading: chunk.section_heading,
+        quote,
+        body,
+        createdAt: new Date().toISOString(),
       },
     ]);
   };
@@ -606,7 +648,7 @@ export default function PdfViewer({
     }
     bootstrapLocalLibrary();
     const frame = window.requestAnimationFrame(() => {
-      if (active) setNotebookEntries(listNotebookEntries());
+      if (active) setSavedPassages(listSavedPassages());
     });
     return () => {
       active = false;
@@ -733,8 +775,8 @@ export default function PdfViewer({
         const data = (await res.json()) as AiGatewayExecutionResult;
         setAiResult(data);
 
-        if (lens === "add_to_notebook") {
-          saveNotebookEntry({
+        if (lens === "save_passage") {
+          savePassageEntry({
             documentId: activeDoc.id,
             documentTitle: activeDoc.title,
             pageNumber: selectedChunk.page_number,
@@ -744,9 +786,9 @@ export default function PdfViewer({
             aiSynthesisMarkdown: data.payload.markdown_body,
             citations: data.payload.citations,
           });
-          setNotebookEntries(listNotebookEntries());
+          setSavedPassages(listSavedPassages());
           setUploadStatus(
-            `✨ Saved highlight & deep-link coordinates [Page ${selectedChunk.page_number}, x:${selectedChunk.bounding_box.x}, y:${selectedChunk.bounding_box.y}] to Study Notebook!`
+            `✨ Saved highlight & deep-link coordinates [Page ${selectedChunk.page_number}, x:${selectedChunk.bounding_box.x}, y:${selectedChunk.bounding_box.y}] to Study Compendium!`
           );
         }
       }
@@ -815,7 +857,28 @@ export default function PdfViewer({
           </label>
         )}
 
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setContentsOpen(true)}
+            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+          >
+            Contents
+          </button>
+          <button
+            type="button"
+            onClick={() => setGridOpen(true)}
+            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+          >
+            Page grid
+          </button>
+          <button
+            type="button"
+            onClick={() => setAnnotationsOpen(true)}
+            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 px-3 text-xs font-medium text-amber-100 hover:bg-amber-950/40"
+          >
+            Annotations
+          </button>
           <button
             type="button"
             aria-label="Previous Page"
@@ -846,7 +909,7 @@ export default function PdfViewer({
             onClick={() => setAutoScroll((current) => !current)}
             className={`inline-flex min-h-[44px] items-center rounded-full px-4 text-xs font-medium transition-all active:scale-95 ${
               autoScroll
-                ? "bg-white text-zinc-950 hover:bg-zinc-200"
+                ? "border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70"
                 : "text-zinc-700 dark:text-zinc-200"
             }`}
           >
@@ -961,6 +1024,7 @@ export default function PdfViewer({
                     theme={theme}
                     marks={textMarks}
                     onAddMark={handleAddMark}
+                    onAddNote={handleAddMarginNote}
                   />
                   {selectedChunk &&
                     selectedChunk.page_number === pageNumber && (
@@ -1053,7 +1117,7 @@ export default function PdfViewer({
                                 className={`flex min-h-[44px] w-full items-center rounded-full border px-4 py-2 text-left text-xs font-medium transition-all ${
                                   isPicked
                                     ? isCorrect
-                                      ? "bg-white text-zinc-950 hover:bg-zinc-200 border-transparent"
+                                      ? "border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70"
                                       : "border-zinc-300 text-zinc-400"
                                     : "border-zinc-800 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200"
                                 }`}
@@ -1090,13 +1154,13 @@ export default function PdfViewer({
               </div>
             )}
 
-            {notebookEntries.length > 0 && (
+            {savedPassages.length > 0 && (
               <div className="space-y-3">
                 <p className="text-xs font-medium text-zinc-500">
-                  Notebook ({notebookEntries.length})
+                  Saved passages ({savedPassages.length})
                 </p>
                 <div className="space-y-2">
-                  {notebookEntries.slice(0, 4).map((note) => (
+                  {savedPassages.slice(0, 4).map((note) => (
                     <div
                       key={note.id}
                       className="rounded-2xl border border-zinc-800 dark:border-zinc-800/60 p-4 text-xs space-y-2"
@@ -1115,7 +1179,7 @@ export default function PdfViewer({
                             bounding_box: note.boundingBox,
                           })
                         }
-                        className="inline-flex min-h-[44px] items-center rounded-full bg-white text-zinc-950 hover:bg-zinc-200 px-4 py-2 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
+                        className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70 px-4 py-2 text-xs font-medium hover:opacity-90 transition-all active:scale-95"
                       >
                         Page {note.pageNumber}
                       </button>
@@ -1147,7 +1211,7 @@ export default function PdfViewer({
                         }}
                         className={`flex min-h-[48px] w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-xs transition-all ${
                           isCurrent
-                            ? "bg-white text-zinc-950 hover:bg-zinc-200 border-transparent"
+                            ? "border border-amber-500/40 bg-amber-950/50 text-amber-100 hover:bg-amber-950/70"
                             : "border-zinc-800 dark:border-zinc-800/60 text-zinc-800 dark:text-zinc-100"
                         }`}
                       >
@@ -1171,6 +1235,34 @@ export default function PdfViewer({
           </aside>
         )}
       </div>
+      {contentsOpen && (
+        <ContentsModal
+          chapters={activeDoc?.chapters ?? []}
+          activePage={activePage}
+          onJump={handleGoToPage}
+          onClose={() => setContentsOpen(false)}
+        />
+      )}
+      {gridOpen && (
+        <PageGridModal
+          pageCount={totalPages}
+          activePage={activePage}
+          chunks={activeDoc?.chunks ?? []}
+          onJump={handleGoToPage}
+          onClose={() => setGridOpen(false)}
+        />
+      )}
+      {annotationsOpen && (
+        <AnnotationsDrawer
+          title={activeDoc?.title ?? "Reading annotations"}
+          documentId={activeDoc?.id ?? null}
+          chunks={activeDoc?.chunks ?? []}
+          marks={textMarks}
+          notes={marginNotes}
+          onJump={handleGoToPage}
+          onClose={() => setAnnotationsOpen(false)}
+        />
+      )}
     </div>
   );
 }

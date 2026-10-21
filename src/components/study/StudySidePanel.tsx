@@ -12,6 +12,7 @@ import {
   wellnessSuggestions,
   type SavedBodyType,
 } from "@/lib/study/body-type";
+import { createClient } from "@/lib/supabase/client";
 import {
   beginFocus,
   catchUpSchedule,
@@ -101,20 +102,19 @@ function RecommendationsCard({
     return (
       <section
         aria-label="Recommendations for Your Body Type"
-        className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-xl shadow-black/20"
+        className="rounded-3xl border border-amber-500/30 bg-amber-950/20 p-5 shadow-xl shadow-black/20"
       >
-        <h2 className="text-sm font-semibold tracking-tight">
+        <h2 className="text-sm font-semibold tracking-tight text-white">
           Recommendations for Your Body Type
         </h2>
-        <p className="mt-3 text-sm leading-relaxed text-zinc-500">
-          Finish the body type reading to see pacing and focus strategies made
-          for you.
+        <p className="mt-3 text-sm leading-relaxed text-amber-100">
+          Finish the reading to see pacing and focus strategies made for you.
         </p>
         <Link
           href="/body-type"
-          className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-white px-4 text-sm font-medium text-zinc-950 hover:bg-zinc-200"
+          className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/40 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
         >
-          Find Your Body Type
+          Discover Your Cognitive Prakriti
         </Link>
       </section>
     );
@@ -127,18 +127,18 @@ function RecommendationsCard({
     <section
       aria-label="Recommendations for Your Body Type"
       data-testid="recommendations-panel"
-      className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-xl shadow-black/20"
+      className="rounded-3xl border border-amber-500/30 bg-amber-950/20 p-5 shadow-xl shadow-black/20"
     >
-      <h2 className="text-sm font-semibold tracking-tight">
+      <h2 className="text-sm font-semibold tracking-tight text-white">
         Recommendations for Your Body Type
       </h2>
-      <p className="mt-3 text-base font-semibold tracking-tight text-zinc-100">
+      <p className="mt-3 text-base font-semibold tracking-tight text-amber-50">
         {title}
       </p>
-      <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+      <p className="mt-2 text-sm leading-relaxed text-amber-100">
         {preset.cognitiveSummary}
       </p>
-      <ul className="mt-4 space-y-2 text-sm leading-relaxed text-zinc-300">
+      <ul className="mt-4 space-y-2 text-sm leading-relaxed text-amber-100">
         {recommendationBullets(dosha).map((item) => (
           <li key={item} className="flex gap-2">
             <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
@@ -150,7 +150,7 @@ function RecommendationsCard({
   );
 }
 
-function StudySchedulerCard({
+export function StudySchedulerCard({
   dosha,
   saved,
 }: {
@@ -173,16 +173,25 @@ function StudySchedulerCard({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const stored = readStoredSchedule();
+      const leftoverVataPace =
+        !saved &&
+        stored?.phase === "idle" &&
+        stored.focusMinutes === DOSHA_STUDY_PRESETS.Vata.pomodoro.studySprintMinutes &&
+        stored.breakMinutes === DOSHA_STUDY_PRESETS.Vata.pomodoro.breakMinutes;
       const base =
-        stored ??
-        createIdleSchedule(
-          saved
-            ? {
-                focusMinutes: saved.studySprintMinutes,
-                breakMinutes: saved.breakMinutes,
-              }
-            : undefined
-        );
+        stored && !leftoverVataPace
+          ? stored
+          : createIdleSchedule(
+              saved
+                ? {
+                    focusMinutes: saved.studySprintMinutes,
+                    breakMinutes: saved.breakMinutes,
+                    goalMinutes: stored?.goalMinutes,
+                  }
+                : stored
+                  ? { goalMinutes: stored.goalMinutes }
+                  : undefined
+            );
       const caught = catchUpSchedule(base, Date.now());
       setNow(Date.now());
       setSchedule(caught.schedule);
@@ -241,15 +250,15 @@ function StudySchedulerCard({
     <section
       aria-label="Smart study scheduler"
       data-testid="study-scheduler"
-      className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-xl shadow-black/20"
+      className="rounded-3xl border border-amber-500/30 bg-amber-950/20 p-5 shadow-xl shadow-black/20"
     >
-      <h2 className="text-sm font-semibold tracking-tight">Smart Study Scheduler</h2>
-      <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+      <h2 className="text-sm font-semibold tracking-tight text-white">Smart Study Scheduler</h2>
+      <p className="mt-2 text-sm leading-relaxed text-amber-100">
         Set a study goal and the rhythm of focus and rest.
       </p>
 
       <div className="mt-4 space-y-3">
-        <label className="block text-xs font-medium text-zinc-500">
+        <label className="block text-xs font-medium text-amber-200">
           Study goal (hours)
           <input
             type="number"
@@ -263,11 +272,11 @@ function StudySchedulerCard({
                 Math.round(hours * 60)
               )
             }
-            className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 disabled:opacity-60"
+            className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-500/30 bg-black px-3 text-sm text-amber-100 disabled:opacity-60"
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="block text-xs font-medium text-zinc-500">
+          <label className="block text-xs font-medium text-amber-200">
             Focus (minutes)
             <input
               type="number"
@@ -279,10 +288,10 @@ function StudySchedulerCard({
               onChange={(event) =>
                 updateNumber("focusMinutes", event.target.value, (minutes) => minutes)
               }
-              className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 disabled:opacity-60"
+              className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-500/30 bg-black px-3 text-sm text-amber-100 disabled:opacity-60"
             />
           </label>
-          <label className="block text-xs font-medium text-zinc-500">
+          <label className="block text-xs font-medium text-amber-200">
             Break (minutes)
             <input
               type="number"
@@ -294,7 +303,7 @@ function StudySchedulerCard({
               onChange={(event) =>
                 updateNumber("breakMinutes", event.target.value, (minutes) => minutes)
               }
-              className="mt-1 min-h-[44px] w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 disabled:opacity-60"
+              className="mt-1 min-h-[44px] w-full rounded-2xl border border-amber-500/30 bg-black px-3 text-sm text-amber-100 disabled:opacity-60"
             />
           </label>
         </div>
@@ -302,13 +311,13 @@ function StudySchedulerCard({
 
       {mounted && running && (
         <div className="mt-4" aria-live="polite">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-200">
             {schedule.phase === "focus" ? "Focus" : "Break"}
           </p>
           <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">
             {formatClock(remaining)}
           </p>
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="mt-1 text-xs text-amber-200">
             {Math.round(schedule.focusedMs / 60_000)} min of {schedule.goalMinutes / 60} hr
           </p>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800">
@@ -325,10 +334,10 @@ function StudySchedulerCard({
 
       {showWellness && (
         <div className="mt-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+          <p className="text-xs font-medium uppercase tracking-wide text-amber-200">
             Wellness for this break
           </p>
-          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-zinc-300">
+          <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-amber-100">
             {wellness.map((item) => (
               <li key={item}>{item}</li>
             ))}
@@ -351,7 +360,7 @@ function StudySchedulerCard({
               setSchedule((current) => beginFocus(current, Date.now()));
               setNow(Date.now());
             }}
-            className="inline-flex min-h-[44px] items-center rounded-full bg-white px-4 text-sm font-medium text-zinc-950 hover:bg-zinc-200"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
           >
             {schedule.phase === "complete" ? "Start again" : "Start"}
           </button>
@@ -363,7 +372,7 @@ function StudySchedulerCard({
               setAlert(null);
               setSchedule((current) => resetSchedule(current));
             }}
-            className="inline-flex min-h-[44px] items-center rounded-full border border-zinc-700 bg-zinc-950 px-4 text-sm font-medium text-zinc-100"
+            className="inline-flex min-h-[44px] items-center rounded-full border border-amber-500/30 bg-black px-4 text-sm font-medium text-amber-100"
           >
             End session
           </button>
@@ -376,16 +385,16 @@ function StudySchedulerCard({
           aria-modal="true"
           aria-labelledby="study-interval-alert-title"
           data-testid="scheduler-alert"
-          className="fixed inset-x-4 top-4 z-50 mx-auto max-w-md rounded-3xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl shadow-black/40"
+          className="fixed inset-x-4 top-4 z-[80] mx-auto max-w-md rounded-3xl border border-amber-500/30 bg-zinc-950 p-5 shadow-2xl shadow-black/40"
         >
           <h3 id="study-interval-alert-title" className="text-lg font-semibold tracking-tight">
             {ALERT_COPY[alert].title}
           </h3>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+          <p className="mt-2 text-sm leading-relaxed text-amber-100">
             {ALERT_COPY[alert].body}
           </p>
           {alert === "break" && (
-            <ul className="mt-3 space-y-1 text-sm text-zinc-300">
+            <ul className="mt-3 space-y-1 text-sm text-amber-100">
               {wellness.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -394,7 +403,7 @@ function StudySchedulerCard({
           <button
             type="button"
             onClick={() => setAlert(null)}
-            className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-white px-4 text-sm font-medium text-zinc-950 hover:bg-zinc-200"
+            className="mt-4 inline-flex min-h-[44px] items-center rounded-full border border-amber-500/40 bg-amber-950/50 px-4 text-sm font-medium text-amber-100 hover:bg-amber-950/70"
           >
             {alert === "resume" ? "Resume studying" : "Dismiss"}
           </button>
@@ -404,24 +413,41 @@ function StudySchedulerCard({
   );
 }
 
-export default function StudySidePanel({ dosha }: { dosha: Dosha | null }) {
+export default function StudySidePanel({
+  dosha,
+  showScheduler = true,
+}: {
+  dosha: Dosha | null;
+  showScheduler?: boolean;
+}) {
   const [saved, setSaved] = useState<SavedBodyType | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setSaved(readSavedBodyType());
-      setLoaded(true);
+      void (async () => {
+        try {
+          const supabase = createClient();
+          const { data } = await supabase.auth.getUser();
+          setSaved(readSavedBodyType(data.user?.id ?? null));
+        } catch {
+          setSaved(null);
+        }
+        setLoaded(true);
+      })();
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
-  const constitution = saved?.primaryDosha ?? dosha;
+  const constitution = saved ? (dosha ?? saved.primaryDosha) : null;
+  const shown = saved && constitution === saved.primaryDosha ? saved : null;
 
   return (
     <aside className="space-y-4 xl:sticky xl:top-28 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
-      {loaded && <RecommendationsCard dosha={constitution} saved={saved} />}
-      {loaded && <StudySchedulerCard dosha={constitution} saved={saved} />}
+      {loaded && <RecommendationsCard dosha={constitution} saved={shown} />}
+      {loaded && showScheduler && (
+        <StudySchedulerCard dosha={constitution} saved={shown} />
+      )}
     </aside>
   );
 }

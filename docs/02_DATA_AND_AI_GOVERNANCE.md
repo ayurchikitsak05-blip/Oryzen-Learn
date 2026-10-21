@@ -23,7 +23,7 @@ To serve Indian medical, BAMS, and competitive exam students at accessible price
     - Real-time Parallel Video Lecture timestamp notes.
     - 24h/72h Spaced Repetition Flashcard generation.
   - **10% of Tasks -> Gemini Pro:**
-    - Multi-Source Synthesis Studio (merging 2+ notebooks and 2+ video transcripts into a Master Study Book).
+    - Multi-Source Synthesis Studio (merging 2+ sources and 2+ video transcripts into a Master Study Book).
     - Complex differential diagnosis or cross-Samhita synthesis queries.
 
 ---
