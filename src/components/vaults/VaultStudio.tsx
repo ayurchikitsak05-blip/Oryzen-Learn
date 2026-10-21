@@ -59,6 +59,7 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [grounded, setGrounded] = useState<"model" | "textbook" | null>(null);
+  const [budgetBlocked, setBudgetBlocked] = useState(false);
 
   const load = async () => {
     const response = await fetch(`/api/vaults?id=${encodeURIComponent(vaultId)}`, {
@@ -196,10 +197,12 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
         error?: string;
         answer?: string;
         grounded?: "model" | "textbook";
+        budgetBlocked?: boolean;
       };
       if (!response.ok) throw new Error(payload.error ?? "The question could not be answered.");
       setQuestion("");
       setGrounded(payload.grounded ?? null);
+      setBudgetBlocked(Boolean(payload.budgetBlocked));
       await load();
     } catch (askFailure) {
       setError(askFailure instanceof Error ? askFailure.message : "The question could not be answered.");
@@ -221,9 +224,11 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
       const payload = (await response.json()) as {
         error?: string;
         grounded?: "model" | "textbook";
+        budgetBlocked?: boolean;
       };
       if (!response.ok) throw new Error(payload.error ?? "Notes could not be generated.");
       setGrounded(payload.grounded ?? null);
+      setBudgetBlocked(Boolean(payload.budgetBlocked));
       setTab("studio");
       await load();
     } catch (generateFailure) {
@@ -378,8 +383,10 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
         )}
         {status && <p className="mt-4 text-sm text-muted">{status}</p>}
         {grounded === "textbook" && (
-          <p className="mt-3 text-xs text-muted">
-            Composed from the textbook text. Add a Gemini key to use the model.
+          <p className="mt-3 text-xs text-muted" data-testid="vault-fallback-banner">
+            {budgetBlocked
+              ? "This month's study AI budget is used up. Showing notes from your textbook so you can keep studying."
+              : "Composed from the textbook text. A study model was not used for this response."}
           </p>
         )}
 

@@ -3,9 +3,21 @@ import { createClient } from "@/lib/supabase/server";
 import { generateStudyText } from "@/lib/ai/providers";
 import { composeRecallBank, composeStudyNotes, type TextbookSlice } from "@/lib/vaults/compose";
 
-async function modelText(prompt: string): Promise<string | null> {
-  const modeled = await generateStudyText({ prompt });
-  return modeled?.text ?? null;
+async function modelText(params: {
+  prompt: string;
+  userId: string;
+  supabase: Awaited<ReturnType<typeof createClient>>;
+}): Promise<{ text: string; budgetBlocked: boolean } | null> {
+  const modeled = await generateStudyText({
+    prompt: params.prompt,
+    userId: params.userId,
+    supabase: params.supabase,
+    spendClass: "vault_generate",
+  });
+  if (!modeled || modeled.budgetBlocked || !modeled.text.trim()) {
+    return modeled?.budgetBlocked ? { text: "", budgetBlocked: true } : null;
+  }
+  return { text: modeled.text, budgetBlocked: false };
 }
 
 export async function POST(request: NextRequest) {
@@ -50,8 +62,12 @@ export async function POST(request: NextRequest) {
         : "Write structured study notes in Markdown with key concepts, chapter summaries, and concise bullets. Stay inside the excerpts.",
       slices.map((slice) => `# ${slice.title}\n${slice.excerpt.slice(0, 12000)}`).join("\n\n"),
     ].join("\n\n");
-    const modeled = await modelText(prompt);
-    const markdown = modeled ?? fallback;
+    const modeled = await modelText({
+      prompt,
+      userId: userData.user.id,
+      supabase,
+    });
+    const markdown = modeled?.text || fallback;
     const title = kind === "recall" ? "Active recall" : "Study notes";
 
     const { data: saved, error: saveError } = await supabase
@@ -74,7 +90,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       note: saved,
-      grounded: modeled ? "model" : "textbook",
+      grounded: modeled?.text ? "model" : "textbook",
+      budgetBlocked: Boolean(modeled?.budgetBlocked),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Notes could not be generated.";

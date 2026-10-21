@@ -3,9 +3,21 @@ import { createClient } from "@/lib/supabase/server";
 import { generateStudyText } from "@/lib/ai/providers";
 import { answerFromTextbook, type TextbookSlice } from "@/lib/vaults/compose";
 
-async function modelText(prompt: string): Promise<string | null> {
-  const modeled = await generateStudyText({ prompt });
-  return modeled?.text ?? null;
+async function modelText(params: {
+  prompt: string;
+  userId: string;
+  supabase: Awaited<ReturnType<typeof createClient>>;
+}): Promise<{ text: string; budgetBlocked: boolean } | null> {
+  const modeled = await generateStudyText({
+    prompt: params.prompt,
+    userId: params.userId,
+    supabase: params.supabase,
+    spendClass: "vault_chat",
+  });
+  if (!modeled || modeled.budgetBlocked || !modeled.text.trim()) {
+    return modeled?.budgetBlocked ? { text: "", budgetBlocked: true } : null;
+  }
+  return { text: modeled.text, budgetBlocked: false };
 }
 
 export async function POST(request: NextRequest) {
@@ -43,14 +55,16 @@ export async function POST(request: NextRequest) {
       excerpt: source.excerpt ?? "",
     }));
     const fallback = answerFromTextbook(question, slices);
-    const modeled = await modelText(
-      [
+    const modeled = await modelText({
+      userId: userData.user.id,
+      supabase,
+      prompt: [
         "Answer the question using only the textbook excerpts. If the excerpts do not contain the answer, say so. Quote the source title.",
         `Question: ${question}`,
         slices.map((slice) => `# ${slice.title}\n${slice.excerpt.slice(0, 12000)}`).join("\n\n"),
-      ].join("\n\n")
-    );
-    const answer = modeled ?? fallback;
+      ].join("\n\n"),
+    });
+    const answer = modeled?.text ?? fallback;
 
     const { error: userInsertError } = await supabase.from("vault_messages").insert([
       { vault_id: vaultId, user_id: userData.user.id, role: "user", content: question },
@@ -62,7 +76,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       answer,
-      grounded: modeled ? "model" : "textbook",
+      grounded: modeled?.text ? "model" : "textbook",
+      budgetBlocked: Boolean(modeled?.budgetBlocked),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "The question could not be answered.";

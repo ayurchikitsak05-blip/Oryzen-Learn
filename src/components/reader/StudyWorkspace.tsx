@@ -119,18 +119,20 @@ export function StudyWorkspace({
                 data-testid="ai-fallback-banner"
                 className="text-xs font-medium text-muted"
               >
-                {result.fallbackReason === "missing_gemini_key" ||
-                result.fallbackReason === "missing_api_key"
-                  ? "No AI provider is configured. Showing a source-grounded study draft."
-                  : result.providerErrorClass === "billing" ||
-                      result.geminiErrorClass === "billing"
-                    ? "The study model cannot be billed. Showing a source-grounded study draft."
-                    : result.providerErrorClass === "quota" ||
-                        result.geminiErrorClass === "quota"
-                      ? "The study model quota was reached. Showing a source-grounded study draft."
-                      : result.fallbackReason === "model_error"
-                        ? "The study model did not respond. Showing a source-grounded study draft."
-                        : "Model output could not be used. Showing a source-grounded study draft."}
+                {result.fallbackReason === "wallet_exhausted" || result.budgetBlocked
+                  ? "This month's study AI budget is used up. Showing a source-grounded draft so you can keep reading and taking notes."
+                  : result.fallbackReason === "missing_gemini_key" ||
+                      result.fallbackReason === "missing_api_key"
+                    ? "No AI provider is configured. Showing a source-grounded study draft."
+                    : result.providerErrorClass === "billing" ||
+                        result.geminiErrorClass === "billing"
+                      ? "The study model cannot be billed. Showing a source-grounded study draft."
+                      : result.providerErrorClass === "quota" ||
+                          result.geminiErrorClass === "quota"
+                        ? "The study model quota was reached. Showing a source-grounded study draft."
+                        : result.fallbackReason === "model_error"
+                          ? "The study model did not respond. Showing a source-grounded study draft."
+                          : "Model output could not be used. Showing a source-grounded study draft."}
               </p>
             ) : result.usedProviderFallback ? (
               <p

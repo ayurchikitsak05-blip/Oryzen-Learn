@@ -9,14 +9,28 @@ import {
   type MeteredResourceType,
   type SubscriptionPlanTier,
 } from "@/lib/billing/quotas";
+import { getOwnMonthlyAiUsage } from "@/lib/ai/spend-guard";
 
 export async function GET(request: NextRequest) {
-  const userId =
-    request.nextUrl.searchParams.get("userId") ?? "local-student-scholar";
+  const requestedUserId = request.nextUrl.searchParams.get("userId");
+  const supabase = await createClient().catch(() => null);
+  let sessionUserId: string | null = null;
+  if (supabase) {
+    const { data } = await supabase.auth.getUser().catch(() => ({
+      data: { user: null },
+    }));
+    sessionUserId = data?.user?.id ?? null;
+  }
+  const userId = sessionUserId ?? requestedUserId ?? "local-student-scholar";
   const state = getOrInitUserQuotaState(userId);
+  const ownUsage =
+    !sessionUserId || sessionUserId === userId
+      ? await getOwnMonthlyAiUsage({ userId, supabase })
+      : null;
   return NextResponse.json({
     state,
     entitlements: PLAN_ENTITLEMENTS[state.planTier],
+    ownUsage,
   });
 }
 

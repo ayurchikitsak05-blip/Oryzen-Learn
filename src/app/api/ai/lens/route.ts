@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
       prakritiDosha: body.prakritiDosha ?? "Vata",
       activePageText: body.activePageText,
       candidateChunks: body.candidateChunks ?? [],
+      documentClass: "private_upload",
       supabase,
     });
 
