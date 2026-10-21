@@ -4,7 +4,9 @@
  * Enforces:
  * - Free Tier (`free`): Max 3 active PDFs, 10 grounded AI explanations/day, 1 AI quiz/day.
  * - Pro / Exam Pass Tier (`pro_monthly` ₹199/mo or `exam_pass_6mo` ₹799/6mo):
- *   25+ active PDFs, 150 AI explanations/day, unlimited quiz generation and spaced repetition.
+ *   25+ active PDFs, 150 AI explanations/day product ceiling (not a
+ *   cost-backed daily promise — do not advertise 150/day until owner-approved),
+ *   unlimited quiz generation and spaced repetition.
  * - Exam Booster Top-Up (`₹49/mo` pack): Adds +100 AI explanations + 20 quizzes.
  */
 

@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DOMAIN_FIXTURES,
+  canAffordControlledBenchmarkCall,
   recommendModelPerTask,
+  runControlledBenchmark,
   runDeterministicBenchmark,
 } from "../benchmark";
 import { estimateTokensFromChars, listPriceUsd, projectMonthlyCost } from "../models";
@@ -66,5 +68,107 @@ describe("lowest-cost model comparison (ESTIMATE, no live paid calls)", () => {
     });
     expect(light100Mini.billableCalls).toBe(30_000);
     expect(light100Mini.usd).toBeCloseTo(7.2, 6);
+  });
+});
+
+describe("controlled benchmark gate (no paid calls)", () => {
+  const envNames = [
+    "ORYZEN_LIVE_BENCHMARK",
+    "GEMINI_API_KEY",
+    "GOOGLE_GENERATIVE_AI_API_KEY",
+    "OPENAI_API_KEY",
+    "MISTRAL_API_KEY",
+    "AI_GATEWAY_API_KEY",
+  ] as const;
+
+  function restore(previous: Record<string, string | undefined>) {
+    for (const name of envNames) {
+      const value = previous[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+
+  function snapshot(): Record<string, string | undefined> {
+    const previous: Record<string, string | undefined> = {};
+    for (const name of envNames) previous[name] = process.env[name];
+    return previous;
+  }
+
+  it("defaults to dry-run: 36 planned estimates, $0 spent, liveCall false", async () => {
+    const previous = snapshot();
+    process.env.ORYZEN_LIVE_BENCHMARK = "";
+    process.env.GEMINI_API_KEY = "";
+    process.env.OPENAI_API_KEY = "";
+    process.env.MISTRAL_API_KEY = "";
+    process.env.AI_GATEWAY_API_KEY = "";
+    const fetchImpl = vi.fn();
+    try {
+      const report = await runControlledBenchmark({ fetchImpl });
+      expect(report.mode).toBe("dry_run");
+      expect(report.liveCall).toBe(false);
+      expect(report.spentUsd).toBe(0);
+      expect(report.plannedCalls).toBe(36);
+      expect(report.maxCalls).toBe(48);
+      expect(report.reservedRetries).toBe(12);
+      expect(report.hardCapUsd).toBe(2);
+      expect(report.calls).toHaveLength(36);
+      expect(report.calls.every((row) => row.kind === "ESTIMATE" && row.liveCall === false)).toBe(
+        true
+      );
+      expect(report.maxExposureUsd).toBeLessThanOrEqual(2);
+      expect(report.estimatedUsd + report.reservedRetryBudgetUsd).toBeLessThan(2);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(Object.keys(report.evalCriteria)).toHaveLength(6);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it("refuses live mode unless ORYZEN_LIVE_BENCHMARK=1 and a key is present", async () => {
+    const previous = snapshot();
+    const fetchImpl = vi.fn();
+    try {
+      process.env.ORYZEN_LIVE_BENCHMARK = "";
+      process.env.GEMINI_API_KEY = "sk-test";
+      const withoutFlag = await runControlledBenchmark({ mode: "live", fetchImpl });
+      expect(withoutFlag.mode).toBe("refused_live");
+      expect(withoutFlag.liveCall).toBe(false);
+      expect(withoutFlag.spentUsd).toBe(0);
+      expect(fetchImpl).not.toHaveBeenCalled();
+
+      process.env.ORYZEN_LIVE_BENCHMARK = "1";
+      process.env.GEMINI_API_KEY = "";
+      process.env.OPENAI_API_KEY = "";
+      process.env.MISTRAL_API_KEY = "";
+      process.env.AI_GATEWAY_API_KEY = "";
+      const withoutKey = await runControlledBenchmark({ mode: "live", fetchImpl });
+      expect(withoutKey.mode).toBe("refused_live");
+      expect(withoutKey.spentUsd).toBe(0);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it("enforces the $2 hard cap and 48-call ceiling before each attempt", () => {
+    const overCalls = canAffordControlledBenchmarkCall(
+      { spentUsd: 0, callsMade: 48, reservedRetrySlots: 0 },
+      0.0004
+    );
+    expect(overCalls).toEqual({ ok: false, reason: "max_calls" });
+
+    const overCap = canAffordControlledBenchmarkCall(
+      { spentUsd: 1.999, callsMade: 1, reservedRetrySlots: 12 },
+      0.01
+    );
+    expect(overCap.ok).toBe(false);
+    expect(overCap.reason).toBe("hard_cap");
+
+    const ok = canAffordControlledBenchmarkCall(
+      { spentUsd: 0, callsMade: 0, reservedRetrySlots: 12 },
+      0.0004
+    );
+    expect(ok.ok).toBe(true);
   });
 });

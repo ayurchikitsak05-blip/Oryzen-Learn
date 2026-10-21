@@ -340,9 +340,10 @@ export default function InstituteB2BDashboardPage() {
                 className="text-xs"
                 style={{ color: theme.textSecondaryHex }}
               >
-                Free: 3 PDFs, 10 AI explanations/day, 1 quiz/day • Pro (₹199/mo)
-                &amp; Exam Pass (₹799/6mo): 25+ PDFs, 150 explanations/day,
-                unlimited quizzes • Booster (₹49): +100 explanations + 20 quizzes
+                Free: 3 PDFs and a small daily AI meter. Paid plans raise PDF
+                limits and keep AI metered. Do not treat 150 explanations/day as
+                a supported volume until cost-backed approval. Booster (₹49) is a
+                top-up, not a volume promise.
               </p>
             </div>
 
@@ -385,11 +386,10 @@ export default function InstituteB2BDashboardPage() {
                     </span>
                   </div>
                   <div className="mt-2 text-xs opacity-90">
-                    Max {spec.maxActivePdfs} PDFs •{" "}
-                    {spec.dailyAiExplanationsLimit} AI Explanations/day •{" "}
+                    Max {spec.maxActivePdfs} PDFs • Metered AI explanations
                     {spec.dailyAiQuizzesLimit === null
-                      ? "Unlimited Quizzes & Spaced Repetition"
-                      : `${spec.dailyAiQuizzesLimit} Quiz/day`}
+                      ? " • Quizzes stay available"
+                      : ` • ${spec.dailyAiQuizzesLimit} quiz/day`}
                   </div>
                 </button>
               );

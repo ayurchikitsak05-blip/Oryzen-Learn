@@ -201,6 +201,11 @@ export async function computeNormalizedSelectionHash(
 /**
  * Builds the deterministic Shield 3 composite cache key:
  * `(document_hash + page_number + normalized_selection_hash + lens_type)`
+ *
+ * This is a local selection cache, not an authorized institute share.
+ * Do not treat a document-hash hit as permission to reuse notes, private
+ * uploads, prakriti, or individualized output across tenants. See
+ * `cache-policy.ts` for tenant isolation, versioning, and revocation.
  */
 export async function buildShield3CacheKey(params: {
   documentHash: string;

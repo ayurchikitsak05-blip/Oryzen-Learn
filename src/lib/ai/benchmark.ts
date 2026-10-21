@@ -2,10 +2,17 @@ import { composeDeterministicLensPayload } from "./lens-compose";
 import { mergeStructuredLensPayload } from "./gemini-structured";
 import {
   MODEL_CATALOG,
+  TYPICAL_LENS_INPUT_TOKENS,
+  TYPICAL_LENS_OUTPUT_TOKENS,
   estimateTokensFromChars,
   listPriceUsd,
   type GatewayModelId,
 } from "./models";
+import {
+  callProviderStructuredLens,
+  hasAnyPaidProvider,
+  type FetchLike,
+} from "./providers";
 import { answerFromTextbook } from "@/lib/vaults/compose";
 import type { AiLensResponsePayload } from "./gateway";
 import type { CitationReadyChunk } from "@/lib/reader/extractor";
@@ -281,4 +288,281 @@ export function recommendModelPerTask(rows: BenchmarkRow[]): Record<BenchmarkTas
     }
   }
   return picks as Record<BenchmarkTaskId, GatewayModelId>;
+}
+
+/** Hard ceiling. Enforced in code before every live attempt, including reserved retries. */
+export const CONTROLLED_BENCHMARK_HARD_CAP_USD = 2;
+/** Planned 36 + reserved retry pool of 12. */
+export const CONTROLLED_BENCHMARK_MAX_CALLS = 48;
+export const CONTROLLED_BENCHMARK_PLANNED_CALLS = 36;
+export const CONTROLLED_BENCHMARK_RESERVED_RETRIES = 12;
+export const CONTROLLED_BENCHMARK_LIVE_FLAG = "ORYZEN_LIVE_BENCHMARK";
+
+/** Official IDs. `ministral-3b-2512` is the snapshot behind `ministral-3b-latest`. */
+export const CONTROLLED_BENCHMARK_MODELS = [
+  "gemini-2.5-flash-lite",
+  "gpt-6-luna",
+  "ministral-3b-2512",
+] as const;
+
+export const CONTROLLED_BENCHMARK_TASKS = [
+  "simple_explanation",
+  "detailed_explanation",
+  "structured_flowchart",
+  "mcq",
+  "revision_guide",
+  "source_grounded_qa",
+] as const;
+
+export const CONTROLLED_BENCHMARK_SUBJECTS = ["science", "mathematics"] as const;
+
+export const CONTROLLED_BENCHMARK_EVAL_CRITERIA: Record<
+  (typeof CONTROLLED_BENCHMARK_TASKS)[number],
+  string
+> = {
+  simple_explanation:
+    "explain.simpleExplanation present; fidelity to fixture terms ≥ 0.4; schema usable",
+  detailed_explanation:
+    "explain.standardExplanation + deeperExplanation present; no invented chapter",
+  structured_flowchart:
+    "diagram/flowchart has ≥2 nodes, ≥1 edge, every edge endpoint exists",
+  mcq: "≥1 MCQ with exactly 4 options and a valid correctIndex 0–3",
+  revision_guide: "revision.revisionTable has ≥2 topic/remember rows",
+  source_grounded_qa: "answer stays inside the excerpt; length > 40",
+};
+
+export type ControlledBenchmarkMode = "dry_run" | "live";
+
+export interface BenchmarkSpendGuard {
+  spentUsd: number;
+  callsMade: number;
+  reservedRetrySlots: number;
+}
+
+export interface ControlledBenchmarkCall {
+  kind: "ESTIMATE" | "REFUSED" | "LIVE";
+  liveCall: boolean;
+  task: (typeof CONTROLLED_BENCHMARK_TASKS)[number];
+  domain: (typeof CONTROLLED_BENCHMARK_SUBJECTS)[number];
+  model: (typeof CONTROLLED_BENCHMARK_MODELS)[number];
+  estimatedUsd: number;
+  reservedRetryUsd: number;
+  blockedReason: string | null;
+}
+
+export interface ControlledBenchmarkReport {
+  mode: "dry_run" | "refused_live" | "live";
+  liveAuthorized: boolean;
+  liveCall: boolean;
+  plannedCalls: number;
+  maxCalls: number;
+  reservedRetries: number;
+  hardCapUsd: number;
+  estimatedUsd: number;
+  reservedRetryBudgetUsd: number;
+  maxExposureUsd: number;
+  spentUsd: number;
+  stoppedByCap: boolean;
+  stopReason: string | null;
+  evalCriteria: typeof CONTROLLED_BENCHMARK_EVAL_CRITERIA;
+  calls: ControlledBenchmarkCall[];
+}
+
+function conservativeCallUsd(model: (typeof CONTROLLED_BENCHMARK_MODELS)[number]): number {
+  return listPriceUsd(model, TYPICAL_LENS_INPUT_TOKENS, TYPICAL_LENS_OUTPUT_TOKENS);
+}
+
+function worstCaseCallUsd(): number {
+  return Math.max(
+    ...CONTROLLED_BENCHMARK_MODELS.map((model) => conservativeCallUsd(model))
+  );
+}
+
+export function isControlledLiveBenchmarkAuthorized(): boolean {
+  return (
+    process.env[CONTROLLED_BENCHMARK_LIVE_FLAG] === "1" && hasAnyPaidProvider()
+  );
+}
+
+/**
+ * Returns true only when the next attempt plus the remaining reserved retry
+ * budget still fits under the $2 hard cap and the 48-call ceiling.
+ */
+export function canAffordControlledBenchmarkCall(
+  guard: BenchmarkSpendGuard,
+  nextEstimateUsd: number
+): { ok: boolean; reason: string | null } {
+  if (guard.callsMade >= CONTROLLED_BENCHMARK_MAX_CALLS) {
+    return { ok: false, reason: "max_calls" };
+  }
+  const reservedUsd = guard.reservedRetrySlots * worstCaseCallUsd();
+  const projected = guard.spentUsd + nextEstimateUsd + reservedUsd;
+  if (projected > CONTROLLED_BENCHMARK_HARD_CAP_USD) {
+    return { ok: false, reason: "hard_cap" };
+  }
+  return { ok: true, reason: null };
+}
+
+function plannedControlledCalls(): Array<{
+  task: (typeof CONTROLLED_BENCHMARK_TASKS)[number];
+  domain: (typeof CONTROLLED_BENCHMARK_SUBJECTS)[number];
+  model: (typeof CONTROLLED_BENCHMARK_MODELS)[number];
+}> {
+  const planned: Array<{
+    task: (typeof CONTROLLED_BENCHMARK_TASKS)[number];
+    domain: (typeof CONTROLLED_BENCHMARK_SUBJECTS)[number];
+    model: (typeof CONTROLLED_BENCHMARK_MODELS)[number];
+  }> = [];
+  for (const domain of CONTROLLED_BENCHMARK_SUBJECTS) {
+    for (const task of CONTROLLED_BENCHMARK_TASKS) {
+      for (const model of CONTROLLED_BENCHMARK_MODELS) {
+        planned.push({ task, domain, model });
+      }
+    }
+  }
+  return planned;
+}
+
+function emptyFallbackPayload(): AiLensResponsePayload {
+  return {
+    lens_type: "explain",
+    prakriti_dosha: "Vata",
+    title: "Benchmark",
+    markdown_body: "",
+    key_points: [],
+    citations: [],
+    used_fallback: true,
+  };
+}
+
+/**
+ * Default is DRY_RUN. Live spend requires ORYZEN_LIVE_BENCHMARK=1 AND a paid
+ * provider key. This function never sets that flag. Do not execute live from
+ * agents or CI.
+ */
+export async function runControlledBenchmark(options?: {
+  mode?: ControlledBenchmarkMode;
+  fetchImpl?: FetchLike;
+}): Promise<ControlledBenchmarkReport> {
+  const requested = options?.mode ?? "dry_run";
+  const liveAuthorized = isControlledLiveBenchmarkAuthorized();
+  const mode: ControlledBenchmarkReport["mode"] =
+    requested === "live"
+      ? liveAuthorized
+        ? "live"
+        : "refused_live"
+      : "dry_run";
+
+  const planned = plannedControlledCalls();
+  const reservedRetryUsd = CONTROLLED_BENCHMARK_RESERVED_RETRIES * worstCaseCallUsd();
+  const guard: BenchmarkSpendGuard = {
+    spentUsd: 0,
+    callsMade: 0,
+    reservedRetrySlots: CONTROLLED_BENCHMARK_RESERVED_RETRIES,
+  };
+  const calls: ControlledBenchmarkCall[] = [];
+  let stoppedByCap = false;
+  let stopReason: string | null =
+    mode === "refused_live"
+      ? "ORYZEN_LIVE_BENCHMARK=1 and a paid provider key are both required"
+      : null;
+
+  for (const item of planned) {
+    const estimatedUsd = conservativeCallUsd(item.model);
+    const afford = canAffordControlledBenchmarkCall(guard, estimatedUsd);
+    if (!afford.ok) {
+      stoppedByCap = true;
+      stopReason = afford.reason;
+      calls.push({
+        kind: "REFUSED",
+        liveCall: false,
+        ...item,
+        estimatedUsd,
+        reservedRetryUsd: guard.reservedRetrySlots * worstCaseCallUsd(),
+        blockedReason: afford.reason,
+      });
+      break;
+    }
+
+    if (mode !== "live") {
+      calls.push({
+        kind: "ESTIMATE",
+        liveCall: false,
+        ...item,
+        estimatedUsd,
+        reservedRetryUsd: guard.reservedRetrySlots * worstCaseCallUsd(),
+        blockedReason: mode === "refused_live" ? stopReason : null,
+      });
+      continue;
+    }
+
+    const fixture = DOMAIN_FIXTURES.find((row) => row.domain === item.domain);
+    if (!fixture) {
+      calls.push({
+        kind: "REFUSED",
+        liveCall: false,
+        ...item,
+        estimatedUsd,
+        reservedRetryUsd: guard.reservedRetrySlots * worstCaseCallUsd(),
+        blockedReason: "missing_fixture",
+      });
+      continue;
+    }
+
+    const provider =
+      item.model === "gpt-6-luna"
+        ? "openai"
+        : item.model === "ministral-3b-2512"
+          ? "mistral"
+          : "google";
+    const result = await callProviderStructuredLens({
+      provider,
+      model: item.model,
+      prompt: `${fixture.passage}\nTask: ${item.task}\n${CONTROLLED_BENCHMARK_EVAL_CRITERIA[item.task]}`,
+      fallback: emptyFallbackPayload(),
+      fetchImpl: options?.fetchImpl,
+    });
+    const spent = listPriceUsd(
+      item.model,
+      result.promptTokens ?? TYPICAL_LENS_INPUT_TOKENS,
+      result.completionTokens ?? TYPICAL_LENS_OUTPUT_TOKENS
+    );
+    guard.callsMade += 1;
+    guard.spentUsd = Number((guard.spentUsd + spent).toFixed(8));
+    calls.push({
+      kind: "LIVE",
+      liveCall: true,
+      ...item,
+      estimatedUsd: spent,
+      reservedRetryUsd: guard.reservedRetrySlots * worstCaseCallUsd(),
+      blockedReason: result.errorClass,
+    });
+  }
+
+  const estimatedUsd = calls
+    .filter((row) => row.kind === "ESTIMATE" || row.kind === "LIVE")
+    .reduce((sum, row) => sum + row.estimatedUsd, 0);
+
+  return {
+    mode,
+    liveAuthorized,
+    liveCall: mode === "live",
+    plannedCalls: CONTROLLED_BENCHMARK_PLANNED_CALLS,
+    maxCalls: CONTROLLED_BENCHMARK_MAX_CALLS,
+    reservedRetries: CONTROLLED_BENCHMARK_RESERVED_RETRIES,
+    hardCapUsd: CONTROLLED_BENCHMARK_HARD_CAP_USD,
+    estimatedUsd: Number(estimatedUsd.toFixed(8)),
+    reservedRetryBudgetUsd: Number(reservedRetryUsd.toFixed(8)),
+    maxExposureUsd: Number(
+      Math.min(
+        CONTROLLED_BENCHMARK_HARD_CAP_USD,
+        estimatedUsd + reservedRetryUsd
+      ).toFixed(8)
+    ),
+    spentUsd: mode === "live" ? guard.spentUsd : 0,
+    stoppedByCap,
+    stopReason,
+    evalCriteria: CONTROLLED_BENCHMARK_EVAL_CRITERIA,
+    calls,
+  };
 }
