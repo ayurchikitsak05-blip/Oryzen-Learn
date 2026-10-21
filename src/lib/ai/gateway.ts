@@ -16,6 +16,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Dosha, HighlightLensType } from "@/lib/prakriti/config";
 import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
 import { computeSha256Hex } from "@/lib/reader/hashing";
+import {
+  composeDeterministicLensPayload,
+  isUsableModelText,
+  mergeModelTextIntoPayload,
+  type StudyDiagram,
+} from "./lens-compose";
+
+export type { StudyDiagram, StudyDiagramEdge, StudyDiagramNode } from "./lens-compose";
 
 export type GatewayTaskType =
   | HighlightLensType
@@ -67,6 +75,8 @@ export interface AiLensResponsePayload {
   key_points: string[];
   mcqs?: TestMeMcqItem[];
   citations: InlineCitationCoordinate[];
+  diagram?: StudyDiagram;
+  used_fallback?: boolean;
 }
 
 export interface AiGatewayExecutionResult {
@@ -84,6 +94,8 @@ export interface AiGatewayExecutionResult {
   monthlySpendAfterInr: number;
   walletCapInr: number;
   ragContextChunksUsed: number;
+  usedDeterministicFallback: boolean;
+  fallbackReason: "missing_gemini_key" | "model_error" | "unusable_model_output" | null;
   payload: AiLensResponsePayload;
 }
 
@@ -314,166 +326,7 @@ export function buildDeterministicLensPayload(params: {
   request: AiGatewayRequest;
   ragChunks: CitationReadyChunk[];
 }): AiLensResponsePayload {
-  const { request, ragChunks } = params;
-  const dosha: Dosha = request.prakritiDosha ?? "Vata";
-  const primaryCitationLabel = `[Page ${request.pageNumber}, Section ${request.sectionHeading}]`;
-
-  const defaultBox: BoundingBox = request.selectionBoundingBox ??
-    ragChunks[0]?.bounding_box ?? {
-      x: 48,
-      y: 660,
-      width: 460,
-      height: 24,
-    };
-
-  const citations: InlineCitationCoordinate[] = [
-    {
-      label: primaryCitationLabel,
-      document_id: request.documentId,
-      page_number: request.pageNumber,
-      section_heading: request.sectionHeading,
-      bounding_box: defaultBox,
-    },
-  ];
-
-  for (const chunk of ragChunks) {
-    const label = `[Page ${chunk.page_number}, Section ${chunk.section_heading}]`;
-    if (!citations.some((c) => c.label === label)) {
-      citations.push({
-        label,
-        document_id: chunk.document_id,
-        page_number: chunk.page_number,
-        section_heading: chunk.section_heading,
-        bounding_box: chunk.bounding_box,
-      });
-    }
-  }
-
-  const excerpt = request.selectedText.trim().slice(0, 180);
-
-  switch (request.lensType) {
-    case "ayurvedic":
-      return {
-        lens_type: "ayurvedic",
-        prakriti_dosha: dosha,
-        title: `Explore My Learning Approach`,
-        markdown_body: [
-          `### Explore My Learning Approach`,
-          `Grounded in **"${excerpt}"** ${primaryCitationLabel}:`,
-          `- **Study preferences:** Optional strategies you can try. In Ayurveda this is sometimes mapped to *Vata* (movement and change), *Pitta* (precision and transformation), and *Kapha* (stability and retention) ${primaryCitationLabel}.`,
-          `- **Dhee-Dhriti-Smriti Application:** Grasp the claim (*Dhee*), hold attention on the mechanism (*Dhriti*), and schedule a recall check (*Smriti*) ${
-            citations[1]?.label ?? primaryCitationLabel
-          }.`,
-          `- **Study Takeaway:** Name the root idea before memorizing surface details, then match the explanation density to the ${dosha} profile.`,
-        ].join("\n"),
-        key_points: [
-          `Constitution reference: ${primaryCitationLabel}`,
-          "Vata, Pitta, and Kapha energy correlation",
-          `${dosha}-adapted study synthesis`,
-        ],
-        citations,
-      };
-
-    case "illustrative":
-      return {
-        lens_type: "illustrative",
-        prakriti_dosha: dosha,
-        title: `🎨 Illustrative Flowchart & Analogy View (${dosha} Dhee Grasp)`,
-        markdown_body: [
-          `### Visual Mechanism Flowchart & Real-World Analogy`,
-          `Source Anchor: ${primaryCitationLabel}`,
-          "```",
-          `[Core Idea] ──► [Mechanism] ──► [Worked Example] ──► [Recall Check]`,
-          "```",
-          `- **Story Analogy for Rapid Grasping (*Dhee*):** Imagine the idea as a three-channel system: *Vata* carries it forward, *Pitta* transforms it into a precise claim, and *Kapha* holds it in memory ${primaryCitationLabel}.`,
-          `- **Mind-Map Node:** "${excerpt.slice(0, 80)}..." links directly to ${
-            citations[1]?.label ?? primaryCitationLabel
-          }.`,
-        ].join("\n"),
-        key_points: [
-          `Visual Flow Anchor: ${primaryCitationLabel}`,
-          "Analogy mapped to Dhee (rapid conceptual grasping)",
-          "Mermaid/ASCII structural pathway ready for 24h recall",
-        ],
-        citations,
-      };
-
-    case "high_yield_revision":
-      return {
-        lens_type: "high_yield_revision",
-        prakriti_dosha: dosha,
-        title: `⚡ High-Yield Exam Revision Table & Mnemonic (${dosha} Smriti)`,
-        markdown_body: [
-          `### Differential Revision Matrix ${primaryCitationLabel}`,
-          `| Parameter | Core Feature | Citation Anchor |`,
-          `| :--- | :--- | :--- |`,
-          `| Core Concept | ${excerpt.slice(0, 65)} | ${primaryCitationLabel} |`,
-          `| Energy Role | Vata (movement) • Pitta (precision) • Kapha (stability) | ${primaryCitationLabel} |`,
-          `| Exam High-Yield | Often tested in short-answer, assertion-reason, and viva-style questions across faculties | ${
-            citations[1]?.label ?? primaryCitationLabel
-          } |`,
-          ``,
-          `- **High-Retention Mnemonic (*Smriti*):** **D-D-S** = *Dhee* (Grasp) → *Dhriti* (Anchor) → *Smriti* (Recall) ${primaryCitationLabel}.`,
-        ].join("\n"),
-        key_points: [
-          `Differential comparison table anchored at ${primaryCitationLabel}`,
-          "Mnemonic: D-D-S (Dhee -> Dhriti -> Smriti)",
-          "High-probability exam point for your course",
-        ],
-        citations,
-      };
-
-    case "save_passage":
-      return {
-        lens_type: "save_passage",
-        prakriti_dosha: dosha,
-        title: `Saved to My Notebook`,
-        markdown_body: [
-          `### Saved to My Notebook ${primaryCitationLabel}`,
-          `> "${request.selectedText.trim()}"`,
-          ``,
-          `- **Page link:** \`x:${defaultBox.x}, y:${defaultBox.y}, w:${defaultBox.width}, h:${defaultBox.height}\` on ${primaryCitationLabel}.`,
-          `- **Return anytime:** Tap the citation ${primaryCitationLabel} to go back to this exact place in your reading.`,
-        ].join("\n"),
-        key_points: [
-          `Bi-directional coordinate link saved: ${primaryCitationLabel}`,
-          `Bounding Box: [x:${defaultBox.x}, y:${defaultBox.y}]`,
-          "Ready for Layer 5 Multi-Source Synthesis Studio",
-        ],
-        citations,
-      };
-
-    case "test_me":
-    default:
-      return {
-        lens_type: request.lensType,
-        prakriti_dosha: dosha,
-        title: `🎯 Active Recall Paragraph-Grounded MCQ (${dosha} Check-In)`,
-        markdown_body: [
-          `### Instant Paragraph-Grounded Active Recall ${primaryCitationLabel}`,
-          `Test your *Smriti* on the highlighted passage before scrolling to the next page ${primaryCitationLabel}.`,
-        ].join("\n"),
-        key_points: [
-          `Grounded strictly in ${primaryCitationLabel}`,
-          "Verifies Dhee & Smriti retention before advancing",
-        ],
-        mcqs: [
-          {
-            question: `Which study rhythm best locks the idea in ${primaryCitationLabel} into memory?`,
-            options: [
-              "Dhee (grasp the idea), Dhriti (hold focus), and Smriti (recall it later)",
-              "Read the heading once and move on",
-              "Copy the paragraph without restating it",
-              "Use one fixed format regardless of your energy profile",
-            ],
-            correctIndex: 0,
-            explanation: `Dhee, Dhriti, and Smriti govern how any student grasps, holds, and recalls a passage, alongside Vata, Pitta, and Kapha study energy (${primaryCitationLabel}).`,
-            citationLabel: primaryCitationLabel,
-          },
-        ],
-        citations,
-      };
-  }
+  return composeDeterministicLensPayload(params);
 }
 
 // In-memory fallback stores for Shield 3 Cache & Shield 4 Wallet Ledger when Supabase is offline or in local tests
@@ -746,6 +599,10 @@ export async function executeControlledAiGateway(
       monthlySpendAfterInr: monthlySpendBeforeInr,
       walletCapInr,
       ragContextChunksUsed: rag.selectedChunks.length,
+      usedDeterministicFallback: Boolean(cached.response_payload.used_fallback),
+      fallbackReason: cached.response_payload.used_fallback
+        ? "missing_gemini_key"
+        : null,
       payload: cached.response_payload,
     };
   }
@@ -760,13 +617,24 @@ export async function executeControlledAiGateway(
   });
 
   const systemPrompt = [
-    `You are the Oryzen Learn study engine (${prakritiDosha} mode).`,
+    `You are the Oryzen Learn study engine.`,
     `Lens: ${request.lensType}.`,
-    `Always include inline citations formatted as [Page ${request.pageNumber}, Section ${request.sectionHeading}].`,
+    `Explain only the selected passage. Do not invent facts beyond it.`,
+    `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
+    `Use Markdown (headings, bullets, tables). For illustrative views, include a mermaid flowchart.`,
+    `Never reprint the entire source passage.`,
     rag.boundedPromptContext,
   ].join("\n\n");
 
-  let generatedPayload: AiLensResponsePayload;
+  const fallbackPayload = buildDeterministicLensPayload({
+    request,
+    ragChunks: rag.selectedChunks,
+  });
+
+  let generatedPayload: AiLensResponsePayload = fallbackPayload;
+  let usedDeterministicFallback = true;
+  let fallbackReason: AiGatewayExecutionResult["fallbackReason"] =
+    "missing_gemini_key";
   let promptTokens = rag.estimatedTokens;
   let completionTokens = 160;
 
@@ -777,7 +645,15 @@ export async function executeControlledAiGateway(
       request,
       ragChunks: rag.selectedChunks,
     });
-    generatedPayload = customResult.payload;
+    generatedPayload = {
+      ...fallbackPayload,
+      ...customResult.payload,
+      mcqs: customResult.payload.mcqs ?? fallbackPayload.mcqs,
+      diagram: customResult.payload.diagram ?? fallbackPayload.diagram,
+      used_fallback: false,
+    };
+    usedDeterministicFallback = false;
+    fallbackReason = null;
     promptTokens = Math.min(
       SHIELD_1_MAX_PROMPT_TOKENS,
       customResult.promptTokens ?? rag.estimatedTokens
@@ -791,32 +667,26 @@ export async function executeControlledAiGateway(
         contents: systemPrompt,
       });
       const text = response.text ?? "";
-      const basePayload = buildDeterministicLensPayload({
-        request,
-        ragChunks: rag.selectedChunks,
-      });
-      if (text.trim().length > 0) {
-        const citationTag = `[Page ${request.pageNumber}, Section ${request.sectionHeading}]`;
-        generatedPayload = {
-          ...basePayload,
-          markdown_body: text.includes("[Page ")
-            ? text
-            : `${text.trim()}\n\nSource: ${citationTag}`,
-        };
+      if (isUsableModelText(text)) {
+        generatedPayload = mergeModelTextIntoPayload(fallbackPayload, text);
+        generatedPayload.mcqs = fallbackPayload.mcqs;
+        generatedPayload.diagram = fallbackPayload.diagram;
+        usedDeterministicFallback = false;
+        fallbackReason = null;
       } else {
-        generatedPayload = basePayload;
+        generatedPayload = fallbackPayload;
+        usedDeterministicFallback = true;
+        fallbackReason = "unusable_model_output";
       }
     } catch {
-      generatedPayload = buildDeterministicLensPayload({
-        request,
-        ragChunks: rag.selectedChunks,
-      });
+      generatedPayload = fallbackPayload;
+      usedDeterministicFallback = true;
+      fallbackReason = "model_error";
     }
   } else {
-    generatedPayload = buildDeterministicLensPayload({
-      request,
-      ragChunks: rag.selectedChunks,
-    });
+    generatedPayload = fallbackPayload;
+    usedDeterministicFallback = true;
+    fallbackReason = "missing_gemini_key";
   }
 
   const costInr = calculateCallCostInr(
@@ -865,6 +735,8 @@ export async function executeControlledAiGateway(
     monthlySpendAfterInr,
     walletCapInr,
     ragContextChunksUsed: rag.selectedChunks.length,
+    usedDeterministicFallback,
+    fallbackReason,
     payload: generatedPayload,
   };
 }

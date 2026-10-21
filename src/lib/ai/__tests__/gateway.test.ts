@@ -97,13 +97,14 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
   });
 
   describe("2. Shield 2: Hybrid Model Routing (90% Flash vs 10% Pro)", () => {
-    it("routes all 5 highlight lenses to gemini-2.5-flash and deep synthesis to gemini-2.5-pro when under wallet ceiling", () => {
+    it("routes all highlight lenses to gemini-2.5-flash and deep synthesis to gemini-2.5-pro when under wallet ceiling", () => {
       for (const lens of [
         "ayurvedic",
         "illustrative",
         "high_yield_revision",
         "save_passage",
         "test_me",
+        "explain",
       ] as const) {
         const route = resolveShieldedModelRoute({
           lensType: lens,
@@ -182,6 +183,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       expect(firstCall.cacheHit).toBe(false);
       expect(firstCall.totalTokens).toBe(600);
       expect(firstCall.costInr).toBeGreaterThan(0);
+      expect(firstCall.usedDeterministicFallback).toBe(false);
       expect(mockGenerator).toHaveBeenCalledTimes(1);
 
       // 2nd Call with extra whitespace on same passage/page/lens: Cache Hit -> 0 tokens, ₹0.00 cost, generator not called again
@@ -374,7 +376,34 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
     });
   });
 
-  describe("5. Bi-Directional Deep-Linked Study Compendium (`passage-store.ts`)", () => {
+  describe("5. Deterministic fallback when GEMINI is missing", () => {
+    it("still returns usable structured output and marks fallback used", async () => {
+      const previous = process.env.GEMINI_API_KEY;
+      process.env.GEMINI_API_KEY = "";
+      try {
+        const result = await executeControlledAiGateway({
+          userId: "local-student",
+          documentId: "study-companion-vol1",
+          documentHash: "fallback-hash",
+          pageNumber: 4,
+          sectionHeading: "CHAPTER 4: ACROSS THE FACULTIES",
+          selectedText:
+            "The same passage tools apply to a physics derivation, a historical argument, a formal proof, or a laboratory method.",
+          lensType: "explain",
+          candidateChunks: SAMPLE_CANDIDATE_CHUNKS,
+        });
+        expect(result.usedDeterministicFallback).toBe(true);
+        expect(result.fallbackReason).toBe("missing_gemini_key");
+        expect(result.payload.markdown_body.length).toBeGreaterThan(80);
+        expect(result.payload.markdown_body).toMatch(/physics|historical|proof|laboratory/i);
+        expect(result.payload.title).toBe("Explain This Passage");
+      } finally {
+        process.env.GEMINI_API_KEY = previous;
+      }
+    });
+  });
+
+  describe("6. Bi-Directional Deep-Linked Study Compendium (`passage-store.ts`)", () => {
     it("persists compendium entries with exact PDF page number, section heading, and bounding-box coordinates", () => {
       const saved = savePassageEntry({
         documentId: "study-companion-vol1",

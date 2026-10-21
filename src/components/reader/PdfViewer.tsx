@@ -2,13 +2,11 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  BookOpen,
   ChevronLeft,
   ChevronRight,
   FileCheck2,
   FileUp,
   Highlighter,
-  Layers,
   PanelTop,
   PanelTopClose,
   ZoomIn,
@@ -52,11 +50,13 @@ import type {
   AiGatewayExecutionResult,
   InlineCitationCoordinate,
 } from "@/lib/ai/gateway";
+import { excerptForDisplay } from "@/lib/ai/lens-compose";
 import {
   listSavedPassages,
   savePassageEntry,
   type SavedPassageEntry,
 } from "@/lib/ai/passage-store";
+import { StudyMarkdown } from "@/components/reader/StudyMarkdown";
 
 export interface PdfViewerProps {
   theme?: PrakritiThemePalette;
@@ -88,6 +88,7 @@ interface VirtualizedPageCanvasProps {
   pageChunks: CitationReadyChunk[];
   selectedChunkId: string | null;
   onSelectChunk: (chunk: CitationReadyChunk, selectedText?: string) => void;
+  onExplainPassage: (chunk: CitationReadyChunk, selectedText?: string) => void;
   showPassages: boolean;
   theme: PrakritiThemePalette;
   marks: readonly ReaderTextMark[];
@@ -108,6 +109,7 @@ function VirtualizedPageCanvas({
   pageChunks,
   selectedChunkId,
   onSelectChunk,
+  onExplainPassage,
   showPassages,
   theme,
   marks,
@@ -283,20 +285,29 @@ function VirtualizedPageCanvas({
                   text={chunk.text}
                   marks={marks}
                   onAddMark={onAddMark}
-                  onExplain={(selectedText) => onSelectChunk(chunk, selectedText)}
+                  onExplain={(selectedText) => onExplainPassage(chunk, selectedText)}
                   onAddNote={(quote, note) => onAddNote(quote, note, chunk)}
                 />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] text-muted">
+                  <span className="text-[11px] leading-snug text-muted">
                     Page {chunk.page_number} · {chunk.section_heading}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onSelectChunk(chunk)}
-                    className="btn-primary px-3 text-xs"
-                  >
-                    Explain this passage
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSelectChunk(chunk)}
+                      className="btn-secondary px-3 text-xs"
+                    >
+                      Explore this passage
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onExplainPassage(chunk)}
+                      className="btn-primary px-3 text-xs"
+                    >
+                      Explain this passage
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -329,12 +340,14 @@ export default function PdfViewer({
     null
   );
   const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [notebookStatus, setNotebookStatus] = useState<string | null>(null);
   const [savedPassages, setSavedPassages] = useState<
     SavedPassageEntry[]
   >([]);
-  const [selectedMcqOption, setSelectedMcqOption] = useState<number | null>(
-    null
-  );
+  const [selectedMcqOptions, setSelectedMcqOptions] = useState<
+    Record<number, number>
+  >({});
   const [lensText, setLensText] = useState<string | null>(null);
   const [textMarks, setTextMarks] = useState<ReaderTextMark[]>([]);
   const [marginNotes, setMarginNotes] = useState<ReaderMarginNote[]>([]);
@@ -351,6 +364,8 @@ export default function PdfViewer({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const readingPaneRef = useRef<HTMLDivElement | null>(null);
   const autoScrollPausedRef = useRef<boolean>(false);
+  const lensRequestIdRef = useRef(0);
+  const lensAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -755,63 +770,165 @@ export default function PdfViewer({
         ? "Kapha"
         : "Vata";
 
-  const handleTriggerLens = async (lens: HighlightLensType) => {
-    if (!selectedChunk || !activeDoc) return;
+  const persistSavedPassage = async (
+    doc: LocalPdfDocumentRecord,
+    chunk: CitationReadyChunk,
+    selected: string,
+    markdown: string,
+    citations: InlineCitationCoordinate[]
+  ) => {
+    savePassageEntry({
+      documentId: doc.id,
+      documentTitle: doc.title,
+      pageNumber: chunk.page_number,
+      sectionHeading: chunk.section_heading,
+      boundingBox: chunk.bounding_box,
+      highlightedText: selected,
+      aiSynthesisMarkdown: markdown,
+      citations,
+    });
+    setSavedPassages(listSavedPassages());
+
+    const noteTitle = `${doc.title} · p.${chunk.page_number}`;
+    const noteBody = [
+      chunk.section_heading,
+      "",
+      excerptForDisplay(selected, 280),
+      "",
+      markdown,
+    ].join("\n");
+
+    const response = await fetch("/api/notes", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "save_passage",
+        subjectTitle: doc.title,
+        title: noteTitle,
+        noteBody,
+      }),
+    });
+    if (response.ok) {
+      setNotebookStatus("Saved to My Notebook. Refresh Notebook to see it.");
+      return;
+    }
+    if (response.status === 401) {
+      setNotebookStatus(
+        "Saved on this device. Sign in to keep it in My Notebook."
+      );
+      return;
+    }
+    const json = (await response.json().catch(() => null)) as
+      | { error?: string }
+      | null;
+    throw new Error(json?.error ?? "My Notebook could not save this passage.");
+  };
+
+  const handleTriggerLens = async (
+    lens: HighlightLensType,
+    chunk = selectedChunk,
+    selectedOverride?: string
+  ) => {
+    if (!chunk || !activeDoc || aiLoading) return;
+    const selected = (selectedOverride ?? lensText)?.trim() || chunk.text;
+    if (!selected.trim()) {
+      setAiError("Select a passage before exploring it.");
+      return;
+    }
+
+    lensAbortRef.current?.abort();
+    const controller = new AbortController();
+    lensAbortRef.current = controller;
+    const requestId = lensRequestIdRef.current + 1;
+    lensRequestIdRef.current = requestId;
+
+    setSelectedChunk(chunk);
+    if (selectedOverride) setLensText(selectedOverride);
     setActiveLens(lens);
-    setSelectedMcqOption(null);
+    setSelectedMcqOptions({});
+    setAiResult(null);
+    setAiError(null);
+    setNotebookStatus(null);
     setAiLoading(true);
     setIsSplitDrawerOpen(true);
 
     try {
-      const activePageChunks = activeDoc.chunks.filter(
-        (c) => c.page_number === selectedChunk.page_number
+      const nearbyChunks = activeDoc.chunks.filter(
+        (item) => Math.abs(item.page_number - chunk.page_number) <= 2
       );
-      const activePageText = activePageChunks.map((c) => c.text).join("\n");
+      const activePageText = nearbyChunks
+        .filter((item) => item.page_number === chunk.page_number)
+        .map((item) => item.text)
+        .join("\n");
 
       const res = await fetch("/api/ai/lens", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           documentId: activeDoc.id,
           documentHash: activeDoc.fileHash,
-          pageNumber: selectedChunk.page_number,
-          sectionHeading: selectedChunk.section_heading,
-          selectedText: lensText?.trim() || selectedChunk.text,
-          selectionBoundingBox: selectedChunk.bounding_box,
+          pageNumber: chunk.page_number,
+          sectionHeading: chunk.section_heading,
+          selectedText: selected,
+          selectionBoundingBox: chunk.bounding_box,
           lensType: lens,
           prakritiDosha: resolvedPrakritiDosha,
           activePageText,
-          candidateChunks: activeDoc.chunks,
+          candidateChunks: nearbyChunks,
         }),
+        signal: controller.signal,
       });
 
-      if (res.ok) {
-        const data = (await res.json()) as AiGatewayExecutionResult;
-        setAiResult(data);
+      if (requestId !== lensRequestIdRef.current) return;
 
-        if (lens === "save_passage") {
-          savePassageEntry({
-            documentId: activeDoc.id,
-            documentTitle: activeDoc.title,
-            pageNumber: selectedChunk.page_number,
-            sectionHeading: selectedChunk.section_heading,
-            boundingBox: selectedChunk.bounding_box,
-            highlightedText: selectedChunk.text,
-            aiSynthesisMarkdown: data.payload.markdown_body,
-            citations: data.payload.citations,
-          });
-          setSavedPassages(listSavedPassages());
-          setUploadStatus(
-            `Saved to My Notebook. Open page ${selectedChunk.page_number} anytime to return to this idea.`
+      const data = (await res.json()) as AiGatewayExecutionResult & {
+        error?: string;
+      };
+      const payload = data.payload;
+      const usable =
+        Boolean(payload?.markdown_body?.trim()) ||
+        Boolean(payload?.mcqs?.length) ||
+        Boolean(payload?.diagram);
+
+      if (!res.ok || !usable) {
+        setAiResult(null);
+        setAiError(
+          data.error ?? "We couldn't explore this passage. Please try again."
+        );
+        return;
+      }
+
+      setAiResult(data);
+
+      if (lens === "save_passage") {
+        try {
+          await persistSavedPassage(
+            activeDoc,
+            chunk,
+            selected,
+            payload.markdown_body,
+            payload.citations
+          );
+        } catch (error) {
+          setNotebookStatus(null);
+          setAiError(
+            error instanceof Error
+              ? error.message
+              : "The passage was prepared, but My Notebook did not save it."
           );
         }
-      } else {
-        setUploadStatus("We couldn't explore this passage. Please try again.");
       }
-    } catch {
-      setUploadStatus("We couldn't explore this passage. Please try again.");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (requestId !== lensRequestIdRef.current) return;
+      setAiResult(null);
+      setAiError("We couldn't explore this passage. Please try again.");
     } finally {
-      setAiLoading(false);
+      if (requestId === lensRequestIdRef.current) {
+        setAiLoading(false);
+      }
     }
   };
 
@@ -872,6 +989,35 @@ export default function PdfViewer({
             className="hidden"
           />
         </label>
+
+        {documents.length > 0 && (
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">Document</span>
+            <select
+              aria-label="Document"
+              value={activeDoc?.id ?? ""}
+              onChange={(event) => {
+                const next = documents.find((doc) => doc.id === event.target.value);
+                if (!next) return;
+                void (async () => {
+                  setActiveDoc(next);
+                  setActivePage(next.lastReadPage || 1);
+                  setSelectedChunk(null);
+                  setAiResult(null);
+                  const bytes = await getLocalPdfBinary(next.id);
+                  if (bytes) setActivePdfBytes(bytes);
+                })();
+              }}
+              className="field-input w-full cursor-pointer text-xs"
+            >
+              {documents.map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         {activeDoc && activeDoc.chapters.length > 0 && (
           <label className="min-w-0 flex-1">
@@ -987,9 +1133,7 @@ export default function PdfViewer({
       )}
 
 
-      {/* Responsive Split-Screen Layout: PDF Reader Left/Top | Study Workspace Drawer Right/Bottom */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left/Top Pane: 3-Page Virtualized PDF Canvas Viewport */}
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
         <div
           ref={readingPaneRef}
           onWheel={() => {
@@ -1002,9 +1146,7 @@ export default function PdfViewer({
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
-          className={`max-h-[calc(100vh-9rem)] space-y-4 overflow-y-auto pr-1 ${
-            isSplitDrawerOpen ? "lg:col-span-7" : "lg:col-span-12"
-          }`}
+          className="min-w-0 flex-1 space-y-4 overflow-y-auto pr-1 lg:max-h-[calc(100vh-8rem)]"
         >
           {Array.from({ length: totalPages }, (_, idx) => idx + 1).map(
             (pageNumber) => {
@@ -1054,6 +1196,11 @@ export default function PdfViewer({
                       setIsSplitDrawerOpen(true);
                       setActiveLens(null);
                       setAiResult(null);
+                      setAiError(null);
+                      setNotebookStatus(null);
+                    }}
+                    onExplainPassage={(chunk, selectedText) => {
+                      void handleTriggerLens("explain", chunk, selectedText);
                     }}
                     theme={theme}
                     marks={textMarks}
@@ -1084,188 +1231,209 @@ export default function PdfViewer({
         </div>
 
         {isSplitDrawerOpen && (
-          <aside className="surface-card sticky top-20 h-fit space-y-6 p-6 lg:col-span-5">
-            <div>
-              <p className="text-xs font-medium text-muted">Explore this passage</p>
-              <h3 className="mt-1 flex items-center gap-2 font-display text-lg text-heading">
-                <Highlighter className="h-4 w-4" />
-                Selected passage
-              </h3>
-            </div>
-
-            {selectedChunk ? (
-              <div className="space-y-3">
-                <p className="text-xs text-muted">
-                  Page {selectedChunk.page_number} · {selectedChunk.section_heading}
-                </p>
-                <blockquote className="border-l border-line pl-3 text-sm leading-relaxed italic text-muted">
-                  &ldquo;{lensText?.trim() || selectedChunk.text}&rdquo;
-                </blockquote>
-              </div>
-            ) : (
-              <p className="text-sm leading-relaxed text-muted">
-                Select a passage to highlight ideas, explore meanings, or save it to My Notebook.
-              </p>
-            )}
-
-            {aiLoading && (
-              <div
-                data-testid="ai-lens-loading-skeleton"
-                role="status"
-                aria-label="Exploring this passage..."
-                className="animate-pulse space-y-3 rounded-2xl bg-beige-2 p-4"
-              >
-                <div className="h-4 w-2/3 rounded-full bg-beige" />
-                <div className="h-3 w-full rounded-full bg-beige" />
-                <div className="h-3 w-5/6 rounded-full bg-beige" />
-              </div>
-            )}
-
-            {aiResult && !aiLoading && (
-              <div
-                data-testid="ai-lens-response-card"
-                className="space-y-4 rounded-2xl bg-beige-2 p-5"
-              >
-                <h4 className="font-display text-sm text-heading">
-                  {aiResult.payload.title}
-                </h4>
-
-                <div className="whitespace-pre-line text-sm leading-relaxed text-ink">
-                  {aiResult.payload.markdown_body}
+          <aside className="flex w-full flex-col lg:w-[26rem] lg:shrink-0 lg:max-h-[calc(100vh-8rem)]">
+            <div className="surface-card flex min-h-0 flex-1 flex-col overflow-hidden p-5">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-muted">Study response</p>
+                  <h3 className="mt-1 flex items-center gap-2 font-display text-lg text-heading">
+                    <Highlighter className="h-4 w-4" />
+                    {aiResult?.payload.title ?? "Explore this passage"}
+                  </h3>
                 </div>
-
-                {aiResult.payload.mcqs && aiResult.payload.mcqs.length > 0 && (
-                  <div className="space-y-3">
-                    {aiResult.payload.mcqs.map((mcq, idx) => (
-                      <div key={idx} className="space-y-2">
-                        <div className="text-sm font-medium">{mcq.question}</div>
-                        <div className="space-y-1.5">
-                          {mcq.options.map((opt, optIdx) => {
-                            const isPicked = selectedMcqOption === optIdx;
-                            const isCorrect = optIdx === mcq.correctIndex;
-                            return (
-                              <button
-                                key={optIdx}
-                                type="button"
-                                onClick={() => setSelectedMcqOption(optIdx)}
-                                className={`flex min-h-[44px] w-full items-center rounded-full border px-4 py-2 text-left text-xs font-medium transition-all ${
-                                  isPicked
-                                    ? isCorrect
-                                      ? "border-beige bg-selected text-heading"
-                                      : "border-line text-muted"
-                                    : "border-line text-ink"
-                                }`}
-                              >
-                                {String.fromCharCode(65 + optIdx)}. {opt}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {selectedMcqOption !== null && (
-                          <p className="pt-1 text-xs text-muted">
-                            {mcq.explanation}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {aiResult.payload.citations.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {aiResult.payload.citations.map((cite) => (
-                      <button
-                        key={cite.label}
-                        type="button"
-                        onClick={() => handleJumpToCitationCoordinate(cite)}
-                        className="btn-secondary text-xs"
-                      >
-                        {cite.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSplitDrawerOpen(false);
+                    setAiError(null);
+                  }}
+                  className="btn-secondary text-xs"
+                >
+                  Close
+                </button>
               </div>
-            )}
 
-            {savedPassages.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-medium text-muted">
-                  Saved to My Notebook ({savedPassages.length})
-                </p>
-                <div className="space-y-2">
-                  {savedPassages.slice(0, 4).map((note) => (
-                    <div
-                      key={note.id}
-                      className="space-y-2 rounded-2xl border border-line p-4 text-xs"
-                    >
-                      <p className="line-clamp-2 text-muted">
-                        &ldquo;{note.highlightedText}&rdquo;
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+                <section className="rounded-2xl border border-line bg-surface p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">
+                    Source
+                  </p>
+                  {selectedChunk ? (
+                    <>
+                      <p className="mt-2 text-xs leading-snug text-muted">
+                        Page {selectedChunk.page_number} · {selectedChunk.section_heading}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleJumpToCitationCoordinate({
-                            label: `[Page ${note.pageNumber}, Section ${note.sectionHeading}]`,
-                            document_id: note.documentId,
-                            page_number: note.pageNumber,
-                            section_heading: note.sectionHeading,
-                            bounding_box: note.boundingBox,
-                          })
-                        }
-                        className="btn-primary text-xs"
-                      >
-                        Page {note.pageNumber}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                      <p className="mt-2 text-sm leading-relaxed text-ink">
+                        {excerptForDisplay(lensText?.trim() || selectedChunk.text, 160)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-sm leading-relaxed text-muted">
+                      Select a passage to explore it.
+                    </p>
+                  )}
+                </section>
 
-            {documents.length > 0 && (
-              <div className="space-y-3">
-                <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                  <Layers className="h-4 w-4" />
-                  Library
-                </p>
-                <div className="space-y-2">
-                  {documents.map((doc) => {
-                    const isCurrent = activeDoc?.id === doc.id;
-                    return (
+                {aiLoading && (
+                  <div
+                    data-testid="ai-lens-loading-skeleton"
+                    role="status"
+                    aria-label="Exploring this passage..."
+                    className="animate-pulse space-y-3 rounded-2xl bg-beige-2 p-4"
+                  >
+                    <div className="h-4 w-2/3 rounded-full bg-beige" />
+                    <div className="h-3 w-full rounded-full bg-beige" />
+                    <div className="h-3 w-5/6 rounded-full bg-beige" />
+                  </div>
+                )}
+
+                {aiError && !aiLoading && (
+                  <div
+                    data-testid="ai-lens-error"
+                    role="alert"
+                    className="rounded-2xl border border-line bg-danger-bg p-4 text-sm text-danger"
+                  >
+                    <p>{aiError}</p>
+                    {activeLens && selectedChunk && (
                       <button
-                        key={doc.id}
                         type="button"
-                        onClick={async () => {
-                          setActiveDoc(doc);
-                          setActivePage(doc.lastReadPage || 1);
-                          setSelectedChunk(null);
-                          const bytes = await getLocalPdfBinary(doc.id);
-                          if (bytes) setActivePdfBytes(bytes);
-                        }}
-                        className={`flex min-h-[48px] w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-xs transition-all ${
-                          isCurrent
-                            ? "border-beige bg-selected text-heading"
-                            : "border-line text-ink"
-                        }`}
+                        onClick={() => void handleTriggerLens(activeLens, selectedChunk)}
+                        className="btn-primary mt-3 text-xs"
                       >
-                        <div>
-                          <div className="font-medium">{doc.title}</div>
-                          <div
-                            className={`mt-0.5 ${
-                              isCurrent ? "opacity-70" : "text-muted"
-                            }`}
-                          >
-                            {doc.pageCount} pages
-                          </div>
-                        </div>
-                        <BookOpen className="h-4 w-4 shrink-0" />
+                        Try again
                       </button>
-                    );
-                  })}
-                </div>
+                    )}
+                  </div>
+                )}
+
+                {notebookStatus && !aiError && (
+                  <p role="status" className="text-sm text-heading">
+                    {notebookStatus}
+                  </p>
+                )}
+
+                {aiResult && !aiLoading && (
+                  <div
+                    data-testid="ai-lens-response-card"
+                    className="space-y-4 rounded-2xl bg-beige-2 p-5"
+                  >
+                    {aiResult.usedDeterministicFallback && (
+                      <p
+                        data-testid="ai-fallback-banner"
+                        className="text-xs font-medium text-muted"
+                      >
+                        Model blocked / fallback used
+                      </p>
+                    )}
+                    <h4 className="font-display text-sm text-heading">
+                      {aiResult.payload.title}
+                    </h4>
+                    <StudyMarkdown
+                      markdown={aiResult.payload.markdown_body}
+                      diagram={aiResult.payload.diagram}
+                    />
+
+                    {aiResult.payload.mcqs && aiResult.payload.mcqs.length > 0 && (
+                      <div className="space-y-3">
+                        {aiResult.payload.mcqs.map((mcq, idx) => (
+                          <div key={idx} className="space-y-2">
+                            <div className="text-sm font-medium">{mcq.question}</div>
+                            <div className="space-y-1.5">
+                              {mcq.options.map((opt, optIdx) => {
+                                const isPicked = selectedMcqOptions[idx] === optIdx;
+                                const isCorrect = optIdx === mcq.correctIndex;
+                                return (
+                                  <button
+                                    key={optIdx}
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedMcqOptions((current) => ({
+                                        ...current,
+                                        [idx]: optIdx,
+                                      }))
+                                    }
+                                    className={`flex min-h-[44px] w-full items-center rounded-2xl border px-4 py-2 text-left text-xs font-medium transition-all ${
+                                      isPicked
+                                        ? isCorrect
+                                          ? "border-beige bg-selected text-heading"
+                                          : "border-line text-muted"
+                                        : "border-line text-ink"
+                                    }`}
+                                  >
+                                    {String.fromCharCode(65 + optIdx)}. {opt}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {selectedMcqOptions[idx] !== undefined && (
+                              <p className="pt-1 text-xs text-muted">
+                                {mcq.explanation}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {aiResult.payload.citations.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {aiResult.payload.citations.map((cite) => (
+                          <button
+                            key={cite.label}
+                            type="button"
+                            onClick={() => handleJumpToCitationCoordinate(cite)}
+                            className="btn-secondary text-xs"
+                          >
+                            {cite.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!aiLoading && !aiResult && !aiError && (
+                  <p className="text-sm leading-relaxed text-muted">
+                    Choose an Explore this passage action to see a study response here.
+                  </p>
+                )}
+
+                {savedPassages.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-medium text-muted">
+                      Saved on this device ({savedPassages.length})
+                    </p>
+                    <div className="space-y-2">
+                      {savedPassages.slice(0, 4).map((note) => (
+                        <div
+                          key={note.id}
+                          className="space-y-2 rounded-2xl border border-line p-4 text-xs"
+                        >
+                          <p className="line-clamp-2 text-muted">
+                            &ldquo;{excerptForDisplay(note.highlightedText, 120)}&rdquo;
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleJumpToCitationCoordinate({
+                                label: `[Page ${note.pageNumber}]`,
+                                document_id: note.documentId,
+                                page_number: note.pageNumber,
+                                section_heading: note.sectionHeading,
+                                bounding_box: note.boundingBox,
+                              })
+                            }
+                            className="btn-primary text-xs"
+                          >
+                            Page {note.pageNumber}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </aside>
         )}
       </div>

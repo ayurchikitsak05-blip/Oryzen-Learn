@@ -41,6 +41,12 @@ export const MULTI_LENS_ACTIONS: readonly HighlightLensActionItem[] = [
     label: "Test Me",
     shortDesc: "Instant paragraph-grounded questions",
   },
+  {
+    id: "explain",
+    emoji: "💬",
+    label: "Explain This Passage",
+    shortDesc: "A clear explanation from these lines",
+  },
 ] as const;
 
 export interface HighlightToolbarProps {
@@ -79,9 +85,9 @@ export default function HighlightToolbar({
           <p className="text-xs font-medium text-muted">Explore this passage</p>
           <p className="font-display text-sm text-heading">
             Page {pageNumber}
-            <span className="font-sans font-normal text-muted">
+            <span className="block font-sans font-normal leading-snug text-muted sm:inline">
               {" "}
-              · {sectionHeading.slice(0, 42)}
+              · {sectionHeading}
             </span>
           </p>
         </div>
@@ -97,7 +103,7 @@ export default function HighlightToolbar({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {MULTI_LENS_ACTIONS.map((lens) => {
           const isSelected = activeLens === lens.id;
           return (

@@ -73,12 +73,14 @@ function ReaderStudio() {
       activeDosha={activeDosha}
       onChangeDosha={setActiveDosha}
     >
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
+      <div className="space-y-6">
         <PdfViewer
           theme={profile.activeConfiguration.theme}
           promptUpload={searchParams.get("upload") === "1"}
         />
-        <StudySidePanel dosha={activeDosha} />
+        <div className="max-w-xl">
+          <StudySidePanel dosha={activeDosha} />
+        </div>
       </div>
     </StudioFrame>
   );

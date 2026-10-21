@@ -57,10 +57,16 @@ export async function POST(request: NextRequest) {
   }
 
   const body = (await request.json()) as {
-    action?: "create_subject" | "create_note" | "delete_subject" | "delete_note";
+    action?:
+      | "create_subject"
+      | "create_note"
+      | "delete_subject"
+      | "delete_note"
+      | "save_passage";
     title?: string;
     noteBody?: string;
     subjectId?: string;
+    subjectTitle?: string;
     id?: string;
   };
 
@@ -81,6 +87,61 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json({ id: data.id });
+  }
+
+  if (body.action === "save_passage") {
+    const title = body.title?.trim() ?? "";
+    const subjectTitle = body.subjectTitle?.trim() || "Saved passages";
+    if (!title) {
+      return NextResponse.json(
+        { error: "Name the saved passage before keeping it." },
+        { status: 400 }
+      );
+    }
+
+    const existing = await supabase
+      .from("note_subjects")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("title", subjectTitle)
+      .maybeSingle();
+    if (existing.error) {
+      return NextResponse.json({ error: existing.error.message }, { status: 400 });
+    }
+
+    let subjectId = existing.data?.id ?? null;
+    if (!subjectId) {
+      const created = await supabase
+        .from("note_subjects")
+        .insert({ user_id: user.id, title: subjectTitle })
+        .select("id")
+        .single();
+      if (created.error || !created.data) {
+        return NextResponse.json(
+          { error: created.error?.message ?? "The subject could not be created." },
+          { status: 400 }
+        );
+      }
+      subjectId = created.data.id;
+    }
+
+    const { data, error } = await supabase
+      .from("study_notes")
+      .insert({
+        subject_id: subjectId,
+        user_id: user.id,
+        title,
+        body: body.noteBody?.trim() ?? "",
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      return NextResponse.json(
+        { error: error?.message ?? "The note could not be saved." },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ id: data.id, subjectId });
   }
 
   if (body.action === "create_note") {

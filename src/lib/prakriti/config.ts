@@ -32,7 +32,8 @@ export type HighlightLensType =
   | "illustrative"
   | "high_yield_revision"
   | "save_passage"
-  | "test_me";
+  | "test_me"
+  | "explain";
 
 /**
  * Modern student-friendly profile labels with classical Ayurvedic terms in parentheses.
