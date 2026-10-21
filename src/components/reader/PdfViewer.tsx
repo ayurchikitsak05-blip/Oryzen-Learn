@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
@@ -29,10 +30,11 @@ import {
   updateLocalPdfMetadata,
   type LocalPdfDocumentRecord,
 } from "@/lib/reader/storage";
-import type {
-  Dosha,
-  HighlightLensType,
-  PrakritiThemePalette,
+import {
+  recommendedStudyLenses,
+  type Dosha,
+  type HighlightLensType,
+  type PrakritiThemePalette,
 } from "@/lib/prakriti/config";
 import HighlightToolbar from "@/components/reader/HighlightToolbar";
 import {
@@ -51,6 +53,7 @@ import { excerptForDisplay } from "@/lib/ai/lens-compose";
 import { savePassageEntry } from "@/lib/ai/passage-store";
 import { PdfPageCanvas } from "@/components/reader/PdfPageCanvas";
 import { StudyWorkspace } from "@/components/reader/StudyWorkspace";
+import TransformDialog from "@/components/reader/TransformDialog";
 import {
   readPersistedReaderView,
   resolveReaderScale,
@@ -150,6 +153,7 @@ export default function PdfViewer({
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [transformOpen, setTransformOpen] = useState(false);
 
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef<number>(DEFAULT_READER_ZOOM);
@@ -685,7 +689,8 @@ export default function PdfViewer({
         Boolean(payload?.diagram) ||
         Boolean(payload?.explain) ||
         Boolean(payload?.illustrative) ||
-        Boolean(payload?.revision);
+        Boolean(payload?.revision) ||
+        Boolean(payload?.story);
       if (!res.ok || !usable) {
         setAiResult(null);
         setAiError(data.error ?? "We couldn't explore this passage. Please try again.");
@@ -795,6 +800,17 @@ export default function PdfViewer({
         >
           Notes
         </button>
+        <button
+          type="button"
+          data-testid="transform-open"
+          onClick={() => setTransformOpen(true)}
+          className="btn-ghost px-3 text-xs"
+        >
+          Transform
+        </button>
+        <Link href="/vaults" className="btn-ghost px-3 text-xs">
+          Ask My Book
+        </Link>
         <button
           type="button"
           aria-label="Previous Page"
@@ -981,6 +997,7 @@ export default function PdfViewer({
           loading={aiLoading}
           top={selectionUi.top}
           left={selectionUi.left}
+          recommendedLensIds={recommendedStudyLenses(resolvedPrakritiDosha)}
           onSelectLens={(lens) => void handleTriggerLens(lens, selectedChunk, lensText ?? undefined)}
           onClearSelection={() => {
             setSelectedChunk(null);
@@ -1019,6 +1036,11 @@ export default function PdfViewer({
           onClose={() => setAnnotationsOpen(false)}
         />
       ) : null}
+      <TransformDialog
+        open={transformOpen}
+        document={activeDoc}
+        onClose={() => setTransformOpen(false)}
+      />
     </div>
   );
 }

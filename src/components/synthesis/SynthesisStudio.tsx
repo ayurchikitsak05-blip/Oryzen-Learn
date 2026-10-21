@@ -16,6 +16,7 @@ import {
   type SynthesisSource,
 } from "@/lib/synthesis/master-book";
 import type { VideoLectureRecord } from "@/lib/video/sync-engine";
+import { notebookSaveMessage, saveToNotebook } from "@/lib/notes/save-to-notebook";
 
 export interface SynthesisStudioProps {
   prakritiDosha: Dosha;
@@ -56,6 +57,7 @@ export default function SynthesisStudio({
     useState<MasterStudyBookCitation | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [synthesisToast, setSynthesisToast] = useState<string | null>(null);
+  const [notebookToast, setNotebookToast] = useState<string | null>(null);
 
   const toggleSourceSelection = (id: string) => {
     setValidationError(null);
@@ -267,9 +269,37 @@ export default function SynthesisStudio({
                 {masterBook.executiveSummary}
               </p>
             </div>
-            <span className="rounded-full border border-line px-4 py-2 text-xs font-medium text-muted">
-              {masterBook.allCitations.length} citations
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-line px-4 py-2 text-xs font-medium text-muted">
+                {masterBook.allCitations.length} citations
+              </span>
+              <button
+                type="button"
+                data-testid="save-synthesis-notebook"
+                onClick={() => {
+                  void (async () => {
+                    const result = await saveToNotebook({
+                      subjectTitle: "Study guides",
+                      title: masterBook.title,
+                      noteBody: [
+                        masterBook.executiveSummary,
+                        "",
+                        ...masterBook.sections.map(
+                          (section) =>
+                            `${section.heading}\n${section.prakritiFormattedBody}\n${section.inlineCitations
+                              .map((cite) => cite.badge)
+                              .join(" ")}`
+                        ),
+                      ].join("\n\n"),
+                    });
+                    setNotebookToast(notebookSaveMessage(result));
+                  })();
+                }}
+                className="btn-secondary text-xs"
+              >
+                Save to Notebook
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -305,6 +335,11 @@ export default function SynthesisStudio({
             ))}
           </div>
 
+          {notebookToast ? (
+            <p role="status" className="text-xs text-muted">
+              {notebookToast}
+            </p>
+          ) : null}
           {activeCitationPreview && (
             <p className="text-xs text-muted">
               {activeCitationPreview.badge} · {activeCitationPreview.title}

@@ -16,6 +16,7 @@ export interface ParallelNotesProps {
   currentTimeSeconds: number;
   onSeekToTimestamp: (seconds: number, badge: string) => void;
   onModifyNote: (noteId: string, action: NoteModificationAction) => void;
+  onSaveNote?: (note: TimestampedLectureNote) => void;
   theme: PrakritiThemePalette;
 }
 
@@ -25,6 +26,7 @@ export default function ParallelNotes({
   currentTimeSeconds,
   onSeekToTimestamp,
   onModifyNote,
+  onSaveNote,
   theme,
 }: ParallelNotesProps) {
   const [revealAllMode, setRevealAllMode] = useState<boolean>(false);
@@ -128,6 +130,16 @@ export default function ParallelNotes({
                 onModifyNote={(action) => onModifyNote(note.id, action)}
                 theme={theme}
               />
+              {onSaveNote ? (
+                <button
+                  type="button"
+                  data-testid={`save-video-note-${note.id}`}
+                  onClick={() => onSaveNote(note)}
+                  className="btn-secondary text-xs"
+                >
+                  Save to Notebook
+                </button>
+              ) : null}
             </article>
           );
         })}

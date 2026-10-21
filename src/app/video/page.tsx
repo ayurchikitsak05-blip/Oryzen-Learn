@@ -20,6 +20,8 @@ import {
   recordCognitiveTelemetryEvent,
   type NoteModificationAction,
 } from "@/lib/ai/adaptive-memory";
+import { notebookSaveMessage, saveToNotebook } from "@/lib/notes/save-to-notebook";
+import type { TimestampedLectureNote } from "@/lib/video/sync-engine";
 
 export default function ParallelVideoStudioPage() {
   const [activeDosha, setActiveDosha] = useState<Dosha>("Vata");
@@ -97,6 +99,25 @@ export default function ParallelVideoStudioPage() {
         contextLabel: targetBadge,
       }),
     }).catch(() => {});
+  };
+
+  const handleSaveNote = async (note: TimestampedLectureNote) => {
+    const result = await saveToNotebook({
+      subjectTitle: activeLecture.title,
+      title: `${activeLecture.title} · ${note.timestampBadge}`,
+      noteBody: [
+        note.heading,
+        "",
+        note.timestampBadge,
+        note.speakerTranscript ? `Spoken: ${note.speakerTranscript}` : "",
+        "",
+        note.studyNoteMarkdown,
+        note.highYieldKeyPoint,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
+    setTelemetryToast(notebookSaveMessage(result));
   };
 
   const handleRewindFriction = async (fromSec: number, toSec: number) => {
@@ -194,6 +215,7 @@ export default function ParallelVideoStudioPage() {
               setTelemetryToast(`Jumped to ${badge}.`);
             }}
             onModifyNote={handleModifyNote}
+            onSaveNote={(note) => void handleSaveNote(note)}
             theme={theme}
           />
         </div>
