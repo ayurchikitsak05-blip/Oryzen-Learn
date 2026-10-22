@@ -157,6 +157,30 @@ describe("access gate", () => {
         role: null,
       })
     ).toBe("/auth");
+    expect(
+      decideAccessRedirect({
+        pathname: "/roadmap",
+        isAuthenticated: false,
+        accessStatus: null,
+        role: null,
+      })
+    ).toBe("/auth");
+    expect(
+      decideAccessRedirect({
+        pathname: "/roadmap",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/roadmap",
+        isAuthenticated: true,
+        accessStatus: "none",
+        role: "student",
+      })
+    ).toBe("/pricing");
   });
 
   it("keeps the instructor desk limited to instructor and admin roles", () => {

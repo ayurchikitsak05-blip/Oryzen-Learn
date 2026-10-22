@@ -9,6 +9,7 @@ import {
   Clapperboard,
   Compass,
   Library,
+  Map,
   PenLine,
 } from "lucide-react";
 import AccountMenu from "@/components/auth/AccountMenu";
@@ -50,6 +51,13 @@ const TOOLS = [
     description:
       "Capture your thoughts, save important ideas, and return to them whenever you need.",
     icon: PenLine,
+  },
+  {
+    href: "/roadmap",
+    title: "My Study Roadmap",
+    description:
+      "Build a daily, weekly, and monthly plan around your exam, then replan when a day is missed.",
+    icon: Map,
   },
   {
     href: "/synthesis",
@@ -115,6 +123,7 @@ export default function StudyHubPage() {
               <Link
                 key={tool.href}
                 href={tool.href}
+                data-testid={tool.href === "/roadmap" ? "hub-roadmap-link" : undefined}
                 className={`${ui.card} flex min-h-[180px] flex-col transition-colors hover:bg-beige-2`}
               >
                 <span className={ui.chip}>
