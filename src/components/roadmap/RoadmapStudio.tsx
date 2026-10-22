@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { tabClass, ui } from "@/components/ui/classes";
+import CoachHost, { CoachOverwhelmedButton } from "@/components/coach/CoachHost";
+import { ui, tabClass } from "@/components/ui/classes";
+import { takePendingCoachAction } from "@/lib/coach/pending";
+import { readCoachPrefs, recordPostpone } from "@/lib/coach/persist";
 import { adjustSession, moveSession, setSessionStart } from "@/lib/roadmap/edit";
 import {
   dayByDate,
@@ -28,10 +31,12 @@ type StudioTab = "today" | "week" | "month" | "custom" | "edit";
 function SessionRow({
   session,
   completed,
+  focused,
   onToggle,
 }: {
   session: RoadmapSession;
   completed: boolean;
+  focused?: boolean;
   onToggle: () => void;
 }) {
   const links = linksForSession(session);
@@ -39,7 +44,15 @@ function SessionRow({
   return (
     <article
       data-testid={isWork ? "roadmap-task" : "roadmap-slot"}
-      className={`rounded-2xl border px-4 py-3 ${completed ? "border-success/20 bg-success-bg" : "border-line bg-beige-2"}`}
+      data-session-id={session.id}
+      data-session-focused={focused ? "true" : "false"}
+      className={`rounded-2xl border px-4 py-3 ${
+        completed
+          ? "border-success/20 bg-success-bg"
+          : focused
+            ? "border-heading bg-selected"
+            : "border-line bg-beige-2"
+      }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
@@ -86,16 +99,20 @@ function SessionRow({
 export default function RoadmapStudio({
   record,
   today,
+  userId,
   onChange,
   onReset,
 }: {
   record: RoadmapRecord;
   today: string;
+  userId?: string;
   onChange: (record: RoadmapRecord) => void;
   onReset: () => void;
 }) {
   const [tab, setTab] = useState<StudioTab>("today");
   const [replanOpen, setReplanOpen] = useState(false);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [breakNote, setBreakNote] = useState<string | null>(null);
   const [proposal, setProposal] = useState<ReplanProposal | null>(null);
   const [selectedMissed, setSelectedMissed] = useState<string[]>([]);
   const [dailyHours, setDailyHours] = useState(record.intake.dailyHours);
@@ -160,9 +177,13 @@ export default function RoadmapStudio({
     let next = record;
     let warning: string | null = null;
     if (editDate) {
-      const moved = moveSession(next, editId, editDate, next.plan.days.flatMap((day) => day.sessions).find((session) => session.id === editId)?.startMinutes ?? 16 * 60);
+      const current = next.plan.days.flatMap((day) => day.sessions).find((session) => session.id === editId);
+      const moved = moveSession(next, editId, editDate, current?.startMinutes ?? 16 * 60);
       next = moved.record;
       warning = moved.warning;
+      if (!warning && current && editDate > current.date) {
+        recordPostpone(editId, userId);
+      }
     }
     if (!warning && editStart) {
       const parsed = parseClock(editStart);
@@ -187,6 +208,43 @@ export default function RoadmapStudio({
     openReplan([...new Set([...missed, date])]);
   };
 
+  useEffect(() => {
+    const pending = takePendingCoachAction();
+    if (pending?.kind === "action" && pending.action === "replan") openReplan();
+    if (pending?.kind === "action" && pending.action === "continue_roadmap") setTab("today");
+    if (pending?.kind === "focus") {
+      setFocusedId(pending.sessionId);
+      setTab("today");
+    }
+    const coach = readCoachPrefs(userId);
+    if (coach.focusedSessionId) setFocusedId(coach.focusedSessionId);
+    if (coach.breakNotedAt && coach.breakNotedAt.slice(0, 10) === today) {
+      setBreakNote("A short break is on the plan. Encouragement will wait until you are ready.");
+    }
+    const onReplan = () => openReplan();
+    const onFocusToday = () => setTab("today");
+    const onFocus = (event: Event) => {
+      const sessionId = (event as CustomEvent<{ sessionId?: string }>).detail?.sessionId;
+      if (sessionId) {
+        setFocusedId(sessionId);
+        setTab("today");
+      }
+    };
+    const onBreak = () => {
+      setBreakNote("A short break is on the plan. Encouragement will wait until you are ready.");
+    };
+    window.addEventListener("oryzen-open-replan", onReplan);
+    window.addEventListener("oryzen-coach-focus-today", onFocusToday);
+    window.addEventListener("oryzen-coach-focus", onFocus);
+    window.addEventListener("oryzen-coach-break", onBreak);
+    return () => {
+      window.removeEventListener("oryzen-open-replan", onReplan);
+      window.removeEventListener("oryzen-coach-focus-today", onFocusToday);
+      window.removeEventListener("oryzen-coach-focus", onFocus);
+      window.removeEventListener("oryzen-coach-break", onBreak);
+    };
+  }, [today, userId]);
+
   return (
     <div className="mt-8 space-y-6">
       {!record.plan.overflow.fits && (
@@ -204,6 +262,20 @@ export default function RoadmapStudio({
         </div>
       )}
 
+      <CoachHost
+        surface="roadmap"
+        record={record}
+        today={today}
+        userId={userId}
+        onRoadmapChange={onChange}
+      />
+
+      {breakNote && (
+        <p data-testid="coach-break-note" className={ui.notice}>
+          {breakNote}
+        </p>
+      )}
+
       <section className={ui.cardPad}>
         <p className={ui.eyebrow}>Today · {formatDisplayDate(today)}</p>
         <h2 className={`${ui.heading} mt-2 text-2xl`}>
@@ -219,6 +291,7 @@ export default function RoadmapStudio({
           <button type="button" data-testid="roadmap-replan" className={ui.secondary} onClick={() => openReplan()}>
             Replan My Studies
           </button>
+          <CoachOverwhelmedButton userId={userId} />
           <button type="button" className={ui.ghost} onClick={onReset}>
             Start a new roadmap
           </button>
@@ -251,6 +324,7 @@ export default function RoadmapStudio({
                 key={session.id}
                 session={session}
                 completed={Boolean(record.completions[session.id])}
+                focused={focusedId === session.id}
                 onToggle={() => toggleComplete(session.id)}
               />
             ))

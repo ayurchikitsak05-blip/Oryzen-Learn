@@ -13,6 +13,7 @@ import {
   PenLine,
 } from "lucide-react";
 import AccountMenu from "@/components/auth/AccountMenu";
+import CoachHost, { useSignedInScope } from "@/components/coach/CoachHost";
 import AppChrome from "@/components/layout/AppChrome";
 import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import SchedulerDialog from "@/components/study/SchedulerDialog";
@@ -72,6 +73,7 @@ const TOOLS = [
 export default function StudyHubPage() {
   const [saved, setSaved] = useState<SavedBodyType | null>(null);
   const [schedulerOpen, setSchedulerOpen] = useState(false);
+  const coachScope = useSignedInScope();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -116,6 +118,8 @@ export default function StudyHubPage() {
             Read, watch, explore, and organize everything you learn—all in one place.
           </p>
         </div>
+
+        <CoachHost surface="hub" userId={coachScope} />
 
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {TOOLS.map((tool) => {

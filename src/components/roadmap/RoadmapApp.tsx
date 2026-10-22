@@ -123,7 +123,13 @@ export default function RoadmapApp() {
         )}
 
         {!loading && record && (
-          <RoadmapStudio record={record} today={today} onChange={persist} onReset={reset} />
+          <RoadmapStudio
+            record={record}
+            today={today}
+            userId={userId}
+            onChange={persist}
+            onReset={reset}
+          />
         )}
       </main>
     </AppChrome>

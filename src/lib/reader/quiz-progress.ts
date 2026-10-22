@@ -68,6 +68,10 @@ export function readQuizProgress(
   return readMap(userId)[key] ?? null;
 }
 
+export function readAllQuizProgress(userId?: string | null): ReaderQuizProgress[] {
+  return Object.values(readMap(userId));
+}
+
 export function formatQuizProgressNote(progress: ReaderQuizProgress): string {
   const answered = Object.keys(progress.answers).length;
   const weak =
