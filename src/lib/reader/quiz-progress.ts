@@ -1,6 +1,11 @@
 import { saveToNotebook } from "@/lib/notes/save-to-notebook";
+import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 
 export const READER_QUIZ_PROGRESS_KEY = "oryzen_reader_quiz_progress_v1";
+
+export function quizProgressStorageKey(userId?: string | null): string {
+  return scopedReaderStorageKey(READER_QUIZ_PROGRESS_KEY, userId);
+}
 
 export interface ReaderQuizProgress {
   documentId: string;
@@ -25,10 +30,10 @@ export function quizProgressId(
   return `${documentId}::${pageNumber}::${selectionKey}`;
 }
 
-function readMap(): Record<string, ReaderQuizProgress> {
+function readMap(userId?: string | null): Record<string, ReaderQuizProgress> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(READER_QUIZ_PROGRESS_KEY);
+    const raw = window.localStorage.getItem(quizProgressStorageKey(userId));
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, ReaderQuizProgress>;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -37,15 +42,18 @@ function readMap(): Record<string, ReaderQuizProgress> {
   }
 }
 
-export function writeQuizProgress(progress: ReaderQuizProgress): ReaderQuizProgress {
+export function writeQuizProgress(
+  progress: ReaderQuizProgress,
+  userId?: string | null
+): ReaderQuizProgress {
   const next = {
     ...progress,
     updatedAt: progress.updatedAt || new Date().toISOString(),
   };
   if (typeof window !== "undefined") {
-    const map = readMap();
+    const map = readMap(userId);
     map[quizProgressId(next.documentId, next.pageNumber, next.selectionKey)] = next;
-    window.localStorage.setItem(READER_QUIZ_PROGRESS_KEY, JSON.stringify(map));
+    window.localStorage.setItem(quizProgressStorageKey(userId), JSON.stringify(map));
   }
   return next;
 }
@@ -53,10 +61,11 @@ export function writeQuizProgress(progress: ReaderQuizProgress): ReaderQuizProgr
 export function readQuizProgress(
   documentId: string,
   pageNumber: number,
-  selectedText: string
+  selectedText: string,
+  userId?: string | null
 ): ReaderQuizProgress | null {
   const key = quizProgressId(documentId, pageNumber, selectionKeyFromText(selectedText));
-  return readMap()[key] ?? null;
+  return readMap(userId)[key] ?? null;
 }
 
 export function formatQuizProgressNote(progress: ReaderQuizProgress): string {

@@ -3,11 +3,19 @@ import {
   MAX_READER_ZOOM,
   MIN_READER_ZOOM,
 } from "@/lib/reader/pdf-worker";
+import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 
 export type ReaderFitMode = "page" | "width" | "custom";
 
 /** Allow a complete page to fit on phones without stretching. */
 export const MIN_FIT_ZOOM = 0.28;
+
+/** Default to Fit Width so body text is large on laptops and tablets. */
+export const DEFAULT_FIT_MODE: ReaderFitMode = "width";
+
+/** Tight chrome so Fit Width / Fit Page use the pane, not empty margin. */
+export const FIT_WIDTH_PADDING = 8;
+export const FIT_PAGE_PADDING = 10;
 
 export interface PageGeometry {
   width: number;
@@ -30,10 +38,10 @@ export function clampFitZoom(scale: number): number {
 export function computeFitPageScale(
   page: PageGeometry,
   viewport: ViewportBox,
-  padding = 32
+  padding = FIT_PAGE_PADDING
 ): number {
-  const availW = Math.max(120, viewport.width - padding);
-  const availH = Math.max(160, viewport.height - padding);
+  const availW = Math.max(160, viewport.width - padding);
+  const availH = Math.max(200, viewport.height - padding);
   if (page.width <= 0 || page.height <= 0) return MIN_READER_ZOOM;
   return clampFitZoom(Math.min(availW / page.width, availH / page.height));
 }
@@ -41,9 +49,9 @@ export function computeFitPageScale(
 export function computeFitWidthScale(
   page: PageGeometry,
   viewport: ViewportBox,
-  padding = 32
+  padding = FIT_WIDTH_PADDING
 ): number {
-  const availW = Math.max(120, viewport.width - padding);
+  const availW = Math.max(160, viewport.width - padding);
   if (page.width <= 0) return MIN_READER_ZOOM;
   return clampFitZoom(availW / page.width);
 }
@@ -103,11 +111,14 @@ export interface PersistedReaderView {
 }
 
 export function readPersistedReaderView(
-  documentId: string
+  documentId: string,
+  userId?: string | null
 ): PersistedReaderView | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(READER_VIEW_STORAGE_KEY);
+    const raw = window.localStorage.getItem(
+      scopedReaderStorageKey(READER_VIEW_STORAGE_KEY, userId)
+    );
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Record<string, PersistedReaderView>;
     const view = parsed[documentId];
@@ -121,38 +132,48 @@ export function readPersistedReaderView(
 
 export function writePersistedReaderView(
   documentId: string,
-  view: PersistedReaderView
+  view: PersistedReaderView,
+  userId?: string | null
 ): void {
   if (typeof window === "undefined") return;
   try {
-    const raw = window.localStorage.getItem(READER_VIEW_STORAGE_KEY);
+    const key = scopedReaderStorageKey(READER_VIEW_STORAGE_KEY, userId);
+    const raw = window.localStorage.getItem(key);
     const parsed = raw
       ? (JSON.parse(raw) as Record<string, PersistedReaderView>)
       : {};
     parsed[documentId] = view;
-    window.localStorage.setItem(READER_VIEW_STORAGE_KEY, JSON.stringify(parsed));
-    writeLastReaderDocumentId(documentId);
+    window.localStorage.setItem(key, JSON.stringify(parsed));
+    writeLastReaderDocumentId(documentId, userId);
   } catch {
     // Ignore quota / private-mode failures
   }
 }
 
-export function readLastReaderDocumentId(): string | null {
+export function readLastReaderDocumentId(userId?: string | null): string | null {
   if (typeof window === "undefined") return null;
   try {
-    const value = window.localStorage.getItem(READER_LAST_DOCUMENT_KEY)?.trim();
+    const value = window.localStorage
+      .getItem(scopedReaderStorageKey(READER_LAST_DOCUMENT_KEY, userId))
+      ?.trim();
     return value || null;
   } catch {
     return null;
   }
 }
 
-export function writeLastReaderDocumentId(documentId: string): void {
+export function writeLastReaderDocumentId(
+  documentId: string,
+  userId?: string | null
+): void {
   if (typeof window === "undefined") return;
   const id = documentId.trim();
   if (!id) return;
   try {
-    window.localStorage.setItem(READER_LAST_DOCUMENT_KEY, id);
+    window.localStorage.setItem(
+      scopedReaderStorageKey(READER_LAST_DOCUMENT_KEY, userId),
+      id
+    );
   } catch {
     // Ignore quota / private-mode failures
   }

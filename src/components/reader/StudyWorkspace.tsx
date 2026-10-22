@@ -43,7 +43,7 @@ export function StudyWorkspace({
   onRetry: () => void;
   onClose: () => void;
 }) {
-  const [width, setWidth] = useState(420);
+  const [width, setWidth] = useState(340);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
@@ -62,10 +62,10 @@ export function StudyWorkspace({
       data-testid="study-result-workspace"
       className="flex h-full min-h-0 flex-col bg-surface"
     >
-      <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
+      <div className="flex items-start justify-between gap-2 border-b border-line px-3 py-2">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-muted">Study response</p>
-          <h3 className="mt-1 flex items-center gap-2 font-display text-lg text-heading">
+          <p className="text-[11px] font-medium text-muted">Study response</p>
+          <h3 className="mt-0.5 flex items-center gap-2 font-display text-base text-heading">
             <Highlighter className="h-4 w-4 shrink-0" />
             <span className="truncate">{title}</span>
           </h3>
@@ -185,7 +185,7 @@ export function StudyWorkspace({
           const onMove = (move: MouseEvent) => {
             if (!dragRef.current) return;
             const next = dragRef.current.startWidth - (move.clientX - dragRef.current.startX);
-            setWidth(Math.min(640, Math.max(300, next)));
+            setWidth(Math.min(560, Math.max(280, next)));
           };
           const onUp = () => {
             dragRef.current = null;

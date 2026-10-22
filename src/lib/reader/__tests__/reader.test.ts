@@ -85,6 +85,21 @@ describe("Layer 2: Tablet-First PDF Engine & Local-First Storage Pipeline", () =
       expect(fitWidth).toBeGreaterThan(0.2);
     });
 
+    it("uses tight padding so Fit Width fills a laptop pane", async () => {
+      const { computeFitPageScale, computeFitWidthScale, DEFAULT_FIT_MODE } =
+        await import("../fit");
+      const page = { width: 612, height: 792 };
+      const laptop = { width: 1100, height: 760 };
+      const widthScale = computeFitWidthScale(page, laptop);
+      const pageScale = computeFitPageScale(page, laptop);
+      expect(DEFAULT_FIT_MODE).toBe("width");
+      expect(widthScale).toBeGreaterThan(1.6);
+      expect(page.width * widthScale).toBeGreaterThan(1000);
+      expect(page.width * widthScale).toBeLessThanOrEqual(laptop.width);
+      expect(page.height * pageScale).toBeLessThanOrEqual(laptop.height);
+      expect(pageScale).toBeGreaterThan(0.85);
+    });
+
     it("persists page, zoom, and fit mode per document", async () => {
       const { writePersistedReaderView, readPersistedReaderView } = await import(
         "../fit"

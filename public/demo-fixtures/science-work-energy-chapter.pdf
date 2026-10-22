@@ -1,0 +1,165 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [ 4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R ] /Count 6 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 836 >>
+stream
+BT
+/F1 14 Tf
+48 742 Td (CHAPTER 6 WORK AND ENERGY) Tj
+/F1 9 Tf
+0 -14 Td (Page 1 of 6  |  ORYZEN Learn sample chapter) Tj
+/F1 11 Tf
+0 -16 Td (6.1 Meaning of work. In physics, work is done only when a force moves an) Tj
+0 -16 Td (object along a path. The formula is W = F x d, where W is work, F is the force) Tj
+0 -16 Td (in the direction of the motion, and d is the displacement. The SI unit of work) Tj
+0 -16 Td (is the joule J. One joule is the work done by a force of 1 newton acting) Tj
+0 -16 Td (through 1 metre. Worked example. A student pushes a crate with a force of 10 N) Tj
+0 -16 Td (along a smooth floor for 3 m. The force is in the same direction as the) Tj
+0 -16 Td (motion, so W = 10 x 3 = 30 J. If the crate does not move, the displacement is) Tj
+0 -16 Td (0 m and the work is 0 J, even if the student feels tired.) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 732 >>
+stream
+BT
+/F1 14 Tf
+48 742 Td (6.2 DIRECTION OF THE FORCE) Tj
+/F1 9 Tf
+0 -14 Td (Page 2 of 6  |  ORYZEN Learn sample chapter) Tj
+/F1 11 Tf
+0 -16 Td (Only the part of the force along the displacement counts as work. If the force) Tj
+0 -16 Td (is at a right angle to the motion, that part is zero, so the work is zero. A) Tj
+0 -16 Td (student who carries a bag across a flat corridor at constant height does no) Tj
+0 -16 Td (work against gravity on the bag, because the weight is vertical and the path) Tj
+0 -16 Td (is horizontal. If the same student then lifts the bag onto a shelf, the force) Tj
+0 -16 Td (and the displacement point the same way, so work is done. Keep the units) Tj
+0 -16 Td (together: 30 J is not the same as 30 N.) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 699 >>
+stream
+BT
+/F1 14 Tf
+48 742 Td (6.3 KINETIC ENERGY) Tj
+/F1 9 Tf
+0 -14 Td (Page 3 of 6  |  ORYZEN Learn sample chapter) Tj
+/F1 11 Tf
+0 -16 Td (Energy is the capacity to do work. Kinetic energy is the energy of motion. The) Tj
+0 -16 Td (formula is KE = 1/2 m v^2, where m is mass in kilograms and v is speed in) Tj
+0 -16 Td (metres per second. Doubling the speed multiplies the kinetic energy by four,) Tj
+0 -16 Td (because the speed is squared. Worked example. A 2 kg trolley moves at 3 m/s.) Tj
+0 -16 Td (KE = 0.5 x 2 x 3 x 3 = 9 J. If the trolley slows to 1 m/s, KE becomes 1 J. The) Tj
+0 -16 Td (lost 8 J was transferred, often as heat in the brakes or as work done on) Tj
+0 -16 Td (another object.) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 703 >>
+stream
+BT
+/F1 14 Tf
+48 742 Td (6.4 POTENTIAL ENERGY) Tj
+/F1 9 Tf
+0 -14 Td (Page 4 of 6  |  ORYZEN Learn sample chapter) Tj
+/F1 11 Tf
+0 -16 Td (Gravitational potential energy depends on height. The formula is PE = m g h,) Tj
+0 -16 Td (where g is about 10 N/kg near Earth and h is the height gained. Worked) Tj
+0 -16 Td (example. A 2 kg mass is raised 5 m. PE = 2 x 10 x 5 = 100 J. That 100 J came) Tj
+0 -16 Td (from the work done in lifting. In a closed system the total energy stays the) Tj
+0 -16 Td (same: as a ball falls, potential energy becomes kinetic energy. A common) Tj
+0 -16 Td (mix-up is to treat height as speed. Height is a position; speed is how fast) Tj
+0 -16 Td (the position is changing.) Tj
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 637 >>
+stream
+BT
+/F1 14 Tf
+48 742 Td (6.5 POWER) Tj
+/F1 9 Tf
+0 -14 Td (Page 5 of 6  |  ORYZEN Learn sample chapter) Tj
+/F1 11 Tf
+0 -16 Td (Power is how quickly work is done. The formula is P = W / t, where t is time) Tj
+0 -16 Td (in seconds. The SI unit is the watt W. One watt means one joule each second.) Tj
+0 -16 Td (Worked example. A motor does 60 J of work in 2 s. P = 60 / 2 = 30 W. A second) Tj
+0 -16 Td (motor that does the same 60 J in 6 s has a power of only 10 W. Power does not) Tj
+0 -16 Td (tell you the total energy by itself; you also need the time. Cover the formula) Tj
+0 -16 Td (and say it: power equals work divided by time.) Tj
+ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 740 >>
+stream
+BT
+/F1 14 Tf
+48 742 Td (6.6 CHAPTER REVIEW) Tj
+/F1 9 Tf
+0 -14 Td (Page 6 of 6  |  ORYZEN Learn sample chapter) Tj
+/F1 11 Tf
+0 -16 Td (Hold these relations together. Work: W = F x d. Kinetic energy: KE = 1/2 m) Tj
+0 -16 Td (v^2. Potential energy: PE = m g h. Power: P = W / t. Units stay with the) Tj
+0 -16 Td (quantity: N with force, m with distance, J with work and energy, W with power.) Tj
+0 -16 Td (Practice A. A 8 N force pushes a box 5 m in the same direction. What is the) Tj
+0 -16 Td (work? Practice B. That work is done in 4 s. What is the power? Practice C. Why) Tj
+0 -16 Td (is the answer to A written in joules, not in newtons? Check yourself by) Tj
+0 -16 Td (covering this page and writing the four formulas from memory.) Tj
+ET
+endstream
+endobj
+xref
+0 16
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000150 00000 n 
+0000000220 00000 n 
+0000000346 00000 n 
+0000001233 00000 n 
+0000001359 00000 n 
+0000002142 00000 n 
+0000002268 00000 n 
+0000003018 00000 n 
+0000003146 00000 n 
+0000003901 00000 n 
+0000004029 00000 n 
+0000004718 00000 n 
+0000004846 00000 n 
+trailer
+<< /Size 16 /Root 1 0 R >>
+startxref
+5638
+%%EOF

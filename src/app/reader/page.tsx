@@ -94,7 +94,7 @@ function ReaderStudio() {
         </label>
       }
     >
-      <div className="flex h-[calc(100dvh-3.5rem)] min-w-0 w-full flex-col overflow-hidden max-md:h-[calc(100dvh-3.5rem-5rem)] max-md:-mb-20">
+      <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden">
         <PdfViewer
           theme={profile.activeConfiguration.theme}
           promptUpload={searchParams.get("upload") === "1"}

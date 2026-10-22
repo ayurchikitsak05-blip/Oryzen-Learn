@@ -156,7 +156,9 @@ export function PdfPageCanvas({
       data-testid={`pdf-mounted-page-${pageNumber}`}
       data-active={isActivePage ? "true" : "false"}
       data-render={renderStatus}
-      className="relative inline-block"
+      data-page-width={renderSize.width || undefined}
+      data-page-height={renderSize.height || undefined}
+      className="relative inline-block max-w-none"
       onClick={(event) => {
         if (!isActivePage || pageChunks.length === 0) return;
         const selection = window.getSelection();

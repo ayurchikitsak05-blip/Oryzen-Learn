@@ -3,7 +3,11 @@ import {
   TEST_ME_QUESTION_COUNT,
   composeDeterministicLensPayload,
   composeRevisionFromMisses,
+  explanationTokenOverlap,
+  explanationsAreDistinct,
   identifyIncorrectAnswers,
+  longestSharedWordRun,
+  parseRectangleMeasures,
   passageDiscussesAyurveda,
   preferTenGroundedMcqs,
   weakConceptsFromMisses,
@@ -132,9 +136,84 @@ describe("deterministic study lenses", () => {
       requestFor("story", PHYSICS_PASSAGE)
     );
     expect(payload.title).toBe("Story Mode");
-    expect(payload.story?.opening).toMatch(/Newton|velocity|force/i);
-    expect(payload.story?.turningPoint.length).toBeGreaterThan(20);
+    expect(payload.story?.opening).toMatch(/puck|ice|bus|student|Leah/i);
+    expect(payload.story?.turningPoint).toMatch(/force|velocity|rough ice/i);
+    expect(payload.story?.close).toMatch(/force sketch|leftover force|velocity/i);
+    const story = `${payload.story?.opening} ${payload.story?.turningPoint} ${payload.story?.close}`;
+    expect(longestSharedWordRun(PHYSICS_PASSAGE, story)).toBeLessThan(10);
     expect(payload.markdown_body).not.toMatch(/Vata|Pitta|Kapha|Ayurveda/i);
+  });
+
+  it("makes Simple, Standard, and Deeper meaningfully different with required sections", () => {
+    const math = composeDeterministicLensPayload(requestFor("explain", MATH_PASSAGE));
+    const explain = math.explain!;
+    expect(explanationsAreDistinct(explain)).toBe(true);
+    expect(explanationTokenOverlap(explain.simpleExplanation, explain.standardExplanation)).toBeLessThan(
+      0.58
+    );
+    expect(explain.simpleExplanation.split(/[.!?]/).filter((part) => part.trim().length > 8).length).toBeGreaterThanOrEqual(
+      2
+    );
+    expect(
+      explain.simpleExplanation
+        .split(/[.!?]/)
+        .filter((part) => part.trim())
+        .every((part) => part.trim().split(/\s+/).length <= 20)
+    ).toBe(true);
+    expect(explain.simpleExplanation).toMatch(/example|8 cm|40/i);
+    expect(explain.standardExplanation).toMatch(/defined|formula|length times width|right angle/i);
+    expect(explain.standardExplanation).toMatch(/worked example|8 .+5|8 cm/i);
+    expect(explain.deeperExplanation).toMatch(/why|grid|multiply/i);
+    expect(explain.deeperExplanation).toMatch(/misconception|common/i);
+    expect(explain.deeperExplanation).toMatch(/self-check/i);
+    expect(explain.simpleExplanation.length).toBeLessThan(explain.standardExplanation.length);
+    expect(explain.standardExplanation.length).toBeLessThan(explain.deeperExplanation.length);
+
+    const physics = composeDeterministicLensPayload(requestFor("explain", PHYSICS_PASSAGE));
+    expect(explanationsAreDistinct(physics.explain!)).toBe(true);
+    expect(physics.explain?.deeperExplanation).toMatch(/inertia|misconception|self-check/i);
+  });
+
+  it("draws a labelled 8 by 5 rectangle instead of a generic keyword graph", () => {
+    expect(parseRectangleMeasures(MATH_PASSAGE)).toEqual({
+      length: 8,
+      width: 5,
+      area: 40,
+      unit: "cm",
+    });
+    const payload = composeDeterministicLensPayload(
+      requestFor("illustrative", MATH_PASSAGE)
+    );
+    const flowchart = payload.illustrative?.flowchart;
+    const concept = payload.illustrative?.conceptDiagram;
+    const mind = payload.illustrative?.mindMap;
+    expect(flowchart?.geometry).toMatchObject({
+      kind: "rectangle",
+      length: 8,
+      width: 5,
+      lengthLabel: "L = 8 cm",
+      widthLabel: "W = 5 cm",
+      areaLabel: "Area = 40 cm²",
+    });
+    expect(concept?.geometry).toEqual(flowchart?.geometry);
+    expect(flowchart?.nodes.some((node) => /8|length/i.test(node.label))).toBe(true);
+    expect(flowchart?.nodes.some((node) => /multiply|×/i.test(node.label))).toBe(true);
+    expect(flowchart?.nodes.some((node) => /40/i.test(node.label))).toBe(true);
+    expect(mind?.nodes[0]?.label).toMatch(/area/i);
+    expect(mind?.nodes.some((node) => /L × W|formula/i.test(node.label))).toBe(true);
+    expect(payload.illustrative?.analogy.mapping).toMatch(/8.+5.+40/);
+    expect(payload.illustrative?.analogy.takeaway).toMatch(/unit squares|edge/i);
+  });
+
+  it("tells an age-appropriate rectangle story that explains area instead of paraphrasing the page", () => {
+    const payload = composeDeterministicLensPayload(requestFor("story", MATH_PASSAGE));
+    const story = `${payload.story?.opening} ${payload.story?.turningPoint} ${payload.story?.close}`;
+    expect(story).toMatch(/notice board|tiles|paper squares|Mina/i);
+    expect(story).toMatch(/8|5|40/);
+    expect(story).toMatch(/multiply|unit squares|area/i);
+    expect(story).not.toMatch(/The area of a rectangle is length times width/i);
+    expect(longestSharedWordRun(MATH_PASSAGE, story)).toBeLessThan(10);
+    expect(story).not.toMatch(/Vata|Pitta|Kapha|Ayurveda/i);
   });
 
   it("can mention Ayurveda when the passage itself does", () => {

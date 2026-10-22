@@ -1,0 +1,61 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [ 4 0 R 6 0 R ] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 432 >>
+stream
+BT
+/F1 14 Tf
+48 742 Td (AREA OF A RECTANGLE) Tj
+/F1 9 Tf
+0 -14 Td (Page 1 of 2  |  ORYZEN Learn sample chapter) Tj
+/F1 11 Tf
+0 -16 Td (The area of a rectangle is length times width. If the length is 8 cm and the) Tj
+0 -16 Td (width is 5 cm, the area is 40 square centimetres. Area counts the unit squares) Tj
+0 -16 Td (that fill the shape. Keep the square unit with the number: 40 cm^2 is not the) Tj
+0 -16 Td (same as 40 cm.) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 306 >>
+stream
+BT
+/F1 14 Tf
+48 742 Td (CHECK THE FORMULA) Tj
+/F1 9 Tf
+0 -14 Td (Page 2 of 2  |  ORYZEN Learn sample chapter) Tj
+/F1 11 Tf
+0 -16 Td (Cover the page and say it: area equals length times width. If the width became) Tj
+0 -16 Td (6 cm and the length stayed 8 cm, the area would be 48 square centimetres.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000123 00000 n 
+0000000193 00000 n 
+0000000319 00000 n 
+0000000802 00000 n 
+0000000928 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1285
+%%EOF

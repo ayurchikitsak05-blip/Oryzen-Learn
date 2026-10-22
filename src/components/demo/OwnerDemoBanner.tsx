@@ -43,7 +43,7 @@ export default function OwnerDemoBanner() {
     <div
       data-testid="owner-demo-banner"
       role="status"
-      className="border-b border-line bg-beige-2 px-4 py-2 text-center text-xs leading-relaxed text-heading md:px-8"
+      className="shrink-0 border-b border-line bg-beige-2 px-3 py-1 text-center text-[11px] leading-snug text-heading md:px-6"
     >
       {localOnly
         ? "LOCAL OWNER DEMO MODE — labeled local fallback only. This does not bypass Production security."

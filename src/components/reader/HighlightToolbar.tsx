@@ -33,6 +33,12 @@ export interface HighlightToolbarProps {
   left?: number;
 }
 
+function chipClass(active: boolean) {
+  return `inline-flex min-h-8 items-center justify-center rounded-lg px-2 text-[11px] font-medium touch-manipulation disabled:opacity-50 ${
+    active ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
+  }`;
+}
+
 export default function HighlightToolbar({
   selectedText,
   pageNumber,
@@ -51,7 +57,8 @@ export default function HighlightToolbar({
   if (!selectedText.trim()) return null;
 
   const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280;
-  const anchor = clampToolbarAnchor(top, left, viewportWidth);
+  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 800;
+  const anchor = clampToolbarAnchor(top, left, viewportWidth, viewportHeight);
   const positioned = Boolean(anchor);
 
   return (
@@ -60,22 +67,17 @@ export default function HighlightToolbar({
       data-testid="multi-lens-highlight-toolbar"
       role="toolbar"
       aria-label="Explore this passage"
-      className={`surface-card z-50 w-[min(24rem,calc(100vw-1rem))] p-2 shadow-[0_16px_40px_-24px_rgba(32,36,43,0.45)] ${
-        positioned
-          ? "fixed max-md:!inset-x-2 max-md:!bottom-[5.25rem] max-md:!top-auto max-md:!left-auto max-md:!w-auto max-md:translate-x-0 max-md:translate-y-0 md:-translate-x-1/2 md:-translate-y-full"
-          : ""
+      className={`surface-card z-50 w-max max-w-[min(22rem,calc(100vw-0.75rem))] px-1.5 py-1 shadow-[0_12px_28px_-20px_rgba(32,36,43,0.4)] ${
+        positioned ? "fixed" : ""
       }`}
-      style={positioned && anchor ? { top: anchor.top, left: anchor.left } : undefined}
+      style={positioned && anchor ? { top: anchor.top, left: anchor.left, transform: "translateX(-50%)" } : undefined}
     >
       <p className="sr-only">
         Page {pageNumber} · {sectionHeading}
       </p>
-      <p className="mb-1.5 px-1 text-[11px] font-medium uppercase tracking-[0.12em] text-muted md:hidden">
-        Study this passage
-      </p>
       <div
         data-testid="highlight-toolbar-primary"
-        className="grid grid-cols-3 gap-1"
+        className="flex max-w-[22rem] flex-wrap items-center justify-center gap-0.5"
       >
         {MULTI_LENS_ACTIONS.map((lens) => {
           const recommended = recommendedLensIds.includes(lens.id);
@@ -85,40 +87,56 @@ export default function HighlightToolbar({
               type="button"
               disabled={loading}
               data-testid={`lens-btn-${lens.id}`}
-              onMouseDown={(event) => event.preventDefault()}
+              onPointerDown={(event) => event.preventDefault()}
               onClick={() => onSelectLens(lens.id)}
-              className={`inline-flex min-h-10 items-center justify-center rounded-xl px-2 text-xs font-medium disabled:opacity-50 ${
-                activeLens === lens.id
-                  ? "bg-selected text-heading"
-                  : "text-ink hover:bg-beige-2"
-              }`}
+              className={chipClass(activeLens === lens.id)}
             >
               {lens.label}
               {recommended ? (
-                <span className="ml-1 hidden text-[10px] text-muted sm:inline">For you</span>
+                <span className="sr-only">Recommended for you</span>
               ) : null}
             </button>
           );
         })}
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-1">
+        {onHighlight ? (
+          <button
+            type="button"
+            data-testid="reader-highlight"
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={onHighlight}
+            className={chipClass(false)}
+          >
+            Highlight
+          </button>
+        ) : null}
+        {onUnderline ? (
+          <button
+            type="button"
+            data-testid="reader-underline"
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={onUnderline}
+            className={chipClass(false)}
+          >
+            Underline
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={loading}
           data-testid="lens-btn-more"
           aria-expanded={moreOpen}
-          onMouseDown={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.preventDefault()}
           onClick={() => setMoreOpen((open) => !open)}
-          className="inline-flex min-h-10 items-center rounded-xl px-3 text-xs font-medium text-ink hover:bg-beige-2"
+          className={chipClass(moreOpen)}
         >
           More
         </button>
         {onClearSelection ? (
           <button
             type="button"
-            onMouseDown={(event) => event.preventDefault()}
+            onPointerDown={(event) => event.preventDefault()}
             onClick={onClearSelection}
-            className="inline-flex min-h-10 items-center rounded-xl px-3 text-xs font-medium text-muted hover:bg-beige-2"
+            className="inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] font-medium text-muted hover:bg-beige-2"
           >
             Clear
           </button>
@@ -127,40 +145,18 @@ export default function HighlightToolbar({
       {moreOpen ? (
         <div
           data-testid="highlight-toolbar-more-panel"
-          className="mt-1 grid grid-cols-2 gap-1 border-t border-line pt-1"
+          className="mt-0.5 border-t border-line pt-0.5"
         >
-          {onHighlight ? (
-            <button
-              type="button"
-              data-testid="reader-highlight"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={onHighlight}
-              className="inline-flex min-h-10 items-center rounded-xl px-3 text-xs font-medium text-ink hover:bg-beige-2"
-            >
-              Highlight
-            </button>
-          ) : null}
-          {onUnderline ? (
-            <button
-              type="button"
-              data-testid="reader-underline"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={onUnderline}
-              className="inline-flex min-h-10 items-center rounded-xl px-3 text-xs font-medium text-ink hover:bg-beige-2"
-            >
-              Underline
-            </button>
-          ) : null}
           <button
             type="button"
             disabled={loading}
             data-testid="lens-btn-ayurvedic"
-            onMouseDown={(event) => event.preventDefault()}
+            onPointerDown={(event) => event.preventDefault()}
             onClick={() => {
               onSelectLens("ayurvedic");
               setMoreOpen(false);
             }}
-            className="col-span-2 inline-flex min-h-10 items-center rounded-xl px-3 text-left text-xs font-medium text-ink hover:bg-beige-2 disabled:opacity-50"
+            className="inline-flex min-h-8 w-full items-center rounded-lg px-2 text-left text-[11px] font-medium text-ink hover:bg-beige-2 disabled:opacity-50"
           >
             Explore My Learning Approach
           </button>

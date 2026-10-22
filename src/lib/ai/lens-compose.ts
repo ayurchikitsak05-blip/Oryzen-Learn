@@ -16,11 +16,25 @@ export interface StudyDiagramEdge {
   label?: string;
 }
 
+export interface StudyRectangleGeometry {
+  kind: "rectangle";
+  length: number;
+  width: number;
+  area: number;
+  lengthLabel: string;
+  widthLabel: string;
+  areaLabel: string;
+  unit: string;
+}
+
+export type StudyGeometry = StudyRectangleGeometry;
+
 export interface StudyDiagram {
   title: string;
   kind?: StudyDiagramKind;
   nodes: StudyDiagramNode[];
   edges: StudyDiagramEdge[];
+  geometry?: StudyGeometry;
 }
 
 export interface ExplainSections {
@@ -260,36 +274,252 @@ function passageDomain(
   return "general";
 }
 
+export function parseRectangleMeasures(text: string): {
+  length: number;
+  width: number;
+  area: number;
+  unit: string;
+} | null {
+  const compact = text.replace(/\s+/g, " ");
+  const lengthMatch = compact.match(/length(?:\s+is)?\s+(\d+(?:\.\d+)?)\s*(cm|mm|m)?/i);
+  const widthMatch = compact.match(/width(?:\s+is)?\s+(\d+(?:\.\d+)?)\s*(cm|mm|m)?/i);
+  const pairMatch = compact.match(
+    /(\d+(?:\.\d+)?)\s*(cm|mm|m)?\s*(?:[×x]|by)\s*(\d+(?:\.\d+)?)\s*(cm|mm|m)?/i
+  );
+  const areaMatch = compact.match(/area(?:\s+is)?\s+(\d+(?:\.\d+)?)/i);
+  const length = lengthMatch
+    ? Number(lengthMatch[1])
+    : pairMatch
+      ? Number(pairMatch[1])
+      : Number.NaN;
+  const width = widthMatch
+    ? Number(widthMatch[1])
+    : pairMatch
+      ? Number(pairMatch[3])
+      : Number.NaN;
+  const unit = lengthMatch?.[2] || widthMatch?.[2] || pairMatch?.[2] || pairMatch?.[4] || "cm";
+  if (!Number.isFinite(length) || !Number.isFinite(width) || length <= 0 || width <= 0) {
+    return null;
+  }
+  const parsedArea = areaMatch ? Number(areaMatch[1]) : Number.NaN;
+  const area = Number.isFinite(parsedArea)
+    ? parsedArea
+    : Number((length * width).toFixed(2));
+  return { length, width, area, unit };
+}
+
+export function rectangleGeometryFromText(text: string): StudyRectangleGeometry | undefined {
+  const measures = parseRectangleMeasures(text);
+  if (!measures) return undefined;
+  return {
+    kind: "rectangle",
+    length: measures.length,
+    width: measures.width,
+    area: measures.area,
+    lengthLabel: `L = ${measures.length} ${measures.unit}`,
+    widthLabel: `W = ${measures.width} ${measures.unit}`,
+    areaLabel: `Area = ${measures.area} ${measures.unit}²`,
+    unit: measures.unit,
+  };
+}
+
+export function explanationTokenOverlap(a: string, b: string): number {
+  const tokenize = (text: string) =>
+    new Set(
+      text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((word) => word.length >= 4)
+    );
+  const left = tokenize(a);
+  const right = tokenize(b);
+  if (left.size === 0 || right.size === 0) return 0;
+  let inter = 0;
+  for (const word of left) {
+    if (right.has(word)) inter += 1;
+  }
+  return inter / new Set([...left, ...right]).size;
+}
+
+export function explanationsAreDistinct(sections: ExplainSections): boolean {
+  const { simpleExplanation, standardExplanation, deeperExplanation } = sections;
+  if (
+    simpleExplanation === standardExplanation ||
+    simpleExplanation === deeperExplanation ||
+    standardExplanation === deeperExplanation
+  ) {
+    return false;
+  }
+  if (
+    standardExplanation.includes(simpleExplanation) ||
+    deeperExplanation.includes(standardExplanation)
+  ) {
+    return false;
+  }
+  if (explanationTokenOverlap(simpleExplanation, standardExplanation) > 0.58) return false;
+  if (explanationTokenOverlap(simpleExplanation, deeperExplanation) > 0.5) return false;
+  if (explanationTokenOverlap(standardExplanation, deeperExplanation) > 0.62) return false;
+  if (simpleExplanation.length + 36 >= standardExplanation.length) return false;
+  if (standardExplanation.length + 36 >= deeperExplanation.length) return false;
+  return true;
+}
+
+export function longestSharedWordRun(source: string, story: string): number {
+  const src = source
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const dst = story
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  let best = 0;
+  for (let i = 0; i < src.length; i += 1) {
+    for (let j = 0; j < dst.length; j += 1) {
+      let n = 0;
+      while (i + n < src.length && j + n < dst.length && src[i + n] === dst[j + n]) {
+        n += 1;
+      }
+      if (n > best) best = n;
+    }
+  }
+  return best;
+}
+
 function buildFlowchart(params: {
+  text: string;
   sentences: string[];
   phrases: string[];
 }): StudyDiagram {
+  const geometry = rectangleGeometryFromText(params.text);
+  if (geometry) {
+    return {
+      title: "Steps to find the area",
+      kind: "flowchart",
+      geometry,
+      nodes: [
+        { id: "length", label: `Measure length ${geometry.lengthLabel}` },
+        { id: "width", label: `Measure width ${geometry.widthLabel}` },
+        { id: "multiply", label: "Multiply L × W" },
+        { id: "area", label: geometry.areaLabel },
+      ],
+      edges: [
+        { from: "length", to: "width", label: "and" },
+        { from: "width", to: "multiply", label: "then" },
+        { from: "multiply", to: "area", label: "gives" },
+      ],
+    };
+  }
+  if (/\bcircuit|current|ampere|coulomb\b/i.test(params.text)) {
+    const amp = params.text.match(/(\d+(?:\.\d+)?)\s*ampere/i);
+    return {
+      title: "How current appears",
+      kind: "flowchart",
+      nodes: [
+        { id: "path", label: "Close the path" },
+        { id: "flow", label: "Electrons can flow" },
+        { id: "current", label: "Call that flow current" },
+        {
+          id: "unit",
+          label: amp
+            ? `${amp[1]} A means ${amp[1]} C each second`
+            : "Measure current in amperes",
+        },
+      ],
+      edges: [
+        { from: "path", to: "flow", label: "then" },
+        { from: "flow", to: "current", label: "called" },
+        { from: "current", to: "unit", label: "unit" },
+      ],
+    };
+  }
+  if (passageDomain(params.text) === "physics") {
+    return {
+      title: "When velocity stays the same",
+      kind: "flowchart",
+      nodes: [
+        { id: "state", label: "Object keeps its velocity" },
+        { id: "unless", label: "Unless a net force acts" },
+        { id: "change", label: "Then velocity can change" },
+        { id: "check", label: "Ask what is pushing or pulling" },
+      ],
+      edges: [
+        { from: "state", to: "unless", label: "condition" },
+        { from: "unless", to: "change", label: "so" },
+        { from: "change", to: "check", label: "check with" },
+      ],
+    };
+  }
   const claim = clipClaim(params.sentences[0] ?? params.phrases[0] ?? "Main idea");
   const support = clipClaim(
     params.sentences[1] ?? params.phrases[1] ?? "Supporting point from the passage"
   );
   const extra = clipClaim(params.sentences[2] ?? params.phrases[2] ?? "Check the claim");
   return {
-    title: "Passage flowchart",
+    title: "How the passage reasons",
     kind: "flowchart",
     nodes: [
-      { id: "idea", label: excerptForDisplay(params.phrases[0] ?? "Core idea", 28) },
+      { id: "start", label: "Read the claim" },
       { id: "claim", label: excerptForDisplay(claim, 42) },
       { id: "support", label: excerptForDisplay(support, 42) },
       { id: "check", label: excerptForDisplay(extra, 36) },
     ],
     edges: [
-      { from: "idea", to: "claim", label: "states" },
-      { from: "claim", to: "support", label: "supported by" },
-      { from: "support", to: "check", label: "then" },
+      { from: "start", to: "claim", label: "states" },
+      { from: "claim", to: "support", label: "because" },
+      { from: "support", to: "check", label: "then check" },
     ],
   };
 }
 
 function buildMindMap(params: {
+  text: string;
   sentences: string[];
   phrases: string[];
 }): StudyDiagram {
+  const geometry = rectangleGeometryFromText(params.text);
+  if (geometry) {
+    return {
+      title: "What belongs with area",
+      kind: "mind_map",
+      geometry,
+      nodes: [
+        { id: "hub", label: "Area of a rectangle" },
+        { id: "b0", label: geometry.lengthLabel },
+        { id: "b1", label: geometry.widthLabel },
+        { id: "b2", label: "Formula L × W" },
+        { id: "b3", label: geometry.areaLabel },
+      ],
+      edges: [
+        { from: "hub", to: "b0", label: "length" },
+        { from: "hub", to: "b1", label: "width" },
+        { from: "hub", to: "b2", label: "rule" },
+        { from: "hub", to: "b3", label: "result" },
+      ],
+    };
+  }
+  if (/\bcircuit|current|ampere|coulomb\b/i.test(params.text)) {
+    return {
+      title: "Current in a circuit",
+      kind: "mind_map",
+      nodes: [
+        { id: "hub", label: "Electric current" },
+        { id: "b0", label: "Closed path" },
+        { id: "b1", label: "Flow of electrons" },
+        { id: "b2", label: "Ampere unit" },
+        { id: "b3", label: "Charge each second" },
+      ],
+      edges: [
+        { from: "hub", to: "b0", label: "needs" },
+        { from: "hub", to: "b1", label: "is" },
+        { from: "hub", to: "b2", label: "measured in" },
+        { from: "hub", to: "b3", label: "means" },
+      ],
+    };
+  }
   const hub = excerptForDisplay(params.phrases[0] ?? "Core idea", 26);
   const branches = uniqueKeep([
     excerptForDisplay(params.sentences[0] ?? "Main claim", 32),
@@ -302,7 +532,7 @@ function buildMindMap(params: {
     ...branches.map((label, index) => ({ id: `b${index}`, label })),
   ];
   return {
-    title: "Passage mind map",
+    title: "How the ideas connect",
     kind: "mind_map",
     nodes,
     edges: branches.map((_, index) => ({
@@ -314,15 +544,52 @@ function buildMindMap(params: {
 }
 
 function buildConceptDiagram(params: {
+  text: string;
   sentences: string[];
   phrases: string[];
 }): StudyDiagram {
+  const geometry = rectangleGeometryFromText(params.text);
+  if (geometry) {
+    return {
+      title: "Labelled rectangle",
+      kind: "concept_diagram",
+      geometry,
+      nodes: [
+        { id: "length", label: geometry.lengthLabel },
+        { id: "width", label: geometry.widthLabel },
+        { id: "formula", label: "Area = L × W" },
+        { id: "area", label: geometry.areaLabel },
+      ],
+      edges: [
+        { from: "length", to: "formula", label: "one side" },
+        { from: "width", to: "formula", label: "other side" },
+        { from: "formula", to: "area", label: "product" },
+      ],
+    };
+  }
+  if (/\bcircuit|current|ampere|coulomb\b/i.test(params.text)) {
+    return {
+      title: "Closed path and current",
+      kind: "concept_diagram",
+      nodes: [
+        { id: "a", label: "Closed loop" },
+        { id: "b", label: "Electron flow" },
+        { id: "c", label: "Current I" },
+        { id: "d", label: "Amperes" },
+      ],
+      edges: [
+        { from: "a", to: "b", label: "allows" },
+        { from: "b", to: "c", label: "is" },
+        { from: "c", to: "d", label: "measured in" },
+      ],
+    };
+  }
   const a = excerptForDisplay(params.phrases[0] ?? "Concept A", 24);
   const b = excerptForDisplay(params.phrases[1] ?? params.sentences[0] ?? "Concept B", 24);
   const c = excerptForDisplay(params.phrases[2] ?? params.sentences[1] ?? "Concept C", 24);
   const d = excerptForDisplay(params.phrases[3] ?? "Outcome", 20);
   return {
-    title: "Concept diagram",
+    title: "Concept relations",
     kind: "concept_diagram",
     nodes: [
       { id: "a", label: a },
@@ -341,39 +608,56 @@ function buildConceptDiagram(params: {
 
 function buildAnalogy(text: string, sentences: string[], phrases: string[]): AnalogySections {
   const domain = passageDomain(text);
-  const claim = clipClaim(sentences[0] ?? text);
+  const geometry = rectangleGeometryFromText(text);
+  if (geometry) {
+    return {
+      setup: `Imagine covering a desk with 1 ${geometry.unit} paper squares.`,
+      mapping: `You need ${geometry.length} squares along one edge and ${geometry.width} along the other. The number of squares is ${geometry.length} × ${geometry.width} = ${geometry.area}.`,
+      takeaway:
+        "Area is the count of unit squares that fill the rectangle, not the walk around the edge.",
+    };
+  }
+  if (/\bcircuit|current|ampere|coulomb\b/i.test(text)) {
+    return {
+      setup: "Think of a single-file line of people walking through a gate.",
+      mapping:
+        "The closed path is the corridor they must stay in. Current is how many people pass the gate each second. An ampere is that count for charge.",
+      takeaway: "No closed path means the line stops, so the current is zero.",
+    };
+  }
   if (domain === "physics") {
     return {
       setup: "Think of a hockey puck on smooth ice.",
-      mapping: `The passage’s “${excerptForDisplay(phrases[0] ?? "object", 28)}” is the puck. “${excerptForDisplay(phrases[1] ?? "net force", 28)}” is a stick or a patch of rough ice.`,
-      takeaway: excerptForDisplay(claim, 180),
+      mapping:
+        "The puck keeps its velocity until a stick or a patch of rough ice adds a net force. The free-body diagram is the list of those real pushes and pulls.",
+      takeaway: "Motion continues by itself. A force is needed to change it, not to keep it.",
     };
   }
   if (domain === "math") {
     return {
       setup: "Think of tiling a tabletop with equal squares.",
-      mapping: `The passage’s “${excerptForDisplay(phrases[0] ?? "area", 28)}” is how many tiles you need. “${excerptForDisplay(phrases[1] ?? "length", 28)}” and width are the two sides you count.`,
-      takeaway: excerptForDisplay(claim, 180),
+      mapping: `The passage’s “${excerptForDisplay(phrases[0] ?? "area", 28)}” is how many tiles you need. Length and width are the two sides you count.`,
+      takeaway: "Multiply the two sides to count the tiles. Do not add them.",
     };
   }
   if (domain === "marketing") {
     return {
       setup: "Think of a shop window that has one promise, then proof, then a door.",
       mapping: `The selected lines ask you to lead with one ${excerptForDisplay(phrases[0] ?? "outcome", 24)}, then show ${excerptForDisplay(phrases[1] ?? "proof", 24)}, then one clear ask.`,
-      takeaway: excerptForDisplay(claim, 180),
+      takeaway: "One promise, then proof, then one door. Extra offers split attention.",
     };
   }
   if (domain === "ayurveda") {
     return {
       setup: "Think of three instruments in one ensemble: each has a job, and the piece holds when they stay in time.",
       mapping: `The passage’s own terms (${phrases.slice(0, 3).join(", ") || "the named energies"}) are those instruments, not a lecture added on top.`,
-      takeaway: excerptForDisplay(claim, 180),
+      takeaway: excerptForDisplay(sentences[0] ?? text, 180),
     };
   }
   return {
     setup: "Think of a claim, the evidence under it, and a check you can say aloud.",
-    mapping: `Here the claim is “${excerptForDisplay(claim, 90)}”. The next line supplies the support you should be able to restate.`,
-    takeaway: excerptForDisplay(sentences[1] ?? claim, 180),
+    mapping: `Here the claim is “${excerptForDisplay(sentences[0] ?? text, 90)}”. The next line supplies the support you should be able to restate.`,
+    takeaway: excerptForDisplay(sentences[1] ?? sentences[0] ?? text, 180),
   };
 }
 
@@ -629,51 +913,85 @@ function buildRevision(request: ComposeLensRequest, sentences: string[], phrases
   };
 }
 
-function classBandSimpleExplanation(claim: string, support: string | null): string {
-  const shortClaim = excerptForDisplay(claim.split(/[,:;]/)[0] ?? claim, 90);
-  if (!support) return `${shortClaim}.`;
-  const shortSupport = excerptForDisplay(support.split(/[,:;]/)[0] ?? support, 90);
-  return `${shortClaim}. Then ${shortSupport}.`;
-}
-
 function buildExplain(request: ComposeLensRequest, sentences: string[], phrases: string[]): ExplainSections {
-  const claim = clipClaim(sentences[0] ?? request.selectedText);
+  const text = request.selectedText;
+  const geometry = rectangleGeometryFromText(text);
+  const domain = passageDomain(text);
+  const claim = clipClaim(sentences[0] ?? text);
   const support = sentences[1] ? clipClaim(sentences[1]) : null;
   const extra = sentences[2] ? clipClaim(sentences[2]) : null;
-  const domain = passageDomain(request.selectedText);
-  const relevantExample =
-    domain === "physics"
-      ? `A free-body sketch starts by asking what is actually pushing or pulling, which is how the passage uses “${excerptForDisplay(phrases[0] ?? "force", 24)}”.`
-      : domain === "math"
-        ? `If one side is the length and the other is the width, multiply those two numbers — that is how the passage finds area.`
-      : domain === "marketing"
-        ? `A landing page that opens with one customer result, then proof, then a single ask, is doing what these lines describe.`
-        : support
-          ? excerptForDisplay(support, 200)
-          : `If you can restate “${excerptForDisplay(claim, 80)}” without looking back, you have the example.`;
-  const simpleExplanation = classBandSimpleExplanation(claim, support);
-  const standardExplanation = [
-    simpleExplanation,
-    support ? `The supporting line to keep is: ${support}` : null,
-    extra ? `A further detail on the page is: ${extra}` : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const deeperExplanation = [
-    standardExplanation,
-    `Words worth marking: ${phrases.slice(0, 3).join(", ") || "the main claim"}.`,
-    `To check yourself, cover the page and say the claim, then the support, then one example that stays inside these lines.`,
-  ].join(" ");
+
+  if (geometry) {
+    return {
+      simpleExplanation: `A rectangle is a four-sided box. Area is the space inside it. Example: an ${geometry.length} ${geometry.unit} by ${geometry.width} ${geometry.unit} card has ${geometry.area} ${geometry.unit}² of space inside.`,
+      standardExplanation: `Area is defined as length times width. Length and width are the two sides that meet at a right angle. Their product counts the unit squares that fill the shape. Worked example: ${geometry.length} ${geometry.unit} × ${geometry.width} ${geometry.unit} = ${geometry.area} ${geometry.unit}².`,
+      deeperExplanation: `Why multiply? Picture a grid of 1 ${geometry.unit} squares. ${geometry.length} squares fit along the length and ${geometry.width} along the width, so you have ${geometry.length} groups of ${geometry.width}, which is ${geometry.area}. You use this whenever you cover a floor, cut paper, or size a field. A common misconception is to add ${geometry.length} + ${geometry.width}; that walk around two sides is not the space inside. Self-check: if the width became ${geometry.width + 1} ${geometry.unit}, what would the area be? Self-check: why must the unit be ${geometry.unit}², not ${geometry.unit}?`,
+      importantConcepts: [
+        "Area = length × width",
+        geometry.lengthLabel,
+        geometry.widthLabel,
+        geometry.areaLabel,
+      ],
+      relevantExample: `Worked numbers from the page: ${geometry.length} × ${geometry.width} = ${geometry.area} ${geometry.unit}².`,
+      keyTakeaway: `Multiply the two sides. For ${geometry.length} by ${geometry.width}, the inside space is ${geometry.area} ${geometry.unit}².`,
+    };
+  }
+
+  if (/\bcircuit|current|ampere|coulomb\b/i.test(text)) {
+    const amp = text.match(/(\d+(?:\.\d+)?)\s*ampere/i)?.[1] ?? "2";
+    return {
+      simpleExplanation: `A circuit is a loop electricity can travel around. Current is how much charge moves past a point. Example: ${amp} amperes means ${amp} coulombs slip past each second.`,
+      standardExplanation: `Current is defined as charge passing a point each second. It needs a closed path; an open switch breaks the loop, so the flow stops. The ampere is that rate. Worked example: a ${amp} A current means ${amp} C of charge pass the meter every second.`,
+      deeperExplanation: `The reasoning is conservation of charge in a single loop: what enters a point must leave it, so the current is the same all the way around. You use this when you wire a torch, a doorbell, or a simple series lab circuit. A common misconception is that current is used up by a bulb. The bulb transfers energy; the charge keeps moving. Self-check: if the path is opened, what happens to the ammeter reading? Self-check: why is the unit C/s the same as an ampere?`,
+      importantConcepts: ["Closed path", "Current as charge per second", "Ampere"],
+      relevantExample: `If ${amp} coulombs pass a point each second, the current is ${amp} A.`,
+      keyTakeaway: "No closed path, no current. The ampere counts charge each second.",
+    };
+  }
+
+  if (domain === "physics") {
+    return {
+      simpleExplanation:
+        "An object keeps going the same way if nothing pushes it. A force can change that. Example: a puck on smooth ice keeps sliding until a stick hits it.",
+      standardExplanation:
+        "Newton's first law says velocity stays constant unless a net force acts. Velocity is speed with a direction. Net force is the leftover push after all pushes and pulls are combined. Worked example: if the pushes cancel, the free-body diagram shows no leftover force, so velocity does not change.",
+      deeperExplanation:
+        "The reasoning is inertia: motion does not need a force to continue, only to change. You use this when you design brakes, seatbelts, or a spacecraft coasting between burns. A common misconception is that a moving object must have a force on it or it would stop. Self-check: if the ice is smoother, does the puck need a bigger force just to keep moving? Self-check: what should the free-body diagram ask first?",
+      importantConcepts: ["Constant velocity", "Net force", "Free-body diagram"],
+      relevantExample:
+        "A free-body sketch starts by asking what is actually pushing or pulling.",
+      keyTakeaway: "Velocity stays the same until a leftover force changes it.",
+    };
+  }
+
+  if (domain === "marketing") {
+    return {
+      simpleExplanation:
+        "Open with one result the customer wants. Then show proof. Example: one metric, then one button.",
+      standardExplanation:
+        "A landing page is defined by a single promise, then evidence, then one ask. The relationship is order: proof sits between the outcome and the button so the ask feels earned. Worked example: “Cut study time by 20%”, then a short testimonial, then one trial button.",
+      deeperExplanation:
+        "The reasoning is limited attention: extra offers compete with the first promise. You use this whenever a page must convert a cold visitor. A common misconception is that more buttons raise conversions. Self-check: if you added a second offer, what would a first-time visitor do? Self-check: can you name the one outcome, the proof, and the one ask from these lines?",
+      importantConcepts: ["One outcome", "Proof", "One ask"],
+      relevantExample:
+        "A page that opens with one customer result, then proof, then a single ask, is doing what these lines describe.",
+      keyTakeaway: "One promise, then proof, then one door.",
+    };
+  }
+
+  const topic = phrases[0] ?? "this idea";
   return {
-    simpleExplanation,
-    standardExplanation,
-    deeperExplanation,
+    simpleExplanation: `This page is about ${topic}. Hold one clear claim. Example: ${excerptForDisplay(claim, 70)}`,
+    standardExplanation: `${topic} is defined by the claim on the page. The next line is the relationship that supports it${support ? `: ${excerptForDisplay(support, 90)}` : ""}. Worked example: restate the claim, then the support, without copying the paragraph.`,
+    deeperExplanation: `The reasoning to keep is why the support belongs with the claim, not only that both appear. You use this whenever you have to explain the idea to someone else. A common misconception is to memorize the wording and skip the link between the lines. Self-check: cover the page and say the claim. Self-check: what would count as a fair example that stays inside these lines?`,
     importantConcepts: uniqueKeep([
       excerptForDisplay(phrases[0] ?? "Main claim", 40),
       excerptForDisplay(phrases[1] ?? support ?? "Support", 40),
       excerptForDisplay(phrases[2] ?? extra ?? "Recall check", 40),
     ]).slice(0, 4),
-    relevantExample,
+    relevantExample: support
+      ? excerptForDisplay(support, 200)
+      : `If you can restate “${excerptForDisplay(claim, 80)}” without looking back, you have the example.`,
     keyTakeaway: extra
       ? excerptForDisplay(extra, 180)
       : `If you can restate that claim in one sentence without looking back, you have the passage.`,
@@ -681,18 +999,58 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
 }
 
 function buildStory(request: ComposeLensRequest, sentences: string[], phrases: string[]): StorySections {
-  const claim = clipClaim(sentences[0] ?? request.selectedText);
-  const support = sentences[1] ? clipClaim(sentences[1]) : null;
-  const extra = sentences[2] ? clipClaim(sentences[2]) : null;
+  const text = request.selectedText;
+  const geometry = rectangleGeometryFromText(text);
+
+  if (geometry) {
+    return {
+      opening: `Mina is covering a classroom notice board with coloured 1 ${geometry.unit} paper squares. The board is a rectangle: ${geometry.length} ${geometry.unit} along the top and ${geometry.width} ${geometry.unit} down the side.`,
+      turningPoint: `She first adds ${geometry.length} and ${geometry.width} and writes ${geometry.length + geometry.width}. That number only walks two edges. Her friend starts tiling: ${geometry.length} squares in the first row, then ${geometry.width} rows.`,
+      close: `Counting the tiles gives ${geometry.area}. Area is the count of unit squares that fill the board, which is why we multiply length by width.`,
+    };
+  }
+
+  if (/\bcircuit|current|ampere|coulomb\b/i.test(text)) {
+    const amp = text.match(/(\d+(?:\.\d+)?)\s*ampere/i)?.[1] ?? "2";
+    return {
+      opening:
+        "Arun’s torch stays dark even though the battery is new. The spring in the tail cap is bent, so the metal path does not complete a loop.",
+      turningPoint:
+        "He straightens the spring. The path closes. Charge can now move through the filament, and the lamp lights.",
+      close: `A meter in that loop would count charge each second. A reading of ${amp} A means ${amp} coulombs pass the meter every second. Current needs a closed path.`,
+    };
+  }
+
+  if (passageDomain(text) === "physics") {
+    return {
+      opening:
+        "Leah sets a hockey puck on smooth ice and gives it one tap. It keeps sliding in a straight line even after she stops touching it.",
+      turningPoint:
+        "A patch of rough ice tugs on the puck. That leftover force is the first thing that changes its velocity. Until then, nothing had to keep pushing.",
+      close:
+        "That is why a force sketch begins by naming the real pushes and pulls. Motion continues by itself. A leftover force is needed to change it.",
+    };
+  }
+
+  if (passageDomain(text) === "marketing") {
+    return {
+      opening:
+        "Two classmates build a study-app page. Maya wants three buttons. Dev wants one sentence about a result the visitor already wants.",
+      turningPoint:
+        "They try Maya’s version first. Visitors stall. They switch: one outcome, a short proof line, then a single trial button.",
+      close:
+        "The second page is easier to finish. Attention holds when the promise, the proof, and the ask stay in that order.",
+    };
+  }
+
   const subject = excerptForDisplay(phrases[0] ?? "this idea", 28);
   return {
-    opening: `Walk through “${subject}” as a short scene instead of a lecture. The page opens with this fact: ${excerptForDisplay(claim, 180)}`,
-    turningPoint: support
-      ? `The turn comes when the passage adds: ${excerptForDisplay(support, 180)}`
-      : `Hold that opening fact and ask what would have to change for it to stop being true.`,
-    close: extra
-      ? `Leave with this: ${excerptForDisplay(extra, 160)} If you can retell the scene in one breath, you have the page.`
-      : `Leave with this: ${excerptForDisplay(claim, 160)} If you can retell it without looking back, you have the page.`,
+    opening: `A student meets “${subject}” as a problem, not as a paragraph to copy. They write one sentence they could teach to a friend.`,
+    turningPoint: sentences[1]
+      ? `The hard part is connecting the next fact — ${excerptForDisplay(sentences[1], 80)} — to that sentence, instead of stacking quotes.`
+      : "The hard part is saying what would have to change for the claim to stop being true.",
+    close:
+      "If they can retell the scene without looking back, they have the idea. Copying the page is not the same as being able to use it.",
   };
 }
 
@@ -803,9 +1161,21 @@ export function composeDeterministicLensPayload(params: {
       };
     }
     case "illustrative": {
-      const flowchart = buildFlowchart({ sentences, phrases });
-      const mindMap = buildMindMap({ sentences, phrases });
-      const conceptDiagram = buildConceptDiagram({ sentences, phrases });
+      const flowchart = buildFlowchart({
+        text: request.selectedText,
+        sentences,
+        phrases,
+      });
+      const mindMap = buildMindMap({
+        text: request.selectedText,
+        sentences,
+        phrases,
+      });
+      const conceptDiagram = buildConceptDiagram({
+        text: request.selectedText,
+        sentences,
+        phrases,
+      });
       const analogy = buildAnalogy(request.selectedText, sentences, phrases);
       return {
         ...base,

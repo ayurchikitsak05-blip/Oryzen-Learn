@@ -86,6 +86,8 @@ export type {
   StudyDiagramEdge,
   StudyDiagramKind,
   StudyDiagramNode,
+  StudyGeometry,
+  StudyRectangleGeometry,
 } from "./lens-compose";
 export type { GeminiErrorClass } from "./gemini-structured";
 export type { AiProvider, GatewayModelId } from "./models";

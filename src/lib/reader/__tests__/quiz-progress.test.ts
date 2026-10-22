@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   formatQuizProgressNote,
   quizProgressId,
-  READER_QUIZ_PROGRESS_KEY,
   readQuizProgress,
   selectionKeyFromText,
   writeQuizProgress,
@@ -10,7 +9,7 @@ import {
 
 describe("reader quiz progress", () => {
   afterEach(() => {
-    window.localStorage.removeItem(READER_QUIZ_PROGRESS_KEY);
+    window.localStorage.clear();
   });
 
   it("saves answers locally and resumes the same selection later", () => {

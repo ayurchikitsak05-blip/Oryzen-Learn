@@ -65,6 +65,7 @@ import { PdfPageCanvas } from "@/components/reader/PdfPageCanvas";
 import { StudyWorkspace } from "@/components/reader/StudyWorkspace";
 import TransformDialog from "@/components/reader/TransformDialog";
 import {
+  DEFAULT_FIT_MODE,
   readLastReaderDocumentId,
   readPersistedReaderView,
   resolveReaderScale,
@@ -72,6 +73,14 @@ import {
   type PageGeometry,
   type ReaderFitMode,
 } from "@/lib/reader/fit";
+import { ANONYMOUS_READER_SCOPE, scopedReaderStorageKey } from "@/lib/reader/local-scope";
+import { fetchSignedInUser } from "@/lib/supabase/session";
+import {
+  SAMPLE_CHAPTER_FILE,
+  SAMPLE_CHAPTER_TITLE,
+  buildRectangleAreaSamplePdf,
+  buildSampleTextbookChapterPdf,
+} from "@/lib/reader/sample-chapter";
 
 function indexPlainPages(
   documentId: string,
@@ -140,8 +149,10 @@ export default function PdfViewer({
   const [activeDoc, setActiveDoc] = useState<LocalPdfDocumentRecord | null>(null);
   const [activePdfBytes, setActivePdfBytes] = useState<Uint8Array | null>(null);
   const [activePage, setActivePage] = useState<number>(initialActivePage);
-  const [fitMode, setFitMode] = useState<ReaderFitMode>("page");
+  const [fitMode, setFitMode] = useState<ReaderFitMode>(DEFAULT_FIT_MODE);
   const [customZoom, setCustomZoom] = useState<number>(DEFAULT_READER_ZOOM);
+  const [readerUserId, setReaderUserId] = useState<string | null>(null);
+  const [scopeReady, setScopeReady] = useState(false);
   const [pageGeometry, setPageGeometry] = useState<PageGeometry | null>(null);
   const [viewportBox, setViewportBox] = useState(() =>
     typeof window === "undefined"
@@ -219,17 +230,44 @@ export default function PdfViewer({
   }, [workspaceOpen]);
 
   useEffect(() => {
+    let active = true;
+    void fetchSignedInUser()
+      .then((user) => {
+        if (!active) return;
+        setReaderUserId(user?.userId ?? ANONYMOUS_READER_SCOPE);
+      })
+      .catch(() => {
+        if (active) setReaderUserId(ANONYMOUS_READER_SCOPE);
+      })
+      .finally(() => {
+        if (active) setScopeReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!scopeReady) return;
     const timer = window.setTimeout(() => {
       try {
-        const raw = window.localStorage.getItem(READER_MARKS_STORAGE_KEY);
+        const raw = window.localStorage.getItem(
+          scopedReaderStorageKey(READER_MARKS_STORAGE_KEY, readerUserId)
+        );
         if (raw) {
           const parsed = JSON.parse(raw) as ReaderTextMark[];
           if (Array.isArray(parsed)) setTextMarks(parsed);
+        } else {
+          setTextMarks([]);
         }
-        const notesRaw = window.localStorage.getItem(READER_NOTES_STORAGE_KEY);
+        const notesRaw = window.localStorage.getItem(
+          scopedReaderStorageKey(READER_NOTES_STORAGE_KEY, readerUserId)
+        );
         if (notesRaw) {
           const parsedNotes = JSON.parse(notesRaw) as ReaderMarginNote[];
           if (Array.isArray(parsedNotes)) setMarginNotes(parsedNotes);
+        } else {
+          setMarginNotes([]);
         }
       } catch {
         // Ignore corrupt mark storage
@@ -238,13 +276,19 @@ export default function PdfViewer({
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [readerUserId, scopeReady]);
 
   useEffect(() => {
-    if (!marksReady) return;
-    window.localStorage.setItem(READER_MARKS_STORAGE_KEY, JSON.stringify(textMarks));
-    window.localStorage.setItem(READER_NOTES_STORAGE_KEY, JSON.stringify(marginNotes));
-  }, [textMarks, marginNotes, marksReady]);
+    if (!marksReady || !scopeReady) return;
+    window.localStorage.setItem(
+      scopedReaderStorageKey(READER_MARKS_STORAGE_KEY, readerUserId),
+      JSON.stringify(textMarks)
+    );
+    window.localStorage.setItem(
+      scopedReaderStorageKey(READER_NOTES_STORAGE_KEY, readerUserId),
+      JSON.stringify(marginNotes)
+    );
+  }, [textMarks, marginNotes, marksReady, readerUserId, scopeReady]);
 
   useEffect(() => {
     if (!promptUpload) return;
@@ -300,6 +344,7 @@ export default function PdfViewer({
   };
 
   useEffect(() => {
+    if (!scopeReady) return;
     let active = true;
     async function bootstrapLocalLibrary() {
       const existing = await listLocalPdfDocuments();
@@ -365,13 +410,34 @@ export default function PdfViewer({
         "CHECK | Cover the formula and say it: area equals length times width.",
       ];
       if (![...titles].some((title) => title.includes("rectangle") || title.includes("area"))) {
-        const mathBytes = buildEmbeddedAyurvedaSamplePdf(mathLines);
+        const mathBytes = buildRectangleAreaSamplePdf();
         const indexed = indexPlainPages("area-of-a-rectangle", mathLines);
         await saveLocalPdfDocument({
           title: "Area of a Rectangle",
-          fileName: "area-of-a-rectangle.pdf",
+          fileName: "mathematics-rectangle-area.pdf",
           pdfBytes: mathBytes,
           pageCount: indexed.pageCount,
+          chapters: indexed.chapters,
+          chunks: indexed.chunks,
+        });
+      }
+
+      if (![...titles].some((title) => title.includes("work and energy") || title.includes("sample chapter"))) {
+        const chapterBytes = buildSampleTextbookChapterPdf();
+        const chapterLines = [
+          "CHAPTER 6 WORK AND ENERGY | In physics, work is done only when a force moves an object along a path. The formula is W = F x d. Worked example: 10 N through 3 m is 30 J.",
+          "6.2 DIRECTION OF THE FORCE | Only the part of the force along the displacement counts as work.",
+          "6.3 KINETIC ENERGY | Kinetic energy is the energy of motion. KE = (1/2) m v^2.",
+          "6.4 POTENTIAL ENERGY | Gravitational potential energy is PE = m g h.",
+          "6.5 POWER | Power is how quickly work is done. P = W / t.",
+          "6.6 CHAPTER REVIEW | Hold W = F x d, KE = (1/2) m v^2, PE = m g h, and P = W / t.",
+        ];
+        const indexed = indexPlainPages("work-and-energy-chapter", chapterLines);
+        await saveLocalPdfDocument({
+          title: SAMPLE_CHAPTER_TITLE,
+          fileName: SAMPLE_CHAPTER_FILE,
+          pdfBytes: chapterBytes,
+          pageCount: Math.max(indexed.pageCount, 6),
           chapters: indexed.chapters,
           chunks: indexed.chunks,
         });
@@ -380,7 +446,7 @@ export default function PdfViewer({
       const allDocs = await listLocalPdfDocuments();
       if (!active || allDocs.length === 0) return;
       setDocuments(allDocs);
-      const lastId = readLastReaderDocumentId();
+      const lastId = readLastReaderDocumentId(readerUserId);
       let chosen =
         (lastId ? allDocs.find((doc) => doc.id === lastId) : undefined) ??
         allDocs[0];
@@ -395,10 +461,11 @@ export default function PdfViewer({
           }
         }
       }
-      const persisted = readPersistedReaderView(chosen.id);
+      const persisted = readPersistedReaderView(chosen.id, readerUserId);
       setActiveDoc(chosen);
       setActivePage(persisted?.page || chosen.lastReadPage || 1);
       if (persisted?.fitMode) setFitMode(persisted.fitMode);
+      else setFitMode(DEFAULT_FIT_MODE);
       if (persisted?.zoom) setCustomZoom(persisted.zoom);
       if (bytes && active) setActivePdfBytes(bytes);
     }
@@ -414,7 +481,7 @@ export default function PdfViewer({
     return () => {
       active = false;
     };
-  }, []);
+  }, [readerUserId, scopeReady]);
 
   const totalPages = activeDoc?.pageCount ?? 1;
   const ramWindowPages = useMemo(
@@ -424,13 +491,17 @@ export default function PdfViewer({
 
   useEffect(() => {
     if (!activeDoc) return;
-    writePersistedReaderView(activeDoc.id, {
-      page: activePage,
-      zoom: customZoom,
-      fitMode,
-      progress: totalPages > 0 ? activePage / totalPages : 0,
-    });
-  }, [activeDoc, activePage, customZoom, fitMode, totalPages]);
+    writePersistedReaderView(
+      activeDoc.id,
+      {
+        page: activePage,
+        zoom: customZoom,
+        fitMode,
+        progress: totalPages > 0 ? activePage / totalPages : 0,
+      },
+      readerUserId
+    );
+  }, [activeDoc, activePage, customZoom, fitMode, totalPages, readerUserId]);
 
   const handleGoToPage = async (nextPage: number) => {
     const clamped = Math.min(Math.max(1, nextPage), totalPages);
@@ -469,7 +540,7 @@ export default function PdfViewer({
       setActivePdfBytes(bytes);
       setActivePage(1);
       setSelectedChunk(null);
-      setFitMode("page");
+      setFitMode(DEFAULT_FIT_MODE);
       if (indexed.parseError) {
         setUploadStatus(indexed.parseError);
       } else {
@@ -655,7 +726,12 @@ export default function PdfViewer({
       }
       setAiResult(data);
       if (lens === "test_me") {
-        const saved = readQuizProgress(activeDoc.id, chunk.page_number, selected);
+        const saved = readQuizProgress(
+          activeDoc.id,
+          chunk.page_number,
+          selected,
+          readerUserId
+        );
         if (saved) setSelectedMcqOptions(saved.answers);
       }
       if (lens === "save_passage") {
@@ -706,10 +782,12 @@ export default function PdfViewer({
     <div
       ref={workspaceRootRef}
       data-testid="pdf-reading-canvas"
+      data-fit-mode={fitMode}
+      data-page-scale={zoomScale}
       className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-canvas"
     >
-      <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-1 border-b border-line px-2 py-1.5">
-        <label className="btn-secondary cursor-pointer px-3 text-xs">
+      <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1">
+        <label className="btn-secondary cursor-pointer px-2.5 py-1 text-[11px]">
           <FileUp className="h-4 w-4" />
           Open
           <input
@@ -729,9 +807,9 @@ export default function PdfViewer({
               if (!next) return;
               void (async () => {
                 setActiveDoc(next);
-                const persisted = readPersistedReaderView(next.id);
+                const persisted = readPersistedReaderView(next.id, readerUserId);
                 setActivePage(persisted?.page || next.lastReadPage || 1);
-                setFitMode(persisted?.fitMode ?? "page");
+                setFitMode(persisted?.fitMode ?? DEFAULT_FIT_MODE);
                 setSelectedChunk(null);
                 setAiResult(null);
                 setWorkspaceOpen(false);
@@ -739,7 +817,7 @@ export default function PdfViewer({
                 if (bytes) setActivePdfBytes(bytes);
               })();
             }}
-            className="field-input max-w-[12rem] cursor-pointer py-1 text-xs"
+            className="field-input max-w-[11rem] cursor-pointer py-0.5 text-[11px]"
           >
             {documents.map((doc) => (
               <option key={doc.id} value={doc.id}>
@@ -748,16 +826,16 @@ export default function PdfViewer({
             ))}
           </select>
         ) : null}
-        <button type="button" onClick={() => setContentsOpen(true)} className="btn-ghost px-3 text-xs">
+        <button type="button" onClick={() => setContentsOpen(true)} className="btn-ghost px-2 text-[11px]">
           Contents
         </button>
-        <button type="button" onClick={() => setGridOpen(true)} className="btn-ghost px-3 text-xs">
+        <button type="button" onClick={() => setGridOpen(true)} className="btn-ghost px-2 text-[11px]">
           Pages
         </button>
         <button
           type="button"
           onClick={() => setAnnotationsOpen(true)}
-          className="btn-ghost px-3 text-xs"
+          className="btn-ghost px-2 text-[11px]"
         >
           Notes
         </button>
@@ -765,11 +843,11 @@ export default function PdfViewer({
           type="button"
           data-testid="transform-open"
           onClick={() => setTransformOpen(true)}
-          className="btn-ghost px-3 text-xs"
+          className="btn-ghost px-2 text-[11px]"
         >
           Transform
         </button>
-        <Link href="/vaults" className="btn-ghost px-3 text-xs">
+        <Link href="/vaults" className="btn-ghost px-2 text-[11px]">
           Ask My Book
         </Link>
         <button
@@ -777,11 +855,11 @@ export default function PdfViewer({
           aria-label="Previous Page"
           disabled={activePage <= 1}
           onClick={() => handleGoToPage(activePage - 1)}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading disabled:opacity-40"
+          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading disabled:opacity-40"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <div className="min-w-[3.5rem] text-center text-xs font-medium text-muted">
+        <div className="min-w-[3.25rem] text-center text-[11px] font-medium text-muted">
           {activePage} / {totalPages}
           <span data-testid="ram-window-indicator" className="sr-only">
             Pages {ramWindowPages.join("–")}
@@ -792,7 +870,7 @@ export default function PdfViewer({
           aria-label="Next Page"
           disabled={activePage >= totalPages}
           onClick={() => handleGoToPage(activePage + 1)}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading disabled:opacity-40"
+          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading disabled:opacity-40"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
@@ -801,7 +879,7 @@ export default function PdfViewer({
           data-testid="fit-page-btn"
           aria-pressed={fitMode === "page"}
           onClick={() => setFitMode("page")}
-          className={`inline-flex min-h-10 items-center rounded-xl px-3 text-xs ${
+          className={`inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] ${
             fitMode === "page" ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
           }`}
         >
@@ -812,7 +890,7 @@ export default function PdfViewer({
           data-testid="fit-width-btn"
           aria-pressed={fitMode === "width"}
           onClick={() => setFitMode("width")}
-          className={`inline-flex min-h-10 items-center rounded-xl px-3 text-xs ${
+          className={`inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] ${
             fitMode === "width" ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
           }`}
         >
@@ -824,7 +902,7 @@ export default function PdfViewer({
             setFitMode("custom");
             setCustomZoom((z) => clampReaderZoom(z - 0.15));
           }}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading"
+          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading"
         >
           <ZoomOut className="h-4 w-4" />
         </button>
@@ -835,7 +913,7 @@ export default function PdfViewer({
             setFitMode("custom");
             setCustomZoom((z) => clampReaderZoom(z + 0.15));
           }}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading"
+          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading"
         >
           <ZoomIn className="h-4 w-4" />
         </button>
@@ -843,7 +921,7 @@ export default function PdfViewer({
           type="button"
           data-testid="reader-fullscreen-btn"
           onClick={() => void toggleFullscreen()}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-heading"
+          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading"
           aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
         >
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -867,7 +945,10 @@ export default function PdfViewer({
           }}
           className="relative min-w-0 flex-1 overflow-auto"
         >
-          <div className="flex min-h-full w-full items-center justify-center p-4 md:p-6">
+          <div
+            data-testid="pdf-page-stage"
+            className="flex min-h-full w-full items-start justify-center p-1 md:p-1.5"
+          >
             {!activePdfBytes ? (
               <p className="text-sm text-muted" data-testid="pdf-empty-state">
                 Open a document to start reading.
@@ -949,16 +1030,19 @@ export default function PdfViewer({
                 const weakConcepts = weakConceptsFromMisses(misses);
                 const completed =
                   Object.keys(next).length === aiResult.payload.mcqs.length;
-                const progress = writeQuizProgress({
-                  documentId: activeDoc.id,
-                  documentTitle: activeDoc.title,
-                  pageNumber: selectedChunk.page_number,
-                  selectionKey: selectionKeyFromText(selected),
-                  answers: next,
-                  weakConcepts,
-                  completed,
-                  updatedAt: new Date().toISOString(),
-                });
+                const progress = writeQuizProgress(
+                  {
+                    documentId: activeDoc.id,
+                    documentTitle: activeDoc.title,
+                    pageNumber: selectedChunk.page_number,
+                    selectionKey: selectionKeyFromText(selected),
+                    answers: next,
+                    weakConcepts,
+                    completed,
+                    updatedAt: new Date().toISOString(),
+                  },
+                  readerUserId
+                );
                 if (completed) {
                   void persistQuizProgressNote(progress).then((saved) => {
                     setNotebookStatus(

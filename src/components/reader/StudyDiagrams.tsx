@@ -1,7 +1,75 @@
 "use client";
 
 import React from "react";
-import type { StudyDiagram } from "@/lib/ai/lens-compose";
+import type { StudyDiagram, StudyRectangleGeometry } from "@/lib/ai/lens-compose";
+
+export function RectangleGeometrySvg({
+  geometry,
+}: {
+  geometry: StudyRectangleGeometry;
+}) {
+  const maxW = 280;
+  const maxH = 150;
+  const aspect = geometry.length / Math.max(0.25, geometry.width);
+  let w = maxW;
+  let h = w / aspect;
+  if (h > maxH) {
+    h = maxH;
+    w = h * aspect;
+  }
+  const left = 36;
+  const top = 28;
+  const svgW = left + w + 88;
+  const svgH = top + h + 36;
+
+  return (
+    <div
+      data-testid="study-rectangle-geometry"
+      className="overflow-x-auto rounded-2xl border border-line bg-surface p-3"
+      role="img"
+      aria-label={`${geometry.lengthLabel}, ${geometry.widthLabel}, ${geometry.areaLabel}`}
+    >
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} className="h-48 w-full min-w-[16rem]">
+        <rect
+          x={left}
+          y={top}
+          width={w}
+          height={h}
+          rx={4}
+          fill="var(--selected)"
+          stroke="var(--beige-primary)"
+          strokeWidth="2"
+        />
+        <text
+          x={left + w / 2}
+          y={top - 8}
+          textAnchor="middle"
+          fontSize="12"
+          fill="var(--heading)"
+        >
+          {geometry.lengthLabel}
+        </text>
+        <text
+          x={left + w + 8}
+          y={top + h / 2}
+          fontSize="12"
+          fill="var(--heading)"
+        >
+          {geometry.widthLabel}
+        </text>
+        <text
+          x={left + w / 2}
+          y={top + h / 2 + 4}
+          textAnchor="middle"
+          fontSize="13"
+          fill="var(--heading)"
+        >
+          {geometry.areaLabel}
+        </text>
+      </svg>
+    </div>
+  );
+}
 
 function wrapLabel(label: string, maxChars = 16, maxLines = 2): string[] {
   const words = label.split(/\s+/).filter(Boolean);
@@ -38,7 +106,9 @@ function ArrowMarker({ id }: { id: string }) {
 
 export function FlowchartSvg({ diagram }: { diagram: StudyDiagram }) {
   const nodes = diagram.nodes.slice(0, 6);
-  if (nodes.length === 0) return null;
+  if (nodes.length === 0 && !diagram.geometry) return null;
+  const geometry =
+    diagram.geometry?.kind === "rectangle" ? diagram.geometry : undefined;
   const width = Math.max(320, nodes.length * 168);
   const height = 188;
   const boxWidth = 138;
@@ -49,10 +119,12 @@ export function FlowchartSvg({ diagram }: { diagram: StudyDiagram }) {
   return (
     <div
       data-testid="study-flowchart"
-      className="overflow-x-auto rounded-2xl border border-line bg-surface p-3"
+      className="space-y-2 overflow-x-auto rounded-2xl border border-line bg-surface p-3"
       role="img"
       aria-label={diagram.title}
     >
+      {geometry ? <RectangleGeometrySvg geometry={geometry} /> : null}
+      {nodes.length > 0 ? (
       <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full min-w-[18rem]">
         <defs>
           <ArrowMarker id="flow-arrow" />
@@ -114,6 +186,7 @@ export function FlowchartSvg({ diagram }: { diagram: StudyDiagram }) {
           );
         })}
       </svg>
+      ) : null}
     </div>
   );
 }
@@ -209,7 +282,9 @@ export function MindMapSvg({ diagram }: { diagram: StudyDiagram }) {
 
 export function ConceptDiagramSvg({ diagram }: { diagram: StudyDiagram }) {
   const nodes = diagram.nodes.slice(0, 4);
-  if (nodes.length === 0) return null;
+  const geometry =
+    diagram.geometry?.kind === "rectangle" ? diagram.geometry : undefined;
+  if (nodes.length === 0 && !geometry) return null;
   const width = 480;
   const height = 260;
   const slots = [
@@ -225,10 +300,11 @@ export function ConceptDiagramSvg({ diagram }: { diagram: StudyDiagram }) {
   return (
     <div
       data-testid="study-concept-diagram"
-      className="overflow-x-auto rounded-2xl border border-line bg-surface p-3"
+      className="space-y-2 overflow-x-auto rounded-2xl border border-line bg-surface p-3"
       role="img"
       aria-label={diagram.title}
     >
+      {geometry ? <RectangleGeometrySvg geometry={geometry} /> : null}
       <svg viewBox={`0 0 ${width} ${height}`} className="h-60 w-full min-w-[18rem]">
         <defs>
           <ArrowMarker id="concept-arrow" />
