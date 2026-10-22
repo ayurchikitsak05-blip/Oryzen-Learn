@@ -93,6 +93,7 @@ export function withTimeout<T>(promise: Promise<T>, ms: number, label: string): 
 }
 
 export const READER_VIEW_STORAGE_KEY = "oryzen_reader_view_v1";
+export const READER_LAST_DOCUMENT_KEY = "oryzen_reader_last_document_v1";
 
 export interface PersistedReaderView {
   page: number;
@@ -130,6 +131,28 @@ export function writePersistedReaderView(
       : {};
     parsed[documentId] = view;
     window.localStorage.setItem(READER_VIEW_STORAGE_KEY, JSON.stringify(parsed));
+    writeLastReaderDocumentId(documentId);
+  } catch {
+    // Ignore quota / private-mode failures
+  }
+}
+
+export function readLastReaderDocumentId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const value = window.localStorage.getItem(READER_LAST_DOCUMENT_KEY)?.trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeLastReaderDocumentId(documentId: string): void {
+  if (typeof window === "undefined") return;
+  const id = documentId.trim();
+  if (!id) return;
+  try {
+    window.localStorage.setItem(READER_LAST_DOCUMENT_KEY, id);
   } catch {
     // Ignore quota / private-mode failures
   }

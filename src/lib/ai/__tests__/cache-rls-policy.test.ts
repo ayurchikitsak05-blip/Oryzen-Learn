@@ -56,6 +56,32 @@ ORDER BY cache_key;
     .filter(Boolean);
 }
 
+const INSERT_CHECK = `(
+  owner_user_id = :uid
+  AND (
+    (cache_scope = 'private' AND tenant_id IS NULL)
+    OR (
+      cache_scope = 'institute_authorized'
+      AND tenant_id IS NOT NULL
+      AND tenant_id = :org
+    )
+  )
+)`;
+
+function canInsert(row: {
+  cache_scope: string;
+  owner_user_id: string | null;
+  tenant_id: string | null;
+}, uid: string, org: string): boolean {
+  const ownerOk = row.owner_user_id === uid;
+  const privateOk = row.cache_scope === "private" && row.tenant_id === null;
+  const instituteOk =
+    row.cache_scope === "institute_authorized" &&
+    row.tenant_id !== null &&
+    row.tenant_id === org;
+  return ownerOk && (privateOk || instituteOk);
+}
+
 describe("pending ai_response_cache RLS (local sqlite mock)", () => {
   it("keeps private notes and uploads off unauthorized users and institutes", () => {
     expect(queryVisible("user-a", "org-north")).toEqual(["inst-north", "priv-a"]);
@@ -64,9 +90,34 @@ describe("pending ai_response_cache RLS (local sqlite mock)", () => {
     expect(queryVisible("user-c", "org-south")).toEqual([]);
   });
 
+  it("rejects inserts that impersonate another owner or a foreign institute", () => {
+    expect(
+      canInsert({ cache_scope: "private", owner_user_id: "user-a", tenant_id: null }, "user-a", "org-north")
+    ).toBe(true);
+    expect(
+      canInsert({ cache_scope: "private", owner_user_id: "user-a", tenant_id: null }, "user-b", "org-south")
+    ).toBe(false);
+    expect(
+      canInsert(
+        { cache_scope: "institute_authorized", owner_user_id: "user-c", tenant_id: "org-north" },
+        "user-c",
+        "org-south"
+      )
+    ).toBe(false);
+    expect(
+      canInsert(
+        { cache_scope: "institute_authorized", owner_user_id: "user-a", tenant_id: "org-north" },
+        "user-a",
+        "org-north"
+      )
+    ).toBe(true);
+  });
+
   it("documents the current USING(true) leak versus the pending predicate", () => {
     expect(POLICY_WHERE).toContain("owner_user_id = :uid");
     expect(POLICY_WHERE).toContain("tenant_id = :org");
     expect(POLICY_WHERE).not.toContain("USING (true)");
+    expect(INSERT_CHECK).toContain("owner_user_id = :uid");
+    expect(INSERT_CHECK).toContain("tenant_id = :org");
   });
 });

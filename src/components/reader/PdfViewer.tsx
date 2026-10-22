@@ -65,6 +65,7 @@ import { PdfPageCanvas } from "@/components/reader/PdfPageCanvas";
 import { StudyWorkspace } from "@/components/reader/StudyWorkspace";
 import TransformDialog from "@/components/reader/TransformDialog";
 import {
+  readLastReaderDocumentId,
   readPersistedReaderView,
   resolveReaderScale,
   writePersistedReaderView,
@@ -142,7 +143,14 @@ export default function PdfViewer({
   const [fitMode, setFitMode] = useState<ReaderFitMode>("page");
   const [customZoom, setCustomZoom] = useState<number>(DEFAULT_READER_ZOOM);
   const [pageGeometry, setPageGeometry] = useState<PageGeometry | null>(null);
-  const [viewportBox, setViewportBox] = useState({ width: 800, height: 900 });
+  const [viewportBox, setViewportBox] = useState(() =>
+    typeof window === "undefined"
+      ? { width: 800, height: 900 }
+      : {
+          width: Math.max(280, window.innerWidth),
+          height: Math.max(320, window.innerHeight - 120),
+        }
+  );
   const [selectedChunk, setSelectedChunk] = useState<CitationReadyChunk | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
@@ -372,7 +380,10 @@ export default function PdfViewer({
       const allDocs = await listLocalPdfDocuments();
       if (!active || allDocs.length === 0) return;
       setDocuments(allDocs);
-      let chosen = allDocs[0];
+      const lastId = readLastReaderDocumentId();
+      let chosen =
+        (lastId ? allDocs.find((doc) => doc.id === lastId) : undefined) ??
+        allDocs[0];
       let bytes = await getLocalPdfBinary(chosen.id);
       if (!bytes) {
         for (const doc of allDocs.slice(1)) {
@@ -695,9 +706,9 @@ export default function PdfViewer({
     <div
       ref={workspaceRootRef}
       data-testid="pdf-reading-canvas"
-      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-canvas"
+      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-canvas"
     >
-      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line px-2 py-1.5">
+      <div className="flex w-full min-w-0 shrink-0 items-center gap-1 overflow-x-auto border-b border-line px-2 py-1.5">
         <label className="btn-secondary cursor-pointer px-3 text-xs">
           <FileUp className="h-4 w-4" />
           Open
@@ -846,7 +857,7 @@ export default function PdfViewer({
         </p>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div
           ref={canvasHostRef}
           onTouchStart={handleTouchStart}

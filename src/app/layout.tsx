@@ -29,7 +29,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${playfair.variable}`}>
       <body
         suppressHydrationWarning
-        className="min-h-screen bg-canvas font-sans text-ink antialiased selection:bg-selected selection:text-heading"
+        className="min-h-screen overflow-x-hidden bg-canvas font-sans text-ink antialiased selection:bg-selected selection:text-heading"
       >
         {children}
       </body>

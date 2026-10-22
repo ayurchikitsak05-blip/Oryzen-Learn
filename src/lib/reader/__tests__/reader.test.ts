@@ -102,6 +102,23 @@ describe("Layer 2: Tablet-First PDF Engine & Local-First Storage Pipeline", () =
         progress: 0.5,
       });
     });
+
+    it("remembers the last opened document so refresh does not jump to the sample library", async () => {
+      const {
+        writeLastReaderDocumentId,
+        readLastReaderDocumentId,
+        writePersistedReaderView,
+      } = await import("../fit");
+      writeLastReaderDocumentId("phase2c-circuit");
+      expect(readLastReaderDocumentId()).toBe("phase2c-circuit");
+      writePersistedReaderView("uploaded-science", {
+        page: 1,
+        zoom: 1,
+        fitMode: "page",
+        progress: 1,
+      });
+      expect(readLastReaderDocumentId()).toBe("uploaded-science");
+    });
   });
 
   describe("2. SHA-256 Hashing & Duplicate Detection (hashing.ts)", () => {

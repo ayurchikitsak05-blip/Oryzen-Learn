@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Highlighter, X } from "lucide-react";
+import { Highlighter } from "lucide-react";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 import {
   LENS_FEEDBACK_ACTIONS,
@@ -75,7 +75,7 @@ export function StudyWorkspace({
           type="button"
           data-testid="back-to-reading"
           onClick={onClose}
-          className="btn-secondary text-xs"
+          className="btn-secondary relative z-20 shrink-0 text-xs"
         >
           Back to Reading
         </button>
@@ -166,14 +166,6 @@ export function StudyWorkspace({
   if (isMobile) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col bg-canvas">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-3 top-3 z-10 inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-muted hover:bg-beige-2"
-          aria-label="Close study response"
-        >
-          <X className="h-4 w-4" />
-        </button>
         {body}
       </div>
     );

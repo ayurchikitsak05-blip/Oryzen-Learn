@@ -37,10 +37,10 @@ export default function AppChrome({
   const showAppNav = nav === "app";
 
   return (
-    <div className={`min-h-screen bg-canvas text-ink ${showAppNav ? "pb-20 md:pb-0" : ""}`}>
+    <div className={`min-h-screen overflow-x-hidden bg-canvas text-ink ${showAppNav ? "pb-20 md:pb-0" : ""}`}>
       <header className="sticky top-0 z-30 border-b border-line bg-canvas/92 backdrop-blur-md">
         <div
-          className={`mx-auto flex h-14 items-center justify-between gap-3 px-4 md:px-8 ${maxWidthClass}`}
+          className={`mx-auto flex h-14 min-w-0 items-center justify-between gap-3 px-4 md:px-8 ${maxWidthClass}`}
         >
           <OryzenLearnBrand subtitle={subtitle} />
           {showAppNav ? (
