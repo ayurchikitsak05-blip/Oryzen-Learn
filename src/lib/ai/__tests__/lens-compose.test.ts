@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  TEST_ME_QUESTION_COUNT,
   composeDeterministicLensPayload,
+  composeRevisionFromMisses,
+  identifyIncorrectAnswers,
   passageDiscussesAyurveda,
+  preferTenGroundedMcqs,
+  weakConceptsFromMisses,
 } from "../lens-compose";
 
 const PHYSICS_PASSAGE =
   "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law, and it is the reason a free-body diagram starts by asking what is actually pushing or pulling.";
+
+const MATH_PASSAGE =
+  "The area of a rectangle is length times width. If the length is 8 cm and the width is 5 cm, the area is 40 square centimetres.";
 
 const AYURVEDA_PASSAGE =
   "Vata, Pitta, and Kapha are three study energies. Balance supports clear grasping in any subject.";
@@ -72,14 +80,39 @@ describe("deterministic study lenses", () => {
     expect(payload.revision?.memoryAid).not.toMatch(/Vata|Pitta|Kapha|Dosha|Ayurveda/i);
   });
 
-  it("grounds Test Me answers in the selected passage", () => {
+  it("grounds ten Test Me answers in the selected science passage", () => {
     const payload = composeDeterministicLensPayload(
       requestFor("test_me", PHYSICS_PASSAGE)
     );
-    expect(payload.mcqs?.length).toBeGreaterThan(0);
+    expect(payload.mcqs).toHaveLength(TEST_ME_QUESTION_COUNT);
     expect(payload.mcqs?.[0].options[0]).toMatch(/velocity|Newton|force/i);
     expect(payload.mcqs?.[0].explanation).toMatch(/passage/i);
+    expect(payload.mcqs?.every((item) => item.citationLabel === "[Page 13]")).toBe(true);
+    expect(payload.mcqs?.every((item) => /velocity|Newton|force|object|diagram/i.test(JSON.stringify(item)))).toBe(true);
     expect(payload.short_answers?.[0].prompt).toMatch(/velocity|Newton|force|free-body|idea/i);
+  });
+
+  it("grounds ten math questions and rolls misses into a revision sheet", () => {
+    const payload = composeDeterministicLensPayload(
+      requestFor("test_me", MATH_PASSAGE)
+    );
+    expect(payload.mcqs).toHaveLength(10);
+    expect(payload.mcqs?.[0].options[0]).toMatch(/area|length|width|40/i);
+    expect(JSON.stringify(payload.mcqs)).not.toMatch(/Vata|Pitta|Kapha|Ayurveda/i);
+    const wrongAll = Object.fromEntries(
+      (payload.mcqs ?? []).map((_, index) => [index, 1])
+    );
+    const misses = identifyIncorrectAnswers(payload.mcqs ?? [], wrongAll);
+    expect(misses).toHaveLength(10);
+    const weak = weakConceptsFromMisses(misses);
+    expect(weak.length).toBeGreaterThan(0);
+    const revision = composeRevisionFromMisses({
+      selectedText: MATH_PASSAGE,
+      misses,
+    });
+    expect(revision.quickSummary).toMatch(/missed|area|width|length/i);
+    expect(revision.revisionTable.some((row) => /area|width|length|rectangle/i.test(row.topic + row.remember))).toBe(true);
+    expect(preferTenGroundedMcqs(payload.mcqs?.slice(0, 2), payload.mcqs)).toHaveLength(10);
   });
 
   it("explains the passage without reprinting the whole source", () => {
@@ -87,7 +120,8 @@ describe("deterministic study lenses", () => {
       requestFor("explain", PHYSICS_PASSAGE)
     );
     expect(payload.title).toBe("Explain This Passage");
-    expect(payload.explain?.simpleExplanation).toMatch(/Newton|velocity|force/i);
+    expect(payload.explain?.simpleExplanation).toMatch(/Newton|velocity|force|object/i);
+    expect(payload.explain?.simpleExplanation.split(".").filter(Boolean).length).toBeLessThanOrEqual(3);
     expect(payload.explain?.keyTakeaway.length).toBeGreaterThan(20);
     expect(payload.markdown_body).toMatch(/Newton|velocity|force/i);
     expect(payload.markdown_body).not.toContain(PHYSICS_PASSAGE);

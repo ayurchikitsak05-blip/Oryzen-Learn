@@ -25,6 +25,7 @@ import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
 import { computeSha256Hex } from "@/lib/reader/hashing";
 import {
   composeDeterministicLensPayload,
+  preferTenGroundedMcqs,
   type AnalogySections,
   type ExplainSections,
   type IllustrativeBundle,
@@ -123,6 +124,7 @@ export interface TestMeMcqItem {
   correctIndex: number;
   explanation: string;
   citationLabel: string;
+  concept?: string;
 }
 
 export interface AiLensResponsePayload {
@@ -827,7 +829,10 @@ export async function executeControlledAiGateway(
           generatedPayload = {
             ...fallbackPayload,
             ...customResult.payload,
-            mcqs: customResult.payload.mcqs ?? fallbackPayload.mcqs,
+            mcqs: preferTenGroundedMcqs(
+              customResult.payload.mcqs,
+              fallbackPayload.mcqs
+            ),
             short_answers:
               customResult.payload.short_answers ?? fallbackPayload.short_answers,
             diagram: customResult.payload.diagram ?? fallbackPayload.diagram,
@@ -880,7 +885,11 @@ export async function executeControlledAiGateway(
           consumeReservation(decision.reservation, attemptCost);
           lastClass = modeled.errorClass ?? "unknown";
           if (modeled.errorClass === null) {
-            generatedPayload = modeled.payload;
+            generatedPayload = {
+              ...modeled.payload,
+              mcqs: preferTenGroundedMcqs(modeled.payload.mcqs, fallbackPayload.mcqs),
+              revision: modeled.payload.revision ?? fallbackPayload.revision,
+            };
             usedDeterministicFallback = false;
             usedProviderFallback = index > 0;
             fallbackReason = null;

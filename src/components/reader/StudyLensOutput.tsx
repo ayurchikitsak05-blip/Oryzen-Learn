@@ -1,7 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
+import {
+  composeRevisionFromMisses,
+  identifyIncorrectAnswers,
+  weakConceptsFromMisses,
+} from "@/lib/ai/lens-compose";
 import type { HighlightLensType } from "@/lib/prakriti/config";
 import { ConceptDiagramSvg, FlowchartSvg, MindMapSvg } from "@/components/reader/StudyDiagrams";
 import { StudyMarkdown } from "@/components/reader/StudyMarkdown";
@@ -66,7 +71,12 @@ function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
               ? "Deeper explanation"
               : "Standard explanation"}
         </SectionTitle>
-        <p className="mt-2 text-sm leading-relaxed text-ink">{explanation}</p>
+        <p
+          className="mt-2 text-sm leading-relaxed text-ink"
+          data-testid={depth === "simple" ? "explain-class-band" : undefined}
+        >
+          {explanation}
+        </p>
       </section>
       <section>
         <SectionTitle>Important concepts</SectionTitle>
@@ -245,19 +255,39 @@ function ReviseOutput({ result }: { result: AiGatewayExecutionResult }) {
 function TestMeOutput({
   result,
   selectedMcqOptions,
+  selectedText,
   onPickMcq,
 }: {
   result: AiGatewayExecutionResult;
   selectedMcqOptions: Record<number, number>;
+  selectedText?: string;
   onPickMcq: (questionIndex: number, optionIndex: number) => void;
 }) {
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const mcqs = result.payload.mcqs ?? [];
+  const answered = mcqs.filter((_, idx) => selectedMcqOptions[idx] !== undefined).length;
+  const allAnswered = mcqs.length > 0 && answered === mcqs.length;
+  const misses = useMemo(
+    () => identifyIncorrectAnswers(mcqs, selectedMcqOptions),
+    [mcqs, selectedMcqOptions]
+  );
+  const weakConcepts = useMemo(() => weakConceptsFromMisses(misses), [misses]);
+  const missRevision = useMemo(() => {
+    if (!allAnswered) return null;
+    return composeRevisionFromMisses({
+      selectedText: selectedText || result.payload.markdown_body,
+      misses,
+    });
+  }, [allAnswered, misses, result.payload.markdown_body, selectedText]);
 
   return (
     <div data-testid="test-me-quiz" className="space-y-4">
       <p className="text-sm leading-relaxed text-ink">
-        Answer from the selected passage only.
+        Answer all {mcqs.length || 10} questions from the selected passage only.
+      </p>
+      <p data-testid="test-me-progress" className="text-xs text-muted">
+        {answered} of {mcqs.length} answered
       </p>
       {result.payload.mcqs?.map((mcq, idx) => (
         <div key={idx} className="space-y-2">
@@ -320,6 +350,51 @@ function TestMeOutput({
           ) : null}
         </div>
       ))}
+      {allAnswered ? (
+        <div data-testid="test-me-review" className="space-y-3 border-t border-line pt-3">
+          <h4 className="font-display text-sm text-heading">Incorrect answers</h4>
+          {misses.length === 0 ? (
+            <p className="text-sm leading-relaxed text-ink">
+              Every answer stayed inside the selected passage.
+            </p>
+          ) : (
+            <ul
+              data-testid="incorrect-answers"
+              className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink"
+            >
+              {misses.map((miss) => (
+                <li key={miss.questionIndex}>
+                  Q{miss.questionIndex + 1}: {miss.question}
+                </li>
+              ))}
+            </ul>
+          )}
+          <h4 className="font-display text-sm text-heading">Weak concepts</h4>
+          <ul
+            data-testid="weak-concepts"
+            className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink"
+          >
+            {(weakConcepts.length > 0 ? weakConcepts : ["none — keep the same claims"]).map(
+              (concept) => (
+                <li key={concept}>{concept}</li>
+              )
+            )}
+          </ul>
+          {missRevision ? (
+            <div data-testid="miss-revision">
+              <h4 className="mb-2 font-display text-sm text-heading">
+                Revision for missed ideas
+              </h4>
+              <ReviseOutput
+                result={{
+                  ...result,
+                  payload: { ...result.payload, revision: missRevision },
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -328,11 +403,13 @@ export function StudyLensOutput({
   result,
   lens,
   selectedMcqOptions,
+  selectedText,
   onPickMcq,
 }: {
   result: AiGatewayExecutionResult;
   lens: HighlightLensType | null;
   selectedMcqOptions: Record<number, number>;
+  selectedText?: string;
   onPickMcq: (questionIndex: number, optionIndex: number) => void;
 }) {
   const resolved = lens ?? (result.payload.lens_type === "deep_integrative_synthesis"
@@ -347,6 +424,7 @@ export function StudyLensOutput({
       <TestMeOutput
         result={result}
         selectedMcqOptions={selectedMcqOptions}
+        selectedText={selectedText}
         onPickMcq={onPickMcq}
       />
     );

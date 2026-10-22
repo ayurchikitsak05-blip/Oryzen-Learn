@@ -20,8 +20,8 @@ import {
 import {
   extractDocumentCitationIndex,
   type CitationReadyChunk,
-  type RawPdfTextItem,
 } from "@/lib/reader/extractor";
+import { parseAndIndexUploadedPdf } from "@/lib/reader/document-parser";
 import {
   buildEmbeddedAyurvedaSamplePdf,
   getLocalPdfBinary,
@@ -49,15 +49,24 @@ import type {
   AiGatewayExecutionResult,
   InlineCitationCoordinate,
 } from "@/lib/ai/gateway";
-import { excerptForDisplay } from "@/lib/ai/lens-compose";
+import {
+  excerptForDisplay,
+  identifyIncorrectAnswers,
+  weakConceptsFromMisses,
+} from "@/lib/ai/lens-compose";
 import { savePassageEntry } from "@/lib/ai/passage-store";
+import {
+  persistQuizProgressNote,
+  readQuizProgress,
+  writeQuizProgress,
+  selectionKeyFromText,
+} from "@/lib/reader/quiz-progress";
 import { PdfPageCanvas } from "@/components/reader/PdfPageCanvas";
 import { StudyWorkspace } from "@/components/reader/StudyWorkspace";
 import TransformDialog from "@/components/reader/TransformDialog";
 import {
   readPersistedReaderView,
   resolveReaderScale,
-  withTimeout,
   writePersistedReaderView,
   type PageGeometry,
   type ReaderFitMode,
@@ -282,95 +291,6 @@ export default function PdfViewer({
     ]);
   };
 
-  const parseAndIndexPdfBytes = useCallback(
-    async (
-      bytes: Uint8Array,
-      docIdHint: string
-    ): Promise<{
-      pageCount: number;
-      chapters: Array<{ title: string; pageNumber: number }>;
-      chunks: CitationReadyChunk[];
-    }> => {
-      try {
-        const { ensurePdfWorkerConfigured } = await import("@/lib/reader/pdf-worker");
-        await withTimeout(ensurePdfWorkerConfigured(), 2500, "pdf worker");
-        const pdfjs = await withTimeout(import("pdfjs-dist"), 2500, "pdfjs import");
-        const copy = new Uint8Array(bytes.byteLength);
-        copy.set(bytes);
-        const loadingTask = pdfjs.getDocument({ data: copy });
-        const pdfDoc = await withTimeout(loadingTask.promise, 4000, "pdf document");
-        const numPages = pdfDoc.numPages;
-        const rawPages: Array<{ pageNumber: number; items: RawPdfTextItem[] }> = [];
-        for (let p = 1; p <= numPages; p++) {
-          const page = await pdfDoc.getPage(p);
-          const textContent = await page.getTextContent();
-          const rawItems: RawPdfTextItem[] = textContent.items
-            .filter(
-              (
-                item
-              ): item is typeof item & {
-                str: string;
-                transform: number[];
-                width?: number;
-                height?: number;
-              } => "str" in item && "transform" in item
-            )
-            .map((item) => ({
-              str: item.str,
-              transform: item.transform,
-              width: item.width,
-              height: item.height,
-            }));
-          rawPages.push({ pageNumber: p, items: rawItems });
-        }
-        await loadingTask.destroy();
-        const indexed = extractDocumentCitationIndex({
-          documentId: docIdHint,
-          pages: rawPages,
-        });
-        if (indexed.chunks.length > 0) {
-          return {
-            pageCount: numPages,
-            chapters: indexed.chapters,
-            chunks: indexed.chunks,
-          };
-        }
-      } catch {
-        // Fallback parser below
-      }
-
-      const fallbackPages = [
-        {
-          pageNumber: 1,
-          items: [
-            {
-              str: "CHAPTER 1: ENERGY AND CONSTITUTION",
-              transform: [16, 0, 0, 16, 48, 710],
-              width: 420,
-              height: 16,
-            },
-            {
-              str: "Vata, Pitta, and Kapha are three study energies. Balance supports clear grasping (Dhee), steady focus (Dhriti), and reliable recall (Smriti) in any subject.",
-              transform: [12, 0, 0, 12, 48, 660],
-              width: 480,
-              height: 12,
-            },
-          ],
-        },
-      ];
-      const indexed = extractDocumentCitationIndex({
-        documentId: docIdHint,
-        pages: fallbackPages,
-      });
-      return {
-        pageCount: fallbackPages.length,
-        chapters: indexed.chapters,
-        chunks: indexed.chunks,
-      };
-    },
-    []
-  );
-
   useEffect(() => {
     let active = true;
     async function bootstrapLocalLibrary() {
@@ -431,6 +351,24 @@ export default function PdfViewer({
         });
       }
 
+      const mathLines = [
+        "AREA OF A RECTANGLE | The area of a rectangle is length times width. If the length is 8 cm and the width is 5 cm, the area is 40 square centimetres.",
+        "UNITS | Keep the units with the number. 40 square centimetres is not the same as 40 centimetres.",
+        "CHECK | Cover the formula and say it: area equals length times width.",
+      ];
+      if (![...titles].some((title) => title.includes("rectangle") || title.includes("area"))) {
+        const mathBytes = buildEmbeddedAyurvedaSamplePdf(mathLines);
+        const indexed = indexPlainPages("area-of-a-rectangle", mathLines);
+        await saveLocalPdfDocument({
+          title: "Area of a Rectangle",
+          fileName: "area-of-a-rectangle.pdf",
+          pdfBytes: mathBytes,
+          pageCount: indexed.pageCount,
+          chapters: indexed.chapters,
+          chunks: indexed.chunks,
+        });
+      }
+
       const allDocs = await listLocalPdfDocuments();
       if (!active || allDocs.length === 0) return;
       setDocuments(allDocs);
@@ -465,7 +403,7 @@ export default function PdfViewer({
     return () => {
       active = false;
     };
-  }, [parseAndIndexPdfBytes]);
+  }, []);
 
   const totalPages = activeDoc?.pageCount ?? 1;
   const ramWindowPages = useMemo(
@@ -501,9 +439,13 @@ export default function PdfViewer({
     try {
       const buffer = await file.arrayBuffer();
       const bytes = new Uint8Array(buffer);
-      const indexed = await parseAndIndexPdfBytes(bytes, file.name.replace(/\.pdf$/i, ""));
+      const title = file.name.replace(/\.pdf$/i, "");
+      const indexed = await parseAndIndexUploadedPdf({
+        bytes,
+        documentId: title,
+      });
       const result = await saveLocalPdfDocument({
-        title: file.name.replace(/\.pdf$/i, ""),
+        title,
         fileName: file.name,
         pdfBytes: bytes,
         pageCount: indexed.pageCount,
@@ -517,11 +459,15 @@ export default function PdfViewer({
       setActivePage(1);
       setSelectedChunk(null);
       setFitMode("page");
-      setUploadStatus(
-        result.isDuplicate
-          ? "This document is already in your library."
-          : `“${result.document.title}” is ready to read.`
-      );
+      if (indexed.parseError) {
+        setUploadStatus(indexed.parseError);
+      } else {
+        setUploadStatus(
+          result.isDuplicate
+            ? "This document is already in your library."
+            : `“${result.document.title}” is ready to read.`
+        );
+      }
     } catch {
       setUploadStatus("We couldn't upload this file. Please check the format and try again.");
     }
@@ -697,6 +643,10 @@ export default function PdfViewer({
         return;
       }
       setAiResult(data);
+      if (lens === "test_me") {
+        const saved = readQuizProgress(activeDoc.id, chunk.page_number, selected);
+        if (saved) setSelectedMcqOptions(saved.answers);
+      }
       if (lens === "save_passage") {
         try {
           await persistSavedPassage(
@@ -978,9 +928,41 @@ export default function PdfViewer({
           result={aiResult}
           lens={activeLens}
           selectedMcqOptions={selectedMcqOptions}
-          onPickMcq={(questionIndex, optionIndex) =>
-            setSelectedMcqOptions((current) => ({ ...current, [questionIndex]: optionIndex }))
-          }
+          selectedText={lensText?.trim() || selectedChunk?.text}
+          onPickMcq={(questionIndex, optionIndex) => {
+            setSelectedMcqOptions((current) => {
+              const next = { ...current, [questionIndex]: optionIndex };
+              if (activeDoc && selectedChunk && aiResult?.payload.mcqs) {
+                const selected = (lensText?.trim() || selectedChunk.text).trim();
+                const misses = identifyIncorrectAnswers(aiResult.payload.mcqs, next);
+                const weakConcepts = weakConceptsFromMisses(misses);
+                const completed =
+                  Object.keys(next).length === aiResult.payload.mcqs.length;
+                const progress = writeQuizProgress({
+                  documentId: activeDoc.id,
+                  documentTitle: activeDoc.title,
+                  pageNumber: selectedChunk.page_number,
+                  selectionKey: selectionKeyFromText(selected),
+                  answers: next,
+                  weakConcepts,
+                  completed,
+                  updatedAt: new Date().toISOString(),
+                });
+                if (completed) {
+                  void persistQuizProgressNote(progress).then((saved) => {
+                    setNotebookStatus(
+                      saved.notebook === "saved"
+                        ? "Quiz progress saved to My Notebook."
+                        : saved.notebook === "device_only"
+                          ? "Quiz progress saved on this device. Sign in to keep it in My Notebook."
+                          : "Quiz progress saved on this device."
+                    );
+                  });
+                }
+              }
+              return next;
+            });
+          }}
           onRetry={() => {
             if (activeLens && selectedChunk) void handleTriggerLens(activeLens, selectedChunk);
           }}

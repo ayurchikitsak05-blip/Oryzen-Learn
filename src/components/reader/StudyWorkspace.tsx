@@ -23,6 +23,7 @@ export function StudyWorkspace({
   result,
   lens,
   selectedMcqOptions,
+  selectedText,
   onPickMcq,
   onRetry,
   onClose,
@@ -37,6 +38,7 @@ export function StudyWorkspace({
   result: AiGatewayExecutionResult | null;
   lens: HighlightLensType | null;
   selectedMcqOptions: Record<number, number>;
+  selectedText?: string;
   onPickMcq: (questionIndex: number, optionIndex: number) => void;
   onRetry: () => void;
   onClose: () => void;
@@ -146,6 +148,7 @@ export function StudyWorkspace({
               result={result}
               lens={lens}
               selectedMcqOptions={selectedMcqOptions}
+              selectedText={selectedText}
               onPickMcq={onPickMcq}
             />
             {lens && lens !== "save_passage" ? (

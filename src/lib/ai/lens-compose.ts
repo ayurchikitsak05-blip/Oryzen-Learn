@@ -84,7 +84,17 @@ export interface ComposedMcqItem {
   correctIndex: number;
   explanation: string;
   citationLabel: string;
+  concept?: string;
 }
+
+export interface QuizMiss {
+  questionIndex: number;
+  concept: string;
+  question: string;
+  explanation: string;
+}
+
+export const TEST_ME_QUESTION_COUNT = 10;
 
 export interface ComposedLensPayload {
   lens_type: ComposeTaskType;
@@ -118,6 +128,9 @@ const AYURVEDA_SIGNAL =
 
 const PHYSICS_SIGNAL =
   /\b(newton|velocity|force|inertia|momentum|acceleration|mass|gravity|energy|watt|joule|ampere|circuit|atom|electron|photon|wave|optics|thermodynamic)\b/i;
+
+const MATH_SIGNAL =
+  /\b(area|rectangle|triangle|equation|algebra|fraction|multiply|product|sum|cm|square|length|width|radius|perimeter|percent)\b/i;
 
 const MARKETING_SIGNAL =
   /\b(landing page|campaign|customer|call to action|cta|brand|funnel|conversion|marketing|audience|proof|outcome)\b/i;
@@ -237,9 +250,12 @@ function clipClaim(sentence: string): string {
   return sentence.replace(/^["“]+|["”]+$/g, "").replace(/\s+/g, " ").trim();
 }
 
-function passageDomain(text: string): "ayurveda" | "physics" | "marketing" | "general" {
+function passageDomain(
+  text: string
+): "ayurveda" | "physics" | "math" | "marketing" | "general" {
   if (passageDiscussesAyurveda(text)) return "ayurveda";
   if (PHYSICS_SIGNAL.test(text)) return "physics";
+  if (MATH_SIGNAL.test(text)) return "math";
   if (MARKETING_SIGNAL.test(text)) return "marketing";
   return "general";
 }
@@ -333,6 +349,13 @@ function buildAnalogy(text: string, sentences: string[], phrases: string[]): Ana
       takeaway: excerptForDisplay(claim, 180),
     };
   }
+  if (domain === "math") {
+    return {
+      setup: "Think of tiling a tabletop with equal squares.",
+      mapping: `The passage’s “${excerptForDisplay(phrases[0] ?? "area", 28)}” is how many tiles you need. “${excerptForDisplay(phrases[1] ?? "length", 28)}” and width are the two sides you count.`,
+      takeaway: excerptForDisplay(claim, 180),
+    };
+  }
   if (domain === "marketing") {
     return {
       setup: "Think of a shop window that has one promise, then proof, then a door.",
@@ -354,40 +377,189 @@ function buildAnalogy(text: string, sentences: string[], phrases: string[]): Ana
   };
 }
 
+const OUTSIDE_DISTRACTORS = [
+  "A formula or date that is not mentioned on this page.",
+  "An author biography that the passage never gives.",
+  "A conclusion the writer explicitly says is out of scope.",
+  "The passage says students should skip this idea and move on.",
+  "The passage only names a heading and gives no explanation.",
+  "The passage states that this point is unsolved and should be ignored.",
+  "A later chapter result that these selected lines do not give.",
+  "A definition copied from a different subject.",
+  "A numerical answer that does not appear in the selection.",
+  "A claim the writer marks as optional extra reading.",
+] as const;
+
+function clipOption(text: string): string {
+  return text.length > 110 ? `${text.slice(0, 107).trim()}…` : text;
+}
+
+function groundedOptions(correct: string, salt: number): [string, string, string, string] {
+  const first = OUTSIDE_DISTRACTORS[salt % OUTSIDE_DISTRACTORS.length];
+  const second = OUTSIDE_DISTRACTORS[(salt + 3) % OUTSIDE_DISTRACTORS.length];
+  const third = OUTSIDE_DISTRACTORS[(salt + 7) % OUTSIDE_DISTRACTORS.length];
+  return [clipOption(correct), first, second, third];
+}
+
 function groundedMcqs(text: string, pageNumber: number): ComposedMcqItem[] {
   const sentences = splitPassageSentences(text);
-  const claim = clipClaim(sentences[0] ?? text.trim());
-  const support = clipClaim(sentences[1] ?? claim);
-  const phrase = extractKeyPhrases(text, 1)[0] ?? "this idea";
+  const phrases = extractKeyPhrases(text, 8);
+  const units = sentences.length > 0 ? sentences.map(clipClaim) : [clipClaim(text.trim())];
   const citationLabel = `[Page ${pageNumber}]`;
 
-  const first: ComposedMcqItem = {
-    question: `According to the selected passage, which statement is grounded in the text?`,
-    options: [
-      claim.length > 110 ? `${claim.slice(0, 107).trim()}…` : claim,
-      "The passage says students should skip this idea and move on.",
-      "The passage only names a heading and gives no explanation.",
-      "The passage states that this point is unsolved and should be ignored.",
-    ],
-    correctIndex: 0,
-    explanation: `The passage itself states: “${excerptForDisplay(claim, 180)}”`,
-    citationLabel,
-  };
+  const builders: Array<(unit: string, phrase: string, index: number) => Omit<ComposedMcqItem, "options" | "correctIndex" | "citationLabel">> = [
+    (unit, phrase) => ({
+      question: `According to the selected passage, which statement is grounded in the text?`,
+      explanation: `The passage itself states: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `What should you be able to recall about “${phrase}” after reading this passage?`,
+      explanation: `Stay inside the selected lines. A faithful recall is: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `Which wording about “${phrase}” stays inside the selected lines?`,
+      explanation: `Only this wording is on the page: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `The passage’s own support for “${phrase}” is closest to which line?`,
+      explanation: `The selected text supports this as: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `Which self-check for “${phrase}” uses only this passage?`,
+      explanation: `A fair check uses the page’s own line: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `After this passage, which claim about “${phrase}” is fair?`,
+      explanation: `The selected lines allow this claim: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `Which example would still be faithful to the selected text on “${phrase}”?`,
+      explanation: `A faithful example stays with: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `Which of these is from the page, not added from outside, about “${phrase}”?`,
+      explanation: `This is on the page: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `What follows the opening idea when the passage discusses “${phrase}”?`,
+      explanation: `The selected continuation is: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+    (unit, phrase) => ({
+      question: `Which recall of “${phrase}” would an exam marker accept from these lines alone?`,
+      explanation: `The marker can accept: “${excerptForDisplay(unit, 180)}”`,
+      concept: phrase,
+    }),
+  ];
 
-  const second: ComposedMcqItem = {
-    question: `What should you be able to recall about “${phrase}” after reading this passage?`,
-    options: [
-      support.length > 110 ? `${support.slice(0, 107).trim()}…` : support,
-      "A formula or date that is not mentioned on this page.",
-      "An author biography that the passage never gives.",
-      "A conclusion the writer explicitly says is out of scope.",
-    ],
-    correctIndex: 0,
-    explanation: `Stay inside the selected lines. A faithful recall is: “${excerptForDisplay(support, 180)}”`,
-    citationLabel,
-  };
+  return Array.from({ length: TEST_ME_QUESTION_COUNT }, (_, index) => {
+    const unit = units[index % units.length] ?? clipClaim(text);
+    const phrase =
+      phrases[index % Math.max(1, phrases.length)] ??
+      extractKeyPhrases(unit, 1)[0] ??
+      "this idea";
+    const built = builders[index]!(unit, phrase, index);
+    return {
+      ...built,
+      options: groundedOptions(unit, index),
+      correctIndex: 0,
+      citationLabel,
+    };
+  });
+}
 
-  return sentences.length > 1 ? [first, second] : [first];
+export function identifyIncorrectAnswers(
+  mcqs: ComposedMcqItem[],
+  answers: Record<number, number>
+): QuizMiss[] {
+  return mcqs.flatMap((mcq, index) => {
+    const picked = answers[index];
+    if (picked === undefined || picked === mcq.correctIndex) return [];
+    return [
+      {
+        questionIndex: index,
+        concept:
+          mcq.concept ||
+          extractKeyPhrases(mcq.options[mcq.correctIndex] ?? "", 1)[0] ||
+          "this idea",
+        question: mcq.question,
+        explanation: mcq.explanation,
+      },
+    ];
+  });
+}
+
+export function weakConceptsFromMisses(misses: QuizMiss[]): string[] {
+  return uniqueKeep(misses.map((miss) => miss.concept)).slice(0, 8);
+}
+
+export function composeRevisionFromMisses(params: {
+  selectedText: string;
+  misses: QuizMiss[];
+}): RevisionSections {
+  const sentences = splitPassageSentences(params.selectedText);
+  const weak = weakConceptsFromMisses(params.misses);
+  const phrases = weak.length > 0 ? weak : extractKeyPhrases(params.selectedText);
+  const base = buildRevision(
+    {
+      documentId: "local-quiz",
+      pageNumber: 1,
+      sectionHeading: "Missed concepts",
+      selectedText: params.selectedText,
+      lensType: "high_yield_revision",
+    },
+    sentences,
+    phrases
+  );
+  if (weak.length === 0) {
+    return {
+      ...base,
+      quickSummary: "You answered every question from the passage. Keep the same claims for revision.",
+    };
+  }
+  return {
+    ...base,
+    quickSummary: `Revise the ideas you missed: ${weak.join(", ")}. Stay inside the selected lines.`,
+    keyPoints: weak.map((concept) => {
+      const hit =
+        sentences.find((sentence) =>
+          sentence.toLowerCase().includes(concept.toLowerCase())
+        ) ??
+        sentences[0] ??
+        params.selectedText;
+      return `${concept}: ${excerptForDisplay(hit, 140)}`;
+    }),
+    revisionTable: weak.map((concept) => ({
+      topic: concept,
+      remember: excerptForDisplay(
+        sentences.find((sentence) =>
+          sentence.toLowerCase().includes(concept.toLowerCase())
+        ) ?? params.selectedText,
+        140
+      ),
+    })),
+    examPractice: weak.map(
+      (concept) => `Cover the page and say what the passage claims about ${concept}.`
+    ),
+  };
+}
+
+export function preferTenGroundedMcqs(
+  modelMcqs: ComposedMcqItem[] | undefined,
+  fallbackMcqs: ComposedMcqItem[] | undefined
+): ComposedMcqItem[] | undefined {
+  if (modelMcqs && modelMcqs.length >= TEST_ME_QUESTION_COUNT) {
+    return modelMcqs.slice(0, TEST_ME_QUESTION_COUNT);
+  }
+  return fallbackMcqs;
 }
 
 function learningApproachBody(
@@ -457,6 +629,13 @@ function buildRevision(request: ComposeLensRequest, sentences: string[], phrases
   };
 }
 
+function classBandSimpleExplanation(claim: string, support: string | null): string {
+  const shortClaim = excerptForDisplay(claim.split(/[,:;]/)[0] ?? claim, 90);
+  if (!support) return `${shortClaim}.`;
+  const shortSupport = excerptForDisplay(support.split(/[,:;]/)[0] ?? support, 90);
+  return `${shortClaim}. Then ${shortSupport}.`;
+}
+
 function buildExplain(request: ComposeLensRequest, sentences: string[], phrases: string[]): ExplainSections {
   const claim = clipClaim(sentences[0] ?? request.selectedText);
   const support = sentences[1] ? clipClaim(sentences[1]) : null;
@@ -465,14 +644,14 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
   const relevantExample =
     domain === "physics"
       ? `A free-body sketch starts by asking what is actually pushing or pulling, which is how the passage uses “${excerptForDisplay(phrases[0] ?? "force", 24)}”.`
+      : domain === "math"
+        ? `If one side is the length and the other is the width, multiply those two numbers — that is how the passage finds area.`
       : domain === "marketing"
         ? `A landing page that opens with one customer result, then proof, then a single ask, is doing what these lines describe.`
         : support
           ? excerptForDisplay(support, 200)
           : `If you can restate “${excerptForDisplay(claim, 80)}” without looking back, you have the example.`;
-  const simpleExplanation = support
-    ? `This passage is making a concrete point: ${claim} It then develops that point: ${support}`
-    : `This passage is making a concrete point: ${claim}`;
+  const simpleExplanation = classBandSimpleExplanation(claim, support);
   const standardExplanation = [
     simpleExplanation,
     support ? `The supporting line to keep is: ${support}` : null,
@@ -671,17 +850,19 @@ export function composeDeterministicLensPayload(params: {
     case "test_me": {
       const mcqs = groundedMcqs(request.selectedText, request.pageNumber);
       const shortAnswers = groundedShortAnswers(request.selectedText, phrases);
+      const revision = buildRevision(request, sentences, phrases);
       return {
         ...base,
         lens_type: "test_me",
         title: "Test Me",
         markdown_body: [
           `### Check yourself`,
-          `Answer from the selected passage only. Guessing beyond these lines is not useful.`,
+          `Answer all ${TEST_ME_QUESTION_COUNT} questions from the selected passage only.`,
         ].join("\n"),
         key_points: mcqs.map((item) => item.question),
         mcqs,
         short_answers: shortAnswers,
+        revision,
       };
     }
     case "story": {

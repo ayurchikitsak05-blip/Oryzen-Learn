@@ -428,6 +428,29 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       expect(result.costInr).toBe(0);
     });
 
+    it("still returns ten grounded MCQs when the wallet is exhausted", async () => {
+      setLocalWalletSpendForUser("quiz-user", "2026-10", 70);
+      const fetchImpl = vi.fn();
+      const result = await executeControlledAiGateway({
+        userId: "quiz-user",
+        billingMonth: "2026-10",
+        documentId: "newton-first-law",
+        documentHash: "doc-newton",
+        pageNumber: 1,
+        sectionHeading: "NEWTON'S FIRST LAW",
+        selectedText:
+          "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law.",
+        lensType: "test_me",
+        walletCapInr: 70,
+        fetchImpl,
+      });
+      expect(result.budgetBlocked).toBe(true);
+      expect(result.usedDeterministicFallback).toBe(true);
+      expect(result.payload.mcqs).toHaveLength(10);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(result.payload.mcqs?.[0].options[0]).toMatch(/velocity|Newton|force/i);
+    });
+
     it("integrates with Supabase `ai_response_cache` and `ai_usage_logs` tables when client is provided", async () => {
       const insertedUsageLogs: Array<Record<string, unknown>> = [];
       let cachedRow: {
