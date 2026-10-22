@@ -4,6 +4,7 @@ import React, { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Smartphone, Tablet } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
+import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { tabClass, ui } from "@/components/ui/classes";
 import { createClient } from "@/lib/supabase/client";
 import { detectDeviceCategory } from "@/lib/supabase/device-lock";
@@ -264,7 +265,12 @@ function AuthScreen() {
   const heading = mode === "sign_up" ? "Create account" : "Sign in";
 
   return (
-    <AppChrome nav="marketing" subtitle="Your personal learning environment" maxWidthClass="max-w-lg">
+    <AppChrome
+      nav="marketing"
+      subtitle="Your personal learning environment"
+      maxWidthClass="max-w-lg"
+      actions={<StudyRhythmButton label="Rhythm" />}
+    >
       <main className="mx-auto flex w-full max-w-lg flex-col px-4 py-8">
         <section className={ui.cardPad}>
           <h1 className={`${ui.heading} text-3xl`}>{heading}</h1>

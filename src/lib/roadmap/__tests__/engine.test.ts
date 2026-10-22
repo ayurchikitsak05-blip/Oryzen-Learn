@@ -6,7 +6,10 @@ import {
   allowedIntervals,
   buildRoadmapPlan,
   chapterPriority,
+  daysInRange,
   detectMissedDates,
+  horizonSpanDays,
+  planExclusiveEnd,
   planProgress,
   workSessions,
 } from "../engine";
@@ -216,5 +219,37 @@ describe("roadmap scheduling engine", () => {
     expect(links.notes).toBe("/notes?subject=Mathematics&chapter=Algebra");
     expect(links.testMe).toContain("lens=test_me");
     expect(links.weakConcepts).toContain("view=weak");
+  });
+
+  it("clamps custom, monthly, and weekly horizons to the exam date", () => {
+    expect(horizonSpanDays({ kind: "until_exam" })).toBeNull();
+    expect(horizonSpanDays({ kind: "days_30" })).toBe(30);
+    expect(horizonSpanDays({ kind: "days_60" })).toBe(60);
+    expect(horizonSpanDays({ kind: "days_90" })).toBe(90);
+    expect(horizonSpanDays({ kind: "weekly_rolling" })).toBe(7);
+    expect(horizonSpanDays({ kind: "custom", customDays: 14 })).toBe(14);
+    expect(planExclusiveEnd(TODAY, EXAM_60, { kind: "custom", customDays: 14 })).toBe(
+      "2026-11-16"
+    );
+    expect(planExclusiveEnd(TODAY, "2026-11-10", { kind: "days_30" })).toBe("2026-11-10");
+
+    const custom = buildRoadmapPlan(
+      sixtyDayIntake({ examName: "Board exam", horizon: { kind: "custom", customDays: 14 } }),
+      TODAY
+    );
+    expect(custom.days).toHaveLength(14);
+    expect(custom.examDate).toBe(EXAM_60);
+    expect(daysInRange(custom.days, TODAY, "2026-11-08")).toHaveLength(7);
+
+    const week = buildRoadmapPlan(sixtyDayIntake({ horizon: { kind: "weekly_rolling" } }), TODAY);
+    expect(week.days).toHaveLength(7);
+
+    const tight = buildRoadmapPlan(
+      sixtyDayIntake({ horizon: { kind: "custom", customDays: 7 }, dailyHours: 3 }),
+      TODAY
+    );
+    expect(tight.days).toHaveLength(7);
+    expect(tight.overflow.fits).toBe(false);
+    expect(tight.overflow.unscheduledMinutes).toBeGreaterThan(0);
   });
 });

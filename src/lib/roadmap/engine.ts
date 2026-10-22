@@ -17,9 +17,11 @@ import {
 } from "./time";
 import type {
   DayKind,
+  HorizonKind,
   OverflowWarning,
   PrepLevel,
   RoadmapDayPlan,
+  RoadmapHorizon,
   RoadmapIntake,
   RoadmapMonthPlan,
   RoadmapPlan,
@@ -73,6 +75,59 @@ export function chapterPriority(input: {
   return difficulty * importance * remaining + urgency * 10;
 }
 
+const HORIZON_KINDS: HorizonKind[] = [
+  "until_exam",
+  "days_30",
+  "days_60",
+  "days_90",
+  "weekly_rolling",
+  "custom",
+];
+
+export function sanitizeHorizon(value: unknown): RoadmapHorizon {
+  if (!value || typeof value !== "object") return { kind: "until_exam" };
+  const raw = value as Partial<RoadmapHorizon>;
+  const kind = HORIZON_KINDS.includes(raw.kind as HorizonKind)
+    ? (raw.kind as HorizonKind)
+    : "until_exam";
+  if (kind === "custom") {
+    return { kind, customDays: clampMinutes(Number(raw.customDays) || 14, 1, 366) };
+  }
+  return { kind };
+}
+
+export function horizonSpanDays(horizon: RoadmapHorizon): number | null {
+  if (horizon.kind === "days_30") return 30;
+  if (horizon.kind === "days_60") return 60;
+  if (horizon.kind === "days_90") return 90;
+  if (horizon.kind === "weekly_rolling") return 7;
+  if (horizon.kind === "custom") return clampMinutes(horizon.customDays ?? 14, 1, 366);
+  return null;
+}
+
+/** Exclusive end date used by enumerateDates. Never past the exam. */
+export function planExclusiveEnd(
+  today: string,
+  examDate: string,
+  horizon: RoadmapHorizon
+): string {
+  const exam = examDate > today ? examDate : addDays(today, 1);
+  const span = horizonSpanDays(horizon);
+  if (span == null) return exam;
+  const capped = addDays(today, span);
+  return capped < exam ? capped : exam;
+}
+
+export function daysInRange(
+  days: RoadmapDayPlan[],
+  startDate: string,
+  endDate: string
+): RoadmapDayPlan[] {
+  const start = startDate <= endDate ? startDate : endDate;
+  const end = startDate <= endDate ? endDate : startDate;
+  return days.filter((day) => day.date >= start && day.date <= end);
+}
+
 export function sanitizeIntake(value: unknown, fallbackExamDate: string): RoadmapIntake {
   const base = defaultIntake(fallbackExamDate);
   if (!value || typeof value !== "object") return base;
@@ -107,7 +162,9 @@ export function sanitizeIntake(value: unknown, fallbackExamDate: string): Roadma
       : "just_starting";
 
   return {
+    examName: String(raw.examName || "").slice(0, 80),
     examDate,
+    horizon: sanitizeHorizon(raw.horizon),
     subjects: subjects.length > 0 ? subjects : base.subjects,
     prepLevel,
     dailyHours: Math.min(12, Math.max(0.5, Number(raw.dailyHours) || base.dailyHours)),
@@ -460,7 +517,7 @@ export function neededStudyMinutes(intake: RoadmapIntake): number {
 
 export function buildRoadmapPlan(intakeInput: RoadmapIntake, today: string): RoadmapPlan {
   const intake = sanitizeIntake(intakeInput, intakeInput.examDate);
-  const dates = enumerateDates(today, intake.examDate);
+  const dates = enumerateDates(today, planExclusiveEnd(today, intake.examDate, intake.horizon));
   const remaining = new Map(
     buildWorkItems(intake, today).map((item) => [item.key, { ...item }])
   );

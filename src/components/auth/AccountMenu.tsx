@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { ui } from "@/components/ui/classes";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 
@@ -33,15 +34,21 @@ export default function AccountMenu() {
 
   if (!signedIn) {
     return (
-      <Link href="/auth?form=1" className={ui.secondary}>
-        Sign in
-      </Link>
+      <div className="flex items-center gap-1">
+        <StudyRhythmButton label="Rhythm" className={ui.ghost} />
+        <Link href="/auth?form=1" className={ui.secondary}>
+          Sign in
+        </Link>
+      </div>
     );
   }
 
   return (
-    <button type="button" onClick={() => void signOut()} className={ui.ghost}>
-      Sign out
-    </button>
+    <div className="flex items-center gap-1">
+      <StudyRhythmButton label="Rhythm" className={ui.ghost} />
+      <button type="button" onClick={() => void signOut()} className={ui.ghost}>
+        Sign out
+      </button>
+    </div>
   );
 }

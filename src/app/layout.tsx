@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
+import StudyRhythmProvider from "@/components/rhythm/StudyRhythmProvider";
+import { RHYTHM_BOOT_SCRIPT } from "@/lib/rhythm/persist";
 import "./globals.css";
 
 const inter = Inter({
@@ -26,12 +28,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${playfair.variable}`}>
+    <html
+      lang="en"
+      data-theme="classic"
+      suppressHydrationWarning
+      className={`${inter.variable} ${playfair.variable}`}
+    >
       <body
         suppressHydrationWarning
         className="min-h-screen overflow-x-hidden bg-canvas font-sans text-ink antialiased selection:bg-selected selection:text-heading"
       >
-        {children}
+        <script
+          id="oryzen-rhythm-boot"
+          dangerouslySetInnerHTML={{ __html: RHYTHM_BOOT_SCRIPT }}
+        />
+        <StudyRhythmProvider>{children}</StudyRhythmProvider>
       </body>
     </html>
   );

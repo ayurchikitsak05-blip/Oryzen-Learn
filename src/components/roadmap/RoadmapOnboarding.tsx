@@ -2,14 +2,21 @@
 
 import React from "react";
 import { choiceClass, ui } from "@/components/ui/classes";
-import { createId, emptyCommitment, PREP_LEVELS, WEEKDAY_OPTIONS } from "@/lib/roadmap/defaults";
+import {
+  createId,
+  emptyCommitment,
+  HORIZON_OPTIONS,
+  PREP_LEVELS,
+  WEEKDAY_OPTIONS,
+} from "@/lib/roadmap/defaults";
 import { formatClock, parseClock } from "@/lib/roadmap/time";
-import type { RoadmapIntake, RoadmapSubject } from "@/lib/roadmap/types";
+import type { HorizonKind, RoadmapIntake, RoadmapSubject } from "@/lib/roadmap/types";
 
 const STEPS = [
   {
     title: "When is your exam?",
-    prompt: "Start with the date you need to be ready. The plan counts backward from there.",
+    prompt:
+      "Name the exam, pick the date, and choose a daily, weekly, monthly, or custom horizon. The plan never runs past the exam.",
   },
   {
     title: "Which subjects?",
@@ -71,18 +78,20 @@ export default function RoadmapOnboarding({
   onGenerate,
   step,
   onStepChange,
+  today,
 }: {
   intake: RoadmapIntake;
   onChange: (intake: RoadmapIntake) => void;
   onGenerate: () => void;
   step: number;
   onStepChange: (step: number) => void;
+  today: string;
 }) {
   const current = STEPS[step] ?? STEPS[0];
   const last = step === STEPS.length - 1;
   const canNext =
     step === 0
-      ? Boolean(intake.examDate)
+      ? Boolean(intake.examDate) && intake.examDate > today
       : step === 1
         ? intake.subjects.length > 0
         : step === 2
@@ -110,16 +119,79 @@ export default function RoadmapOnboarding({
 
       <div className="mt-6 space-y-4">
         {step === 0 && (
-          <label className="block">
-            <span className={ui.label}>Exam date</span>
-            <input
-              data-testid="roadmap-exam-date"
-              type="date"
-              value={intake.examDate}
-              onChange={(event) => onChange({ ...intake, examDate: event.target.value })}
-              className={ui.input}
-            />
-          </label>
+          <div className="space-y-4">
+            <label className="block">
+              <span className={ui.label}>Exam name</span>
+              <input
+                data-testid="roadmap-exam-name"
+                type="text"
+                value={intake.examName}
+                placeholder="Board exam, midterm, entrance…"
+                onChange={(event) => onChange({ ...intake, examName: event.target.value })}
+                className={ui.input}
+              />
+            </label>
+            <label className="block">
+              <span className={ui.label}>Exam date</span>
+              <input
+                data-testid="roadmap-exam-date"
+                type="date"
+                min={today}
+                value={intake.examDate}
+                onChange={(event) => onChange({ ...intake, examDate: event.target.value })}
+                className={ui.input}
+              />
+            </label>
+            <div className="space-y-2" role="radiogroup" aria-label="Plan horizon">
+              {HORIZON_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={intake.horizon.kind === option.value}
+                  data-testid={`roadmap-horizon-${option.value}`}
+                  onClick={() =>
+                    onChange({
+                      ...intake,
+                      horizon: {
+                        kind: option.value,
+                        customDays:
+                          option.value === "custom" ? intake.horizon.customDays ?? 14 : undefined,
+                      },
+                    })
+                  }
+                  className={choiceClass(intake.horizon.kind === option.value)}
+                >
+                  <span>
+                    <span className="block font-medium text-heading">{option.label}</span>
+                    <span className="mt-1 block text-sm text-muted">{option.hint}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            {intake.horizon.kind === "custom" && (
+              <label className="block max-w-xs">
+                <span className={ui.label}>Custom days</span>
+                <input
+                  data-testid="roadmap-horizon-days"
+                  type="number"
+                  min={1}
+                  max={366}
+                  value={intake.horizon.customDays ?? 14}
+                  onChange={(event) =>
+                    onChange({
+                      ...intake,
+                      horizon: {
+                        kind: "custom" satisfies HorizonKind,
+                        customDays: Number(event.target.value),
+                      },
+                    })
+                  }
+                  className={ui.input}
+                />
+              </label>
+            )}
+          </div>
         )}
 
         {step === 1 && (

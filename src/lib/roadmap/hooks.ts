@@ -33,6 +33,8 @@ export function linksForSession(session: RoadmapSession): RoadmapStudyLinks {
 export function emptyStudyRhythmHook(): StudyRhythmHook {
   return {
     preferredThemeId: undefined,
+    coachStyle: undefined,
+    encouragementOff: undefined,
     coachSlot: undefined,
   };
 }

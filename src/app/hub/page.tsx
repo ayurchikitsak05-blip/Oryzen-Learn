@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import AccountMenu from "@/components/auth/AccountMenu";
 import AppChrome from "@/components/layout/AppChrome";
+import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import SchedulerDialog from "@/components/study/SchedulerDialog";
 import { ui } from "@/components/ui/classes";
 import {
@@ -158,9 +159,12 @@ export default function StudyHubPage() {
                 </p>
               </div>
             </div>
-            <Link href="/body-type" className={`${ui.secondary} shrink-0`}>
-              Explore My Learning Profile
-            </Link>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <StudyRhythmButton />
+              <Link href="/body-type" className={`${ui.secondary} shrink-0`}>
+                Explore My Learning Profile
+              </Link>
+            </div>
           </section>
         ) : (
           <section
@@ -181,9 +185,12 @@ export default function StudyHubPage() {
                 </p>
               </div>
             </div>
-            <Link href="/body-type" className={`${ui.secondary} shrink-0`}>
-              Explore My Learning Profile
-            </Link>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <StudyRhythmButton />
+              <Link href="/body-type" className={`${ui.secondary} shrink-0`}>
+                Explore My Learning Profile
+              </Link>
+            </div>
           </section>
         )}
       </main>

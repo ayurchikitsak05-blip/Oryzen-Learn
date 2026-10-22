@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Map } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
+import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { ui } from "@/components/ui/classes";
 import { defaultIntake } from "@/lib/roadmap/defaults";
 import { emptyStudyRhythmHook } from "@/lib/roadmap/hooks";
@@ -90,7 +91,7 @@ export default function RoadmapApp() {
   };
 
   return (
-    <AppChrome subtitle="My Study Roadmap">
+    <AppChrome subtitle="My Study Roadmap" actions={<StudyRhythmButton label="Rhythm" />}>
       <main className={ui.main}>
         <p className={ui.eyebrow}>My Study Roadmap</p>
         <div className="mt-3 flex items-start gap-3">
@@ -100,7 +101,7 @@ export default function RoadmapApp() {
           <div>
             <h1 className={`${ui.heading} text-4xl`}>Plan the days you still have.</h1>
             <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted">
-              A deterministic study calendar — daily, weekly, and monthly — built from your exam, syllabus, and real hours. No paid chat. Sleep hours stay protected.
+              A deterministic study calendar — daily, weekly, monthly, and custom — built from your exam, syllabus, and real hours. No paid chat. Sleep hours stay protected.
             </p>
             <p className="mt-2 text-xs text-muted">
               Saved on this device{persistMode === "server" ? " and in your account" : " for this local demo"}.
@@ -117,6 +118,7 @@ export default function RoadmapApp() {
             onGenerate={generate}
             step={step}
             onStepChange={setStep}
+            today={today}
           />
         )}
 

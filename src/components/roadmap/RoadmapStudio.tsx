@@ -4,7 +4,13 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { tabClass, ui } from "@/components/ui/classes";
 import { adjustSession, moveSession, setSessionStart } from "@/lib/roadmap/edit";
-import { dayByDate, detectMissedDates, planProgress, workSessions } from "@/lib/roadmap/engine";
+import {
+  dayByDate,
+  daysInRange,
+  detectMissedDates,
+  planProgress,
+  workSessions,
+} from "@/lib/roadmap/engine";
 import { linksForSession } from "@/lib/roadmap/hooks";
 import { applyReplan, proposeReplan } from "@/lib/roadmap/replan";
 import {
@@ -17,7 +23,7 @@ import {
 } from "@/lib/roadmap/time";
 import type { ReplanProposal, RoadmapRecord, RoadmapSession } from "@/lib/roadmap/types";
 
-type StudioTab = "today" | "week" | "month" | "edit";
+type StudioTab = "today" | "week" | "month" | "custom" | "edit";
 
 function SessionRow({
   session,
@@ -93,6 +99,9 @@ export default function RoadmapStudio({
   const [proposal, setProposal] = useState<ReplanProposal | null>(null);
   const [selectedMissed, setSelectedMissed] = useState<string[]>([]);
   const [dailyHours, setDailyHours] = useState(record.intake.dailyHours);
+  const [examDate, setExamDate] = useState(record.intake.examDate);
+  const [customStart, setCustomStart] = useState(today);
+  const [customEnd, setCustomEnd] = useState(addDays(today, 13));
   const [editDate, setEditDate] = useState(today);
   const [editStart, setEditStart] = useState("");
   const [editMinutes, setEditMinutes] = useState("");
@@ -108,6 +117,8 @@ export default function RoadmapStudio({
   const daysLeft = Math.max(0, daysBetween(today, record.intake.examDate));
   const week = record.plan.weeks.find((row) => row.days.some((day) => day.date === today)) ?? record.plan.weeks[0];
   const month = record.plan.months.find((row) => row.days.some((day) => day.date === today)) ?? record.plan.months[0];
+  const customDays = daysInRange(record.plan.days, customStart, customEnd);
+  const examLabel = record.intake.examName.trim() || "the exam";
 
   const toggleComplete = (sessionId: string) => {
     const next = { ...record, completions: { ...record.completions }, updatedAt: new Date().toISOString() };
@@ -122,6 +133,7 @@ export default function RoadmapStudio({
   const openReplan = (preset: string[] = missed) => {
     setSelectedMissed(preset.length > 0 ? preset : [today]);
     setDailyHours(record.intake.dailyHours);
+    setExamDate(record.intake.examDate);
     setProposal(null);
     setReplanOpen(true);
   };
@@ -131,7 +143,7 @@ export default function RoadmapStudio({
       proposeReplan(record, {
         today,
         missedDates: selectedMissed,
-        intakeOverrides: { dailyHours },
+        intakeOverrides: { dailyHours, examDate },
       })
     );
   };
@@ -195,7 +207,7 @@ export default function RoadmapStudio({
       <section className={ui.cardPad}>
         <p className={ui.eyebrow}>Today · {formatDisplayDate(today)}</p>
         <h2 className={`${ui.heading} mt-2 text-2xl`}>
-          {daysLeft} day{daysLeft === 1 ? "" : "s"} until the exam
+          {daysLeft} day{daysLeft === 1 ? "" : "s"} until {examLabel}
         </h2>
         <p className="mt-2 text-sm text-muted">
           {progress.completedWork} of {progress.totalWork} study blocks done · {formatHours(progress.completedMinutes)} of {formatHours(progress.totalMinutes)}
@@ -219,6 +231,7 @@ export default function RoadmapStudio({
             ["today", "Today"],
             ["week", "This week"],
             ["month", "This month"],
+            ["custom", "Custom range"],
             ["edit", "Edit timetable"],
           ] as const
         ).map(([id, label]) => (
@@ -277,6 +290,53 @@ export default function RoadmapStudio({
               </p>
             </article>
           ))}
+        </section>
+      )}
+
+      {tab === "custom" && (
+        <section className="space-y-4" data-testid="roadmap-custom">
+          <div className={`${ui.cardPad} grid gap-3 md:grid-cols-2`}>
+            <label>
+              <span className={ui.label}>From</span>
+              <input
+                data-testid="roadmap-custom-start"
+                type="date"
+                value={customStart}
+                min={record.plan.days[0]?.date ?? today}
+                max={record.intake.examDate}
+                onChange={(event) => setCustomStart(event.target.value)}
+                className={ui.input}
+              />
+            </label>
+            <label>
+              <span className={ui.label}>To</span>
+              <input
+                data-testid="roadmap-custom-end"
+                type="date"
+                value={customEnd}
+                min={record.plan.days[0]?.date ?? today}
+                max={record.intake.examDate}
+                onChange={(event) => setCustomEnd(event.target.value)}
+                className={ui.input}
+              />
+            </label>
+          </div>
+          {customDays.length === 0 ? (
+            <p className={ui.empty}>No planned days sit in that range.</p>
+          ) : (
+            customDays.map((day) => (
+              <div key={day.date} className={ui.card}>
+                <h3 className={`${ui.heading} text-lg`}>{formatDisplayDate(day.date)}</h3>
+                <div className="mt-3 space-y-2">
+                  {workSessions(day.sessions).map((session) => (
+                    <p key={session.id} className="text-sm text-ink">
+                      {formatClock(session.startMinutes)} · {session.title}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
         </section>
       )}
 
@@ -352,7 +412,7 @@ export default function RoadmapStudio({
 
       {replanOpen && (
         <div className={ui.backdrop} role="dialog" aria-labelledby="replan-title">
-          <div className={`${ui.modal} max-w-lg`} data-testid="roadmap-replan-dialog">
+          <div className={`${ui.modal} max-w-xl`} data-testid="roadmap-replan-dialog">
             <p className={ui.eyebrow}>Replan My Studies</p>
             <h3 id="replan-title" className={`${ui.heading} mt-2 text-xl`}>
               Review before replacing your plan
@@ -388,6 +448,17 @@ export default function RoadmapStudio({
                 step={0.5}
                 value={dailyHours}
                 onChange={(event) => setDailyHours(Number(event.target.value))}
+                className={ui.input}
+              />
+            </label>
+            <label className="mt-4 block">
+              <span className={ui.label}>Exam date after this change</span>
+              <input
+                data-testid="roadmap-replan-exam-date"
+                type="date"
+                min={today}
+                value={examDate}
+                onChange={(event) => setExamDate(event.target.value)}
                 className={ui.input}
               />
             </label>

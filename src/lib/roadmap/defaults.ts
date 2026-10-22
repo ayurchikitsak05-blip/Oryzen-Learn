@@ -1,6 +1,8 @@
 import type {
+  HorizonKind,
   PrepLevel,
   RoadmapCommitment,
+  RoadmapHorizon,
   RoadmapIntake,
   RoadmapSubject,
   Weekday,
@@ -16,6 +18,44 @@ export const WEEKDAY_OPTIONS: Array<{ value: Weekday; label: string }> = [
   { value: 5, label: "Friday" },
   { value: 6, label: "Saturday" },
   { value: 0, label: "Sunday" },
+];
+
+export const HORIZON_OPTIONS: Array<{
+  value: HorizonKind;
+  label: string;
+  hint: string;
+  customDays?: number;
+}> = [
+  {
+    value: "until_exam",
+    label: "Until the exam",
+    hint: "Plan every remaining day before the exam date.",
+  },
+  {
+    value: "days_30",
+    label: "1 month",
+    hint: "The next 30 days, or fewer if the exam is sooner.",
+  },
+  {
+    value: "days_60",
+    label: "2 months",
+    hint: "The next 60 days, or fewer if the exam is sooner.",
+  },
+  {
+    value: "days_90",
+    label: "3 months",
+    hint: "The next 90 days, or fewer if the exam is sooner.",
+  },
+  {
+    value: "weekly_rolling",
+    label: "This week",
+    hint: "A rolling 7-day plan you can rebuild.",
+  },
+  {
+    value: "custom",
+    label: "Custom days",
+    hint: "Choose exactly how many days to plan.",
+  },
 ];
 
 export const PREP_LEVELS: Array<{ value: PrepLevel; label: string; hint: string }> = [
@@ -90,9 +130,15 @@ export function emptyCommitment(): RoadmapCommitment {
   };
 }
 
+export function defaultHorizon(): RoadmapHorizon {
+  return { kind: "until_exam" };
+}
+
 export function defaultIntake(examDate: string): RoadmapIntake {
   return {
+    examName: "",
     examDate,
+    horizon: defaultHorizon(),
     subjects: defaultSubjects(),
     prepLevel: "just_starting",
     dailyHours: 3,

@@ -6,6 +6,19 @@ export type DayKind = "study" | "buffer" | "revision";
 
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+export type HorizonKind =
+  | "until_exam"
+  | "days_30"
+  | "days_60"
+  | "days_90"
+  | "weekly_rolling"
+  | "custom";
+
+export interface RoadmapHorizon {
+  kind: HorizonKind;
+  customDays?: number;
+}
+
 export interface RoadmapChapter {
   id: string;
   name: string;
@@ -35,18 +48,29 @@ export interface ClockWindow {
 }
 
 /**
- * Reserved for a later Study Rhythm theme + coach.
- * Phase 3A stores the shape only — no four-theme UI and no coach script.
+ * Hook into the independent Study Rhythm prefs.
+ * Theme + coach fields are placeholders the roadmap may read; chrome owns the picker.
  */
 export interface StudyRhythmHook {
-  preferredThemeId?: "vata" | "pitta" | "kapha" | "dwandwaja";
+  preferredThemeId?:
+    | "classic"
+    | "warm-grounded"
+    | "cool-clear"
+    | "fresh-energizing"
+    | "grounded-clarity"
+    | "clear-energy"
+    | "warm-lift";
+  coachStyle?: "calm" | "mastery" | "momentum" | "balanced" | "off";
+  encouragementOff?: boolean;
   coachSlot?: "morning" | "midday" | "evening" | "recovery";
   focusMinutes?: number;
   breakMinutes?: number;
 }
 
 export interface RoadmapIntake {
+  examName: string;
   examDate: string;
+  horizon: RoadmapHorizon;
   subjects: RoadmapSubject[];
   prepLevel: PrepLevel;
   dailyHours: number;
@@ -143,7 +167,9 @@ export interface ReplanRequest {
   intakeOverrides?: Partial<
     Pick<
       RoadmapIntake,
+      | "examName"
       | "examDate"
+      | "horizon"
       | "dailyHours"
       | "commitments"
       | "preferredStudyHours"
