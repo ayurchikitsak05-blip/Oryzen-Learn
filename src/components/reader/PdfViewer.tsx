@@ -708,7 +708,7 @@ export default function PdfViewer({
       data-testid="pdf-reading-canvas"
       className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-canvas"
     >
-      <div className="flex w-full min-w-0 shrink-0 items-center gap-1 overflow-x-auto border-b border-line px-2 py-1.5">
+      <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-1 border-b border-line px-2 py-1.5">
         <label className="btn-secondary cursor-pointer px-3 text-xs">
           <FileUp className="h-4 w-4" />
           Open

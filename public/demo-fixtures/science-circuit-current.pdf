@@ -1,0 +1,47 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [ 4 0 R ] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 853 >>
+stream
+BT
+/F1 16 Tf
+48 720 Td (ELECTRIC CURRENT IN A SIMPLE CIRCUIT) Tj
+/F1 11 Tf
+0 -28 Td (An electric circuit needs a closed path so charge can move. Current is the) Tj
+0 -16 Td (flow of electrons through that path. A current of 2 amperes means two coulombs) Tj
+0 -16 Td (of charge pass a point each second.) Tj
+0 -14 Td () Tj
+0 -16 Td (A cell or battery supplies the energy that pushes the electrons. If the switch) Tj
+0 -16 Td (is open, the path is broken and the current stops. If the switch is closed,) Tj
+0 -16 Td (the lamp lights because electrons flow through the filament.) Tj
+0 -14 Td () Tj
+0 -16 Td (A larger resistance in the same circuit lowers the electron flow. The same 2) Tj
+0 -16 Td (ampere current through a thinner wire meets more resistance than through a) Tj
+0 -16 Td (thicker wire. Keep the unit: 2 A is a current, not a voltage.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000117 00000 n 
+0000000187 00000 n 
+0000000313 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1217
+%%EOF

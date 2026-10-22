@@ -1,0 +1,45 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [ 4 0 R ] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 649 >>
+stream
+BT
+/F1 16 Tf
+48 720 Td (RIGHT TRIANGLES AND PYTHAGORAS) Tj
+/F1 11 Tf
+0 -28 Td (The square of the hypotenuse of a right triangle equals the sum of the squares) Tj
+0 -16 Td (of the other two sides. If the shorter sides are 3 cm and 4 cm, the hypotenuse) Tj
+0 -16 Td (is 5 cm, because 9 + 16 = 25.) Tj
+0 -14 Td () Tj
+0 -16 Td (Keep the centimetre unit with each length. 5 cm is a length. 25 square) Tj
+0 -16 Td (centimetres is an area, not a side.) Tj
+0 -14 Td () Tj
+0 -16 Td (Use this to find an unknown side. If one side is 5 cm and the hypotenuse is 13) Tj
+0 -16 Td (cm, the other side is 12 cm, because 25 plus the unknown square equals 169.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000117 00000 n 
+0000000187 00000 n 
+0000000313 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1013
+%%EOF

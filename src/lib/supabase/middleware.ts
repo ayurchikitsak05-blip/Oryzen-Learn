@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { allowsLocalOwnerDemoBypass, OWNER_DEMO_COOKIE } from "@/lib/demo/owner-demo";
 import { canManageClasses, decideAccessRedirect, isEntitled } from "@/lib/access/gate";
 import { getSupabaseEnvConfig } from "./client";
 import { verifyDeviceSessionActive } from "./device-lock";
@@ -161,8 +162,20 @@ export async function updateSession(
     accessStatus,
     role,
   });
+  const localOwnerDemo = allowsLocalOwnerDemoBypass({
+    hostname: request.nextUrl.hostname,
+    vercelEnv: process.env.VERCEL_ENV,
+    cookieValue: request.cookies.get(OWNER_DEMO_COOKIE)?.value,
+  });
   const stayOnSignInForm =
     pathname === "/auth" && request.nextUrl.searchParams.get("form") === "1";
+  if (
+    localOwnerDemo &&
+    !pathname.startsWith("/api") &&
+    (redirectPath === "/auth" || redirectPath === "/pricing")
+  ) {
+    return supabaseResponse;
+  }
   if (redirectPath && !stayOnSignInForm) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = redirectPath;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Archive, BookOpen, House, PenLine, UserRound } from "lucide-react";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
+import OwnerDemoBanner from "@/components/demo/OwnerDemoBanner";
 
 const APP_LINKS = [
   { href: "/hub", label: "Learning Space", icon: House },
@@ -63,6 +64,7 @@ export default function AppChrome({
           <div className="flex min-w-0 items-center gap-1">{actions}</div>
         </div>
       </header>
+      {showAppNav ? <OwnerDemoBanner /> : null}
       {children}
       {showAppNav ? (
         <nav

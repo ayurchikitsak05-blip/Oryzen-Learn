@@ -1,0 +1,93 @@
+{
+  "account": "oryzen.owner.demo@example.com",
+  "outDir": "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d",
+  "sciencePdf": "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./public/demo-fixtures/science-circuit-current.pdf",
+  "mathPdf": "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./public/demo-fixtures/mathematics-triangle-pythagoras.pdf",
+  "ready": true,
+  "steps": [
+    {
+      "step": 1,
+      "status": "PASS",
+      "evidence": "HTTP 200 next=/hub url=http://localhost:3000/hub brand=1 banner=OWNER DEMO ACCOUNT — throwaway isolated login oryzen.owner.demo@example.com. Not a real student. shots=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/01-auth.png /Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/01-hub-signed-in.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/01-auth.png",
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/01-hub-signed-in.png"
+      ],
+      "http": 200,
+      "account": "oryzen.owner.demo@example.com"
+    },
+    {
+      "step": 2,
+      "status": "PASS",
+      "evidence": "title=science-circuit-current hasSource=true excerpt=An electric circuit needs a closed path so charge can move. Current is the flow of electrons through that path. A current of 2 amperes means two coulombs of cha shot=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/02-science-original-pdf.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/02-science-original-pdf.png"
+      ],
+      "http": 200,
+      "layerExcerpt": "An electric circuit needs a closed path so charge can move. Current is the flow of electrons through that path. A current of 2 amperes means two coulombs of charge pass a point each second. A cell or battery supplies the energy that pushes "
+    },
+    {
+      "step": "2b",
+      "status": "PASS",
+      "evidence": "primaryVisible=true,true,true,true,true,true overflow=0 shot=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/02b-toolbar-primary.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/02b-toolbar-primary.png"
+      ]
+    },
+    {
+      "step": 3,
+      "status": "PASS",
+      "evidence": "HTTP 200 grounded=true fallback=missing_gemini_key simple=An electric circuit needs a closed path so charge can move.. Then Current is the flow of electrons through that path.. shot=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/03-simple-explanation.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/03-simple-explanation.png"
+      ],
+      "http": 200
+    },
+    {
+      "step": 4,
+      "status": "PASS",
+      "evidence": "HTTP 200 count=10 progress=0 of 10 answered ayurvedaLeak=false shot=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/04-ten-mcqs.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/04-ten-mcqs.png"
+      ],
+      "http": 200,
+      "mcqCount": 10
+    },
+    {
+      "step": 5,
+      "status": "PASS",
+      "evidence": "wrong=3 weak=current\nthrough\nelectrons incorrect=Q1: According to the selected passage, which statement is grounded in the text?\nQ2: What should you be able to recall ab shot=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/05-weak-concepts.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/05-weak-concepts.png"
+      ],
+      "http": 200
+    },
+    {
+      "step": 6,
+      "status": "PASS",
+      "evidence": "table=true excerpt=Revision for missed ideas\nQuick Summary\nKey Points\nRevision Table\nMemory Aid\nExam Practice\nTopic\tWhat to remember\ncurrent\tCurrent is the flow of electrons through that path.\nthroug shot=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/06-miss-revision.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/06-miss-revision.png"
+      ],
+      "http": 200
+    },
+    {
+      "step": 7,
+      "status": "PASS",
+      "evidence": "title=science-circuit-current progress=10 of 10 answered review=1 shot=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/07-refresh-resume.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/07-refresh-resume.png"
+      ],
+      "http": 200
+    },
+    {
+      "step": 8,
+      "status": "PASS",
+      "evidence": "overflow=0 labels=Explain|Illustrate|Story|Revise|Test Me|Save shot=/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/08-mobile-toolbar.png",
+      "shots": [
+        "/Users/chidanandpatwardhan/Documents/prakriti-study-ai./tmp-e2e-artifacts/phase2d/08-mobile-toolbar.png"
+      ]
+    }
+  ],
+  "defects": []
+}
