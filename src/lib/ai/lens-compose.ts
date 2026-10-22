@@ -274,6 +274,104 @@ function passageDomain(
   return "general";
 }
 
+export type PassageStudyTopic =
+  | "rectangle"
+  | "circuit"
+  | "newton_first"
+  | "work_formula"
+  | "work_joule"
+  | "work_component"
+  | "work_energy"
+  | "kinetic_energy"
+  | "potential_energy"
+  | "power"
+  | "marketing"
+  | "ayurveda"
+  | "math"
+  | "physics_other"
+  | "general";
+
+const CIRCUIT_TOPIC = /\b(circuit|current|ampere|coulomb)\b/i;
+const NEWTON_FIRST_TOPIC =
+  /\b(newton'?s first law|constant velocity|inertia|free-body(?: diagram)?|free body diagram)\b/i;
+const WORK_FORMULA_TOPIC = /\b(?:w\s*=\s*f\s*[x×*]\s*d|work is done only when|the formula is w\s*=)\b/i;
+const WORK_COMPONENT_TOPIC =
+  /\b(?:part of the force|along the displacement|right angle to the motion|component of (?:the )?force)\b/i;
+const WORK_JOULE_TOPIC = /\b(?:si unit of work|\bjoule\b|1 newton acting|1 metre)\b/i;
+const KINETIC_TOPIC = /\b(?:kinetic energy|ke\s*=)\b/i;
+const POTENTIAL_TOPIC = /\b(?:potential energy|pe\s*=|gravitational potential)\b/i;
+const POWER_TOPIC = /\b(?:p\s*=\s*w\s*\/\s*t|how quickly work|si unit is the watt|\bwatt\b)\b/i;
+const PUCK_STOCK = /hockey puck|leah sets a hockey|\ba puck on\b/i;
+const NOTICE_BOARD_STOCK = /notice board|mina is covering/i;
+
+function isWorkEnergySelection(text: string): boolean {
+  return (
+    /\bwork\b/i.test(text) &&
+    /\b(force|joule|displacement|newton|metre|meter|\bJ\b|\bN\b)\b/i.test(text)
+  );
+}
+
+export function detectPassageTopic(text: string): PassageStudyTopic {
+  if (rectangleGeometryFromText(text)) return "rectangle";
+  if (CIRCUIT_TOPIC.test(text)) return "circuit";
+  if (passageDiscussesAyurveda(text)) return "ayurveda";
+  if (MARKETING_SIGNAL.test(text)) return "marketing";
+  if (WORK_COMPONENT_TOPIC.test(text)) return "work_component";
+  if (WORK_FORMULA_TOPIC.test(text)) return "work_formula";
+  if (KINETIC_TOPIC.test(text)) return "kinetic_energy";
+  if (POTENTIAL_TOPIC.test(text)) return "potential_energy";
+  if (POWER_TOPIC.test(text)) return "power";
+  if (WORK_JOULE_TOPIC.test(text)) return "work_joule";
+  if (isWorkEnergySelection(text)) return "work_energy";
+  if (NEWTON_FIRST_TOPIC.test(text)) return "newton_first";
+  if (PHYSICS_SIGNAL.test(text)) return "physics_other";
+  if (MATH_SIGNAL.test(text)) return "math";
+  return "general";
+}
+
+export function leaksForeignStockStory(output: string, selection: string): boolean {
+  const puckAllowed = /hockey puck|\bpuck\b/i.test(selection);
+  const boardAllowed = /notice board/i.test(selection);
+  if (!puckAllowed && PUCK_STOCK.test(output)) return true;
+  if (!boardAllowed && NOTICE_BOARD_STOCK.test(output)) return true;
+  return false;
+}
+
+export function cannotReliablyExplain(text: string): boolean {
+  const compact = text.replace(/\s+/g, " ").trim();
+  const topic = detectPassageTopic(compact);
+  if (
+    topic !== "physics_other" &&
+    topic !== "general" &&
+    topic !== "math"
+  ) {
+    return false;
+  }
+  if (/[A-Za-z]{1,4}\s*=/.test(compact)) return false;
+  const words = compact.split(/\s+/).filter((word) => word.length > 2);
+  const sentences = splitPassageSentences(compact);
+  const phrases = extractKeyPhrases(compact);
+  if (words.length < 8) return true;
+  if (sentences.length === 0 && phrases.length < 2) return true;
+  return false;
+}
+
+function workExampleFromText(
+  text: string
+): { force: string; distance: string; work: string } | null {
+  const worked = text.match(
+    /(\d+(?:\.\d+)?)\s*N\b[\s\S]{0,80}?(\d+(?:\.\d+)?)\s*m\b[\s\S]{0,80}?(\d+(?:\.\d+)?)\s*J\b/i
+  );
+  if (worked?.[1] && worked[2] && worked[3]) {
+    return { force: worked[1], distance: worked[2], work: worked[3] };
+  }
+  return null;
+}
+
+function selectionHas(text: string, pattern: RegExp): boolean {
+  return pattern.test(text);
+}
+
 export function parseRectangleMeasures(text: string): {
   length: number;
   width: number;
@@ -283,9 +381,12 @@ export function parseRectangleMeasures(text: string): {
   const compact = text.replace(/\s+/g, " ");
   const lengthMatch = compact.match(/length(?:\s+is)?\s+(\d+(?:\.\d+)?)\s*(cm|mm|m)?/i);
   const widthMatch = compact.match(/width(?:\s+is)?\s+(\d+(?:\.\d+)?)\s*(cm|mm|m)?/i);
-  const pairMatch = compact.match(
-    /(\d+(?:\.\d+)?)\s*(cm|mm|m)?\s*(?:[×x]|by)\s*(\d+(?:\.\d+)?)\s*(cm|mm|m)?/i
-  );
+  const rectangleContext = /\b(rectangle|area|length|width)\b/i.test(compact);
+  const pairMatch = rectangleContext
+    ? compact.match(
+        /(\d+(?:\.\d+)?)\s*(cm|mm|m)?\s*(?:[×x]|by)\s*(\d+(?:\.\d+)?)\s*(cm|mm|m)?/i
+      )
+    : null;
   const areaMatch = compact.match(/area(?:\s+is)?\s+(\d+(?:\.\d+)?)/i);
   const length = lengthMatch
     ? Number(lengthMatch[1])
@@ -413,7 +514,7 @@ function buildFlowchart(params: {
       ],
     };
   }
-  if (/\bcircuit|current|ampere|coulomb\b/i.test(params.text)) {
+  if (CIRCUIT_TOPIC.test(params.text)) {
     const amp = params.text.match(/(\d+(?:\.\d+)?)\s*ampere/i);
     return {
       title: "How current appears",
@@ -436,7 +537,8 @@ function buildFlowchart(params: {
       ],
     };
   }
-  if (passageDomain(params.text) === "physics") {
+  const topic = detectPassageTopic(params.text);
+  if (topic === "newton_first") {
     return {
       title: "When velocity stays the same",
       kind: "flowchart",
@@ -450,6 +552,48 @@ function buildFlowchart(params: {
         { from: "state", to: "unless", label: "condition" },
         { from: "unless", to: "change", label: "so" },
         { from: "change", to: "check", label: "check with" },
+      ],
+    };
+  }
+  if (
+    topic === "work_formula" ||
+    topic === "work_joule" ||
+    topic === "work_component" ||
+    topic === "work_energy" ||
+    topic === "kinetic_energy" ||
+    topic === "potential_energy" ||
+    topic === "power"
+  ) {
+    const hasFormula = selectionHas(params.text, /w\s*=\s*f\s*[x×*]\s*d/i);
+    const hasJoule = selectionHas(params.text, /\bjoule\b|\b\d+\s*J\b/i);
+    const hasComponent = selectionHas(params.text, WORK_COMPONENT_TOPIC);
+    return {
+      title: "What the selected lines teach",
+      kind: "flowchart",
+      nodes: [
+        { id: "claim", label: excerptForDisplay(params.sentences[0] ?? params.phrases[0] ?? "Work idea", 42) },
+        {
+          id: "rule",
+          label: hasFormula
+            ? "W = F × d"
+            : hasComponent
+              ? "Only the along-path part counts"
+              : hasJoule
+                ? "Measure that work in joules"
+                : excerptForDisplay(params.phrases[0] ?? "Named rule", 36),
+        },
+        {
+          id: "check",
+          label: hasComponent
+            ? "A right-angle force does no work"
+            : excerptForDisplay(params.sentences[1] ?? params.phrases[1] ?? "Check the claim", 36),
+        },
+        { id: "hold", label: excerptForDisplay(params.phrases[1] ?? params.sentences[2] ?? "Stay on this page", 32) },
+      ],
+      edges: [
+        { from: "claim", to: "rule", label: "means" },
+        { from: "rule", to: "check", label: "so" },
+        { from: "check", to: "hold", label: "hold" },
       ],
     };
   }
@@ -501,7 +645,7 @@ function buildMindMap(params: {
       ],
     };
   }
-  if (/\bcircuit|current|ampere|coulomb\b/i.test(params.text)) {
+  if (CIRCUIT_TOPIC.test(params.text)) {
     return {
       title: "Current in a circuit",
       kind: "mind_map",
@@ -567,7 +711,7 @@ function buildConceptDiagram(params: {
       ],
     };
   }
-  if (/\bcircuit|current|ampere|coulomb\b/i.test(params.text)) {
+  if (CIRCUIT_TOPIC.test(params.text)) {
     return {
       title: "Closed path and current",
       kind: "concept_diagram",
@@ -617,7 +761,7 @@ function buildAnalogy(text: string, sentences: string[], phrases: string[]): Ana
         "Area is the count of unit squares that fill the rectangle, not the walk around the edge.",
     };
   }
-  if (/\bcircuit|current|ampere|coulomb\b/i.test(text)) {
+  if (CIRCUIT_TOPIC.test(text)) {
     return {
       setup: "Think of a single-file line of people walking through a gate.",
       mapping:
@@ -626,11 +770,40 @@ function buildAnalogy(text: string, sentences: string[], phrases: string[]): Ana
     };
   }
   if (domain === "physics") {
+    const topic = detectPassageTopic(text);
+    if (topic === "newton_first") {
+      return {
+        setup: "Think of a hockey puck on smooth ice.",
+        mapping:
+          "The puck keeps its velocity until a stick or a patch of rough ice adds a net force. The free-body diagram is the list of those real pushes and pulls.",
+        takeaway: "Motion continues by itself. A force is needed to change it, not to keep it.",
+      };
+    }
+    if (
+      topic === "work_formula" ||
+      topic === "work_joule" ||
+      topic === "work_component" ||
+      topic === "work_energy" ||
+      topic === "kinetic_energy" ||
+      topic === "potential_energy" ||
+      topic === "power"
+    ) {
+      const example = workExampleFromText(text);
+      const hasFormula = selectionHas(text, /w\s*=\s*f\s*[x×*]\s*d/i);
+      return {
+        setup: selectionHas(text, /\bbag\b/i)
+          ? "Think of carrying a bag along a flat corridor."
+          : "Think of pushing a crate along a smooth floor.",
+        mapping: hasFormula
+          ? `Work is the force along the path times the displacement${example ? `, as in ${example.force} N through ${example.distance} m = ${example.work} J` : ""}.`
+          : `The selected lines say: “${excerptForDisplay(sentences[0] ?? text, 110)}”`,
+        takeaway: excerptForDisplay(sentences[1] ?? sentences[0] ?? phrases[0] ?? text, 160),
+      };
+    }
     return {
-      setup: "Think of a hockey puck on smooth ice.",
-      mapping:
-        "The puck keeps its velocity until a stick or a patch of rough ice adds a net force. The free-body diagram is the list of those real pushes and pulls.",
-      takeaway: "Motion continues by itself. A force is needed to change it, not to keep it.",
+      setup: "Think of a claim, the evidence under it, and a check you can say aloud.",
+      mapping: `Here the claim is “${excerptForDisplay(sentences[0] ?? text, 90)}”. The next line supplies the support you should be able to restate.`,
+      takeaway: excerptForDisplay(sentences[1] ?? sentences[0] ?? text, 180),
     };
   }
   if (domain === "math") {
@@ -913,10 +1086,143 @@ function buildRevision(request: ComposeLensRequest, sentences: string[], phrases
   };
 }
 
+function limitationExplain(): ExplainSections {
+  return {
+    simpleExplanation:
+      "These selected lines are too thin to teach here. I will not invent another physics story.",
+    standardExplanation:
+      "The local fallback only explains the exact selection. This excerpt does not name a complete definition, a formula, or a cause-and-effect claim I can teach without guessing a different chapter.",
+      deeperExplanation:
+      "Paid AI is off, so I will not swap in a generic motion story or a tiling story from another chapter. Highlight a longer stretch that states the definition or worked example, then try Explain again. Self-check: which sentence on the page is the claim you wanted explained? Self-check: does that sentence name a formula or a unit?",
+    importantConcepts: ["Stay inside the selection", "Do not invent another chapter"],
+    relevantExample:
+      "A usable selection names the idea in full, such as a formula with its unit or a worked number from the same page.",
+    keyTakeaway:
+      "If the local fallback cannot teach the selected lines without guessing, it says so instead of swapping in a stock story.",
+  };
+}
+
+function buildWorkEnergyExplain(
+  text: string,
+  sentences: string[],
+  phrases: string[],
+  topic: PassageStudyTopic
+): ExplainSections {
+  const claim = clipClaim(sentences[0] ?? text);
+  const support = sentences[1] ? clipClaim(sentences[1]) : null;
+  const example = workExampleFromText(text);
+  const hasFormula = selectionHas(text, /w\s*=\s*f\s*[x×*]\s*d/i);
+  const hasJoule = selectionHas(text, /\bjoule\b|\b1 newton acting\b|\b\d+\s*J\b/i);
+  const hasComponent = topic === "work_component" || selectionHas(text, WORK_COMPONENT_TOPIC);
+  const hasZeroWork = selectionHas(text, /\b0\s*J\b|does not move|work is zero/i);
+  const exampleLine = example
+    ? `${example.force} N through ${example.distance} m is ${example.work} J`
+    : excerptForDisplay(claim, 70);
+
+  if (hasComponent && !hasFormula) {
+    const bagExample = selectionHas(text, /\bbag\b/i)
+      ? "carrying a bag across a flat corridor"
+      : "a force at a right angle to the path";
+    return {
+      simpleExplanation: `Only the along-path part of a force counts. Example: ${bagExample} does no work against gravity.`,
+      standardExplanation: `Work is defined from the component of force along the displacement. A force at a right angle has a zero component, so the work is zero. Worked example: a vertical weight on a horizontal path adds nothing.`,
+      deeperExplanation: `Why only that component? Displacement has a direction. A sideways or vertical push does not move the object along the path you are measuring. A common misconception is that any effort you feel must be work. Self-check: if the force and the path are perpendicular, what is the work? Self-check: which words on this page name the part that counts?`,
+      importantConcepts: uniqueKeep([
+        "Component along the displacement",
+        "Right-angle force does no work",
+        excerptForDisplay(phrases[0] ?? "Displacement", 40),
+      ]).slice(0, 4),
+      relevantExample: excerptForDisplay(support ?? claim, 200),
+      keyTakeaway: "Only the along-path part of the force counts as work.",
+    };
+  }
+
+  if (hasJoule && !hasFormula && topic === "work_joule") {
+    return {
+      simpleExplanation:
+        "A joule counts work, not a push. Example: one newton through one metre makes one joule.",
+      standardExplanation:
+        "The SI unit of work is defined as the joule (J). It is the work done by a 1 N force acting through 1 m. Worked example: write 30 J for work, never 30 N.",
+      deeperExplanation:
+        "Why a new unit? Force is a push. Work also needs a distance, so the unit changes. A common misconception is to copy the force unit onto a work answer. Self-check: why is 30 J not the same as 30 N? Self-check: which sentence on this page defines one joule?",
+      importantConcepts: ["Joule (J)", "1 N through 1 m", "Keep the unit with the quantity"],
+      relevantExample: excerptForDisplay(support ?? claim, 200),
+      keyTakeaway: "Work is counted in joules, not in newtons.",
+    };
+  }
+
+  const formulaLine = hasFormula
+    ? "Work is defined as W = F × d. F is the push along the motion. d is the displacement. Their product is the work done."
+    : `The selected lines define work as: ${excerptForDisplay(claim, 110)}`;
+
+  return {
+    simpleExplanation: `Work means a force actually moves something. Example: ${exampleLine}.`,
+    standardExplanation: `${formulaLine} Worked example: ${example ? `${example.force} newtons along ${example.distance} metres equals ${example.work} joules` : exampleLine}.`,
+    deeperExplanation: `Why that product? A push that does not move the object transfers no work, even if someone feels tired${hasZeroWork ? "; the page says 0 m of displacement is 0 J" : ""}. A common misconception is that effort alone is work. Self-check: if the object does not move, what is the work? Self-check: which two quantities sit in the selected relation?`,
+    importantConcepts: uniqueKeep([
+      hasFormula ? "W = F × d" : excerptForDisplay(phrases[0] ?? "Work", 40),
+      "Force along the path",
+      "Displacement",
+      hasJoule ? "Joule (J)" : excerptForDisplay(phrases[1] ?? "Worked example", 40),
+    ]).slice(0, 4),
+    relevantExample: example
+      ? `From the page: ${example.force} N along ${example.distance} m gives ${example.work} J.`
+      : excerptForDisplay(support ?? claim, 200),
+    keyTakeaway: hasFormula
+      ? "Work is force along the path times displacement."
+      : excerptForDisplay(claim, 160),
+  };
+}
+
+function buildTopicPhysicsExplain(
+  text: string,
+  sentences: string[],
+  phrases: string[],
+  topic: PassageStudyTopic
+): ExplainSections | null {
+  const claim = clipClaim(sentences[0] ?? text);
+  const support = sentences[1] ? clipClaim(sentences[1]) : null;
+  if (topic === "kinetic_energy") {
+    const hasFormula = selectionHas(text, /ke\s*=|1\/2|½/i);
+    return {
+      simpleExplanation: `Kinetic energy is the energy of motion. Example: ${excerptForDisplay(claim, 70)}`,
+      standardExplanation: `${hasFormula ? "Kinetic energy is defined as KE = (1/2) m v². Mass is in kilograms and speed is in metres per second." : `The selected lines define kinetic energy as: ${excerptForDisplay(claim, 110)}`} Worked example: ${excerptForDisplay(support ?? claim, 90)}.`,
+      deeperExplanation: `Why square the speed? Doubling speed multiplies kinetic energy by four if the page shows that relation. A common misconception is to treat kinetic energy as the same as speed. Self-check: what happens to KE if the speed halves? Self-check: which unit does the page use for this energy?`,
+      importantConcepts: uniqueKeep(["Kinetic energy", hasFormula ? "KE = (1/2) m v²" : "Energy of motion", "Joule"]).slice(0, 4),
+      relevantExample: excerptForDisplay(support ?? claim, 200),
+      keyTakeaway: "Kinetic energy belongs to motion, not to a different chapter.",
+    };
+  }
+  if (topic === "potential_energy") {
+    const hasFormula = selectionHas(text, /pe\s*=|m\s*g\s*h/i);
+    return {
+      simpleExplanation: `Potential energy depends on height. Example: ${excerptForDisplay(claim, 70)}`,
+      standardExplanation: `${hasFormula ? "Gravitational potential energy is defined as PE = m g h." : `The selected lines define potential energy as: ${excerptForDisplay(claim, 110)}`} Worked example: ${excerptForDisplay(support ?? claim, 90)}.`,
+      deeperExplanation: `Why height, not speed? Height is a position. A common misconception is to treat height as speed. Self-check: if the mass is raised higher, what happens to PE? Self-check: which formula, if any, is actually on this selection?`,
+      importantConcepts: uniqueKeep(["Potential energy", hasFormula ? "PE = m g h" : "Height", "Joule"]).slice(0, 4),
+      relevantExample: excerptForDisplay(support ?? claim, 200),
+      keyTakeaway: "Potential energy tracks height, not a stock motion story.",
+    };
+  }
+  if (topic === "power") {
+    const hasFormula = selectionHas(text, /p\s*=\s*w\s*\/\s*t/i);
+    return {
+      simpleExplanation: `Power is how quickly work is done. Example: ${excerptForDisplay(claim, 70)}`,
+      standardExplanation: `${hasFormula ? "Power is defined as P = W / t. The SI unit is the watt: one joule each second." : `The selected lines define power as: ${excerptForDisplay(claim, 110)}`} Worked example: ${excerptForDisplay(support ?? claim, 90)}.`,
+      deeperExplanation: `Why divide by time? The same work in less time is more power. A common misconception is that power already tells you the total energy. Self-check: if the time doubles and the work stays the same, what happens to power? Self-check: which unit does the page use?`,
+      importantConcepts: uniqueKeep(["Power", hasFormula ? "P = W / t" : "Work and time", "Watt"]).slice(0, 4),
+      relevantExample: excerptForDisplay(support ?? claim, 200),
+      keyTakeaway: "Power is work divided by time.",
+    };
+  }
+  return null;
+}
+
 function buildExplain(request: ComposeLensRequest, sentences: string[], phrases: string[]): ExplainSections {
   const text = request.selectedText;
   const geometry = rectangleGeometryFromText(text);
   const domain = passageDomain(text);
+  const topic = detectPassageTopic(text);
   const claim = clipClaim(sentences[0] ?? text);
   const support = sentences[1] ? clipClaim(sentences[1]) : null;
   const extra = sentences[2] ? clipClaim(sentences[2]) : null;
@@ -937,7 +1243,7 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
     };
   }
 
-  if (/\bcircuit|current|ampere|coulomb\b/i.test(text)) {
+  if (CIRCUIT_TOPIC.test(text)) {
     const amp = text.match(/(\d+(?:\.\d+)?)\s*ampere/i)?.[1] ?? "2";
     return {
       simpleExplanation: `A circuit is a loop electricity can travel around. Current is how much charge moves past a point. Example: ${amp} amperes means ${amp} coulombs slip past each second.`,
@@ -949,7 +1255,19 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
     };
   }
 
-  if (domain === "physics") {
+  if (
+    topic === "work_formula" ||
+    topic === "work_joule" ||
+    topic === "work_component" ||
+    topic === "work_energy"
+  ) {
+    return buildWorkEnergyExplain(text, sentences, phrases, topic);
+  }
+
+  const otherPhysics = buildTopicPhysicsExplain(text, sentences, phrases, topic);
+  if (otherPhysics) return otherPhysics;
+
+  if (topic === "newton_first") {
     return {
       simpleExplanation:
         "An object keeps going the same way if nothing pushes it. A force can change that. Example: a puck on smooth ice keeps sliding until a stick hits it.",
@@ -962,6 +1280,10 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
         "A free-body sketch starts by asking what is actually pushing or pulling.",
       keyTakeaway: "Velocity stays the same until a leftover force changes it.",
     };
+  }
+
+  if (cannotReliablyExplain(text)) {
+    return limitationExplain();
   }
 
   if (domain === "marketing") {
@@ -979,10 +1301,10 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
     };
   }
 
-  const topic = phrases[0] ?? "this idea";
+  const phraseTopic = phrases[0] ?? "this idea";
   return {
-    simpleExplanation: `This page is about ${topic}. Hold one clear claim. Example: ${excerptForDisplay(claim, 70)}`,
-    standardExplanation: `${topic} is defined by the claim on the page. The next line is the relationship that supports it${support ? `: ${excerptForDisplay(support, 90)}` : ""}. Worked example: restate the claim, then the support, without copying the paragraph.`,
+    simpleExplanation: `This page is about ${phraseTopic}. Hold one clear claim. Example: ${excerptForDisplay(claim, 70)}`,
+    standardExplanation: `${phraseTopic} is defined by the claim on the page. The next line is the relationship that supports it${support ? `: ${excerptForDisplay(support, 90)}` : ""}. Worked example: restate the claim, then the support, without copying the paragraph.`,
     deeperExplanation: `The reasoning to keep is why the support belongs with the claim, not only that both appear. You use this whenever you have to explain the idea to someone else. A common misconception is to memorize the wording and skip the link between the lines. Self-check: cover the page and say the claim. Self-check: what would count as a fair example that stays inside these lines?`,
     importantConcepts: uniqueKeep([
       excerptForDisplay(phrases[0] ?? "Main claim", 40),
@@ -1010,7 +1332,7 @@ function buildStory(request: ComposeLensRequest, sentences: string[], phrases: s
     };
   }
 
-  if (/\bcircuit|current|ampere|coulomb\b/i.test(text)) {
+  if (CIRCUIT_TOPIC.test(text)) {
     const amp = text.match(/(\d+(?:\.\d+)?)\s*ampere/i)?.[1] ?? "2";
     return {
       opening:
@@ -1021,7 +1343,8 @@ function buildStory(request: ComposeLensRequest, sentences: string[], phrases: s
     };
   }
 
-  if (passageDomain(text) === "physics") {
+  const topic = detectPassageTopic(text);
+  if (topic === "newton_first") {
     return {
       opening:
         "Leah sets a hockey puck on smooth ice and gives it one tap. It keeps sliding in a straight line even after she stops touching it.",
@@ -1029,6 +1352,29 @@ function buildStory(request: ComposeLensRequest, sentences: string[], phrases: s
         "A patch of rough ice tugs on the puck. That leftover force is the first thing that changes its velocity. Until then, nothing had to keep pushing.",
       close:
         "That is why a force sketch begins by naming the real pushes and pulls. Motion continues by itself. A leftover force is needed to change it.",
+    };
+  }
+  if (
+    topic === "work_formula" ||
+    topic === "work_joule" ||
+    topic === "work_component" ||
+    topic === "work_energy" ||
+    topic === "kinetic_energy" ||
+    topic === "potential_energy" ||
+    topic === "power"
+  ) {
+    const example = workExampleFromText(text);
+    const hasBag = selectionHas(text, /\bbag\b/i);
+    return {
+      opening: hasBag
+        ? "A student carries a bag along a flat corridor and wonders whether that counts as work."
+        : "A student pushes a crate along a smooth floor and writes down the force and the distance.",
+      turningPoint: example
+        ? `The numbers on the page settle it: ${example.force} N through ${example.distance} m is ${example.work} J, but only when the force is along the path.`
+        : sentences[1]
+          ? excerptForDisplay(sentences[1], 180)
+          : "Only the part of the force along the displacement counts. Effort that does not move the object along that path is not work.",
+      close: excerptForDisplay(sentences[2] ?? sentences[0] ?? text, 200),
     };
   }
 

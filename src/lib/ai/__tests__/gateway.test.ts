@@ -676,6 +676,29 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         restoreEnv({ GEMINI_API_KEY: previous });
       }
     });
+
+    it("does not swap work-and-energy selections for Newton/puck copy", async () => {
+      const previous = process.env.GEMINI_API_KEY;
+      process.env.GEMINI_API_KEY = "";
+      try {
+        const result = await executeControlledAiGateway({
+          userId: "local-student",
+          documentId: "work-and-energy-chapter",
+          documentHash: "work-energy-hash",
+          pageNumber: 1,
+          sectionHeading: "CHAPTER 6 WORK AND ENERGY",
+          selectedText:
+            "The SI unit of work is the joule (J). One joule is the work done by a force of 1 newton acting through 1 metre.",
+          lensType: "explain",
+        });
+        expect(result.usedDeterministicFallback).toBe(true);
+        const body = `${result.payload.explain?.simpleExplanation ?? ""} ${result.payload.explain?.standardExplanation ?? ""} ${result.payload.markdown_body}`;
+        expect(body).toMatch(/joule/i);
+        expect(body).not.toMatch(/hockey puck|Newton's first law|notice board/i);
+      } finally {
+        restoreEnv({ GEMINI_API_KEY: previous });
+      }
+    });
   });
 
   describe("6. Bi-Directional Deep-Linked Study Compendium (`passage-store.ts`)", () => {

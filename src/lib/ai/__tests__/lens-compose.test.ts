@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   TEST_ME_QUESTION_COUNT,
+  cannotReliablyExplain,
   composeDeterministicLensPayload,
   composeRevisionFromMisses,
+  detectPassageTopic,
   explanationTokenOverlap,
   explanationsAreDistinct,
   identifyIncorrectAnswers,
+  leaksForeignStockStory,
   longestSharedWordRun,
   parseRectangleMeasures,
   passageDiscussesAyurveda,
@@ -21,6 +24,31 @@ const MATH_PASSAGE =
 
 const AYURVEDA_PASSAGE =
   "Vata, Pitta, and Kapha are three study energies. Balance supports clear grasping in any subject.";
+
+const WORK_FORMULA_PASSAGE =
+  "In physics, work is done only when a force moves an object along a path. The formula is W = F x d, where W is work, F is the force in the direction of the motion, and d is the displacement. A student pushes a crate with a force of 10 N along a smooth floor for 3 m, so W = 10 x 3 = 30 J.";
+
+const WORK_JOULE_PASSAGE =
+  "The SI unit of work is the joule (J). One joule is the work done by a force of 1 newton acting through 1 metre. Keep the units together: 30 J is not the same as 30 N.";
+
+const WORK_COMPONENT_PASSAGE =
+  "Only the part of the force along the displacement counts as work. If the force is at a right angle to the motion, that part is zero, so the work is zero. A student who carries a bag across a flat corridor at constant height does no work against gravity on the bag, because the weight is vertical and the path is horizontal.";
+
+const CIRCUIT_PASSAGE =
+  "A circuit is a closed path. Current is the flow of electrons. A current of 2 amperes means 2 coulombs pass a point each second.";
+
+function explainCorpus(payload: ReturnType<typeof composeDeterministicLensPayload>): string {
+  const explain = payload.explain;
+  return [
+    explain?.simpleExplanation,
+    explain?.standardExplanation,
+    explain?.deeperExplanation,
+    explain?.relevantExample,
+    explain?.keyTakeaway,
+    ...(explain?.importantConcepts ?? []),
+    payload.markdown_body,
+  ].join(" ");
+}
 
 function requestFor(lensType: "ayurvedic" | "illustrative" | "high_yield_revision" | "save_passage" | "test_me" | "explain" | "story", text: string) {
   return {
@@ -222,5 +250,60 @@ describe("deterministic study lenses", () => {
       requestFor("explain", AYURVEDA_PASSAGE)
     );
     expect(payload.markdown_body).toMatch(/Vata|Pitta|Kapha/);
+  });
+
+  it("grounds work-energy, circuit, and rectangle explains in the selected passage only", () => {
+    expect(detectPassageTopic(WORK_FORMULA_PASSAGE)).toBe("work_formula");
+    expect(detectPassageTopic(WORK_JOULE_PASSAGE)).toBe("work_joule");
+    expect(detectPassageTopic(WORK_COMPONENT_PASSAGE)).toBe("work_component");
+    expect(detectPassageTopic(CIRCUIT_PASSAGE)).toBe("circuit");
+    expect(detectPassageTopic(MATH_PASSAGE)).toBe("rectangle");
+    expect(detectPassageTopic(PHYSICS_PASSAGE)).toBe("newton_first");
+
+    const fixtures = [
+      {
+        text: WORK_FORMULA_PASSAGE,
+        must: /W = F|force|displacement|10 N|30 J/i,
+        mustNotFormulaFromOther: /hockey puck|notice board|ampere|closed path|8 cm/i,
+      },
+      {
+        text: WORK_JOULE_PASSAGE,
+        must: /joule|1 newton|1 metre/i,
+        mustNotFormulaFromOther: /W = F|hockey puck|notice board|ampere|8 cm/i,
+      },
+      {
+        text: WORK_COMPONENT_PASSAGE,
+        must: /displacement|right angle|component|bag/i,
+        mustNotFormulaFromOther: /W = F|hockey puck|notice board|ampere|8 cm/i,
+      },
+      {
+        text: CIRCUIT_PASSAGE,
+        must: /circuit|ampere|current|coulomb/i,
+        mustNotFormulaFromOther: /hockey puck|notice board|W = F|joule|8 cm/i,
+      },
+      {
+        text: MATH_PASSAGE,
+        must: /rectangle|8 cm|5 cm|40/i,
+        mustNotFormulaFromOther: /hockey puck|ampere|W = F|joule|displacement/i,
+      },
+    ] as const;
+
+    for (const fixture of fixtures) {
+      const payload = composeDeterministicLensPayload(requestFor("explain", fixture.text));
+      const corpus = explainCorpus(payload);
+      expect(corpus).toMatch(fixture.must);
+      expect(corpus).not.toMatch(fixture.mustNotFormulaFromOther);
+      expect(leaksForeignStockStory(corpus, fixture.text)).toBe(false);
+      expect(payload.explain).toBeTruthy();
+    }
+  });
+
+  it("returns an honest limitation instead of inventing a stock physics story", () => {
+    expect(cannotReliablyExplain("Energy.")).toBe(true);
+    const payload = composeDeterministicLensPayload(requestFor("explain", "Energy."));
+    const corpus = explainCorpus(payload);
+    expect(corpus).toMatch(/too thin|will not invent|exact selection/i);
+    expect(corpus).not.toMatch(/W = F|hockey puck|notice board/i);
+    expect(leaksForeignStockStory(corpus, "Energy.")).toBe(false);
   });
 });

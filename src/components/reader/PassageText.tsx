@@ -1,6 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  lookupDictionaryEntry,
+  type DictionaryEntry,
+  type DictionaryLookupStatus,
+} from "@/lib/reader/dictionary-lookup";
 
 export type ReaderMarkKind = "highlight" | "underline";
 
@@ -10,13 +16,6 @@ export interface ReaderTextMark {
   start: number;
   end: number;
   kind: ReaderMarkKind;
-}
-
-interface DictionaryEntry {
-  word: string;
-  phonetic: string | null;
-  partOfSpeech: string | null;
-  definition: string;
 }
 
 interface LookupAnchor {
@@ -92,75 +91,6 @@ function buildSegments(text: string, marks: readonly ReaderTextMark[]) {
   return segments;
 }
 
-function stripMarkup(value: string) {
-  return value
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-async function lookupFreeDictionary(
-  word: string,
-  signal: AbortSignal
-): Promise<DictionaryEntry | "missing" | null> {
-  const response = await fetch(
-    `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
-    { signal }
-  );
-  if (response.status === 404) return "missing";
-  if (!response.ok) return null;
-  const payload = (await response.json()) as Array<{
-    phonetic?: string;
-    meanings?: Array<{
-      partOfSpeech?: string;
-      definitions?: Array<{ definition?: string }>;
-    }>;
-  }>;
-  const first = payload[0];
-  const meaning = first?.meanings?.[0];
-  const definition = meaning?.definitions?.[0]?.definition?.trim();
-  if (!definition) return "missing";
-  return {
-    word,
-    phonetic: first.phonetic ?? null,
-    partOfSpeech: meaning?.partOfSpeech ?? null,
-    definition,
-  };
-}
-
-async function lookupWiktionary(
-  word: string,
-  signal: AbortSignal
-): Promise<DictionaryEntry | "missing" | null> {
-  const response = await fetch(
-    `https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(word)}`,
-    { signal }
-  );
-  if (response.status === 404) return "missing";
-  if (!response.ok) return null;
-  const payload = (await response.json()) as {
-    en?: Array<{
-      partOfSpeech?: string;
-      definitions?: Array<{ definition?: string }>;
-    }>;
-  };
-  const meaning = payload.en?.[0];
-  const definition = stripMarkup(meaning?.definitions?.[0]?.definition ?? "");
-  if (!definition) return "missing";
-  return {
-    word,
-    phonetic: null,
-    partOfSpeech: meaning?.partOfSpeech ?? null,
-    definition,
-  };
-}
-
 function WordLookupPopup({
   anchor,
   onClose,
@@ -169,54 +99,51 @@ function WordLookupPopup({
   onClose: () => void;
 }) {
   const [entry, setEntry] = useState<DictionaryEntry | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">(
-    "loading"
-  );
+  const [status, setStatus] = useState<"loading" | DictionaryLookupStatus>("loading");
+  const [attempt, setAttempt] = useState(0);
+  const popupWidth =
+    typeof window === "undefined" ? 288 : Math.min(288, window.innerWidth - 24);
+  const showBelow = typeof window === "undefined" ? false : anchor.top < 140;
 
   useEffect(() => {
     const controller = new AbortController();
+    setStatus("loading");
+    setEntry(null);
 
-    const ignoreAbort = (error: unknown) => {
-      if (error instanceof DOMException && error.name === "AbortError") throw error;
-      return null;
-    };
-
-    (async () => {
-      setStatus("loading");
-      setEntry(null);
-      try {
-        const query = anchor.word.toLowerCase();
-        const primary = await lookupFreeDictionary(query, controller.signal).catch(
-          ignoreAbort
-        );
-        const resolved =
-          primary && primary !== "missing"
-            ? primary
-            : await lookupWiktionary(query, controller.signal).catch(ignoreAbort);
-        if (!resolved || resolved === "missing") {
-          setStatus(resolved === "missing" || primary === "missing" ? "missing" : "error");
+    void lookupDictionaryEntry(anchor.word, { signal: controller.signal })
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (result.status === "ready") {
+          setEntry(result.entry);
+          setStatus("ready");
           return;
         }
-        setEntry(resolved);
-        setStatus("ready");
-      } catch (error: unknown) {
+        setStatus(result.status);
+      })
+      .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        if (controller.signal.aborted) return;
         setStatus("error");
-      }
-    })();
+      });
 
     return () => controller.abort();
-  }, [anchor.word]);
+  }, [anchor.word, attempt]);
 
   return (
     <div
       role="dialog"
       aria-label={`Meaning of ${anchor.word}`}
-      className="surface-card fixed z-50 w-72 p-4 text-left shadow-[0_16px_40px_-24px_rgba(32,36,43,0.45)]"
+      data-testid="reader-dictionary-dialog"
+      data-status={status}
+      className="surface-card fixed z-50 p-4 text-left shadow-[0_16px_40px_-24px_rgba(32,36,43,0.45)]"
       style={{
-        top: Math.max(12, anchor.top - 12),
-        left: Math.min(window.innerWidth - 300, Math.max(12, anchor.left)),
-        transform: "translateY(-100%)",
+        top: showBelow ? anchor.top + 16 : Math.max(12, anchor.top - 12),
+        left:
+          typeof window === "undefined"
+            ? anchor.left
+            : Math.min(window.innerWidth - popupWidth - 12, Math.max(12, anchor.left)),
+        width: popupWidth,
+        transform: showBelow ? "none" : "translateY(-100%)",
       }}
     >
       <div className="flex items-start justify-between gap-3">
@@ -231,12 +158,12 @@ function WordLookupPopup({
         <button
           type="button"
           onClick={onClose}
-          className="min-h-8 rounded-xl px-2 text-xs font-medium text-muted"
+          className="min-h-11 min-w-11 rounded-xl px-2 text-xs font-medium text-muted"
         >
           Close
         </button>
       </div>
-      <div className="mt-2 text-sm leading-relaxed text-ink">
+      <div className="mt-2 text-sm leading-relaxed text-ink" aria-live="polite">
         {status === "loading" && "Looking up this word…"}
         {status === "ready" && entry && (
           <>
@@ -249,8 +176,19 @@ function WordLookupPopup({
           </>
         )}
         {status === "missing" && "No dictionary entry for this word."}
+        {status === "timeout" && "The dictionary timed out. Try again."}
         {status === "error" && "The dictionary could not be reached just now."}
       </div>
+      {(status === "timeout" || status === "error") && (
+        <button
+          type="button"
+          data-testid="reader-dictionary-retry"
+          onClick={() => setAttempt((count) => count + 1)}
+          className="btn-primary mt-3 min-h-11 px-3 text-xs"
+        >
+          Retry
+        </button>
+      )}
     </div>
   );
 }
@@ -371,6 +309,7 @@ export default function PassageText({
                       const current = window.getSelection();
                       if (current && !current.isCollapsed) return;
                       if (!lookupWord) return;
+                      event.stopPropagation();
                       const rect = event.currentTarget.getBoundingClientRect();
                       setToolbar(null);
                       setLookup({
@@ -460,6 +399,7 @@ export default function PassageText({
             </button>
             <button
               type="button"
+              data-testid="reader-lookup"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
                 const word = toolbar.text.replace(/[^A-Za-z0-9' -]/g, " ").trim().split(/\s+/)[0];
@@ -507,11 +447,17 @@ export default function PassageText({
         </div>
       )}
 
-      {lookup && (
-        <div id="reader-word-lookup">
-          <WordLookupPopup key={lookup.word} anchor={lookup} onClose={() => setLookup(null)} />
-        </div>
-      )}
+      {lookup &&
+        createPortal(
+          <div id="reader-word-lookup" data-testid="reader-word-lookup">
+            <WordLookupPopup
+              key={`${lookup.word}-${lookup.top}-${lookup.left}`}
+              anchor={lookup}
+              onClose={() => setLookup(null)}
+            />
+          </div>,
+          document.body
+        )}
     </>
   );
 }
