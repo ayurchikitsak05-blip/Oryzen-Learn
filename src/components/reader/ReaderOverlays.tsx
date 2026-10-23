@@ -50,16 +50,60 @@ function OverlayShell({ title, onClose, children }: OverlayShellProps) {
 export function ContentsModal({
   chapters,
   activePage,
+  bookmarks = [],
+  pageBookmarked = false,
+  onToggleBookmark,
   onJump,
   onClose,
 }: {
   chapters: readonly { title: string; pageNumber: number }[];
   activePage: number;
+  bookmarks?: readonly { pageNumber: number; label: string }[];
+  pageBookmarked?: boolean;
+  onToggleBookmark?: () => void;
   onJump: (pageNumber: number) => void;
   onClose: () => void;
 }) {
   return (
     <OverlayShell title="Contents" onClose={onClose}>
+      {onToggleBookmark ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            data-testid="reader-bookmark-toggle"
+            onClick={onToggleBookmark}
+            className="btn-ghost min-h-11 px-3 text-sm"
+          >
+            {pageBookmarked ? "Remove bookmark" : "Bookmark this page"}
+          </button>
+        </div>
+      ) : null}
+      {bookmarks.length > 0 ? (
+        <div className="mb-4">
+          <p className="mb-2 text-xs font-medium text-muted">Bookmarks</p>
+          <ul className="space-y-2">
+            {bookmarks.map((bookmark) => (
+              <li key={`bookmark-${bookmark.pageNumber}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onJump(bookmark.pageNumber);
+                    onClose();
+                  }}
+                  className={`flex min-h-12 w-full items-center justify-between rounded-2xl border px-4 text-left text-sm ${
+                    bookmark.pageNumber === activePage
+                      ? "border-beige bg-selected text-heading"
+                      : "border-line bg-surface text-ink hover:bg-beige-2"
+                  }`}
+                >
+                  <span>{bookmark.label}</span>
+                  <span className="text-xs text-muted">p. {bookmark.pageNumber}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {chapters.length === 0 ? (
         <p className="text-sm text-muted">This document has no detected chapters yet.</p>
       ) : (

@@ -73,6 +73,12 @@ import {
   type PageGeometry,
   type ReaderFitMode,
 } from "@/lib/reader/fit";
+import {
+  hasBookmark,
+  listBookmarks,
+  toggleBookmark,
+  type ReaderBookmark,
+} from "@/lib/reader/bookmarks";
 import { ANONYMOUS_READER_SCOPE, scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import {
@@ -182,6 +188,7 @@ export default function PdfViewer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [transformOpen, setTransformOpen] = useState(false);
+  const [bookmarks, setBookmarks] = useState<ReaderBookmark[]>([]);
 
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchStartZoomRef = useRef<number>(DEFAULT_READER_ZOOM);
@@ -277,6 +284,14 @@ export default function PdfViewer({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [readerUserId, scopeReady]);
+
+  useEffect(() => {
+    if (!scopeReady || !activeDoc) {
+      setBookmarks([]);
+      return;
+    }
+    setBookmarks(listBookmarks(activeDoc.id, readerUserId));
+  }, [activeDoc, readerUserId, scopeReady]);
 
   useEffect(() => {
     if (!marksReady || !scopeReady) return;
@@ -829,6 +844,32 @@ export default function PdfViewer({
         <button type="button" onClick={() => setContentsOpen(true)} className="btn-ghost px-2 text-[11px]">
           Contents
         </button>
+        {activeDoc ? (
+          <button
+            type="button"
+            data-testid="reader-bookmark-page"
+            onClick={() => {
+              const chapter =
+                activeDoc.chapters.find((item) => item.pageNumber <= activePage)?.title ??
+                `Page ${activePage}`;
+              setBookmarks(
+                toggleBookmark(
+                  {
+                    documentId: activeDoc.id,
+                    pageNumber: activePage,
+                    label: chapter,
+                  },
+                  readerUserId
+                )
+              );
+            }}
+            className="btn-ghost px-2 text-[11px]"
+          >
+            {bookmarks.some((item) => item.pageNumber === activePage)
+              ? "Bookmarked"
+              : "Bookmark"}
+          </button>
+        ) : null}
         <button type="button" onClick={() => setGridOpen(true)} className="btn-ghost px-2 text-[11px]">
           Pages
         </button>
@@ -1115,6 +1156,29 @@ export default function PdfViewer({
         <ContentsModal
           chapters={activeDoc?.chapters ?? []}
           activePage={activePage}
+          bookmarks={bookmarks}
+          pageBookmarked={Boolean(
+            activeDoc && hasBookmark(activeDoc.id, activePage, readerUserId)
+          )}
+          onToggleBookmark={
+            activeDoc
+              ? () => {
+                  const chapter =
+                    activeDoc.chapters.find((item) => item.pageNumber <= activePage)
+                      ?.title ?? `Page ${activePage}`;
+                  setBookmarks(
+                    toggleBookmark(
+                      {
+                        documentId: activeDoc.id,
+                        pageNumber: activePage,
+                        label: chapter,
+                      },
+                      readerUserId
+                    )
+                  );
+                }
+              : undefined
+          }
           onJump={handleGoToPage}
           onClose={() => setContentsOpen(false)}
         />
