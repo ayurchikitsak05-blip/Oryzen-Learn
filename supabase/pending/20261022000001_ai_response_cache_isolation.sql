@@ -1,6 +1,6 @@
--- PENDING — do not apply to shared / Preview / Production
--- Project ref mazzciufouqcxmwaacyu is out of scope until explicit approval.
--- Tested only against a local disposable SQLite mock of the policy predicate.
+-- Applied to Oryzen Learn Preview (`gxthbneiryvdrsduktza`) on 23 Oct 2026.
+-- Do not apply to Production (`mazzciufouqcxmwaacyu`) without approval.
+-- Tested against a local disposable SQLite mock of the policy predicate.
 
 -- =============================================================================
 -- APPLY (review only)

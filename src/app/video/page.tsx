@@ -191,6 +191,27 @@ export default function ParallelVideoStudioPage() {
                 prev.some((row) => row.id === lecture.id) ? prev : [...prev, lecture]
               );
               setActiveLectureId(lecture.id);
+              void fetch(`/api/video/captions?v=${encodeURIComponent(videoId)}`)
+                .then((response) => response.json())
+                .then((payload: { notes?: VideoLectureRecord["notes"]; reason?: string }) => {
+                  if (!payload.notes?.length) {
+                    setTelemetryToast(
+                      "This video has no public caption track, so notes stay empty. ORYZEN does not invent a transcript."
+                    );
+                    return;
+                  }
+                  setLectures((prev) =>
+                    prev.map((row) =>
+                      row.id === lecture.id ? { ...row, notes: payload.notes ?? [] } : row
+                    )
+                  );
+                  setTelemetryToast("Public captions were attached as timed notes.");
+                })
+                .catch(() => {
+                  setTelemetryToast(
+                    "This video has no public caption track, so notes stay empty. ORYZEN does not invent a transcript."
+                  );
+                });
             }}
             onLocalFileSelected={(fileName) => {
               const lecture = createStudentLecture({

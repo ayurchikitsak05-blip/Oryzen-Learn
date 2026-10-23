@@ -30,6 +30,18 @@ function writeAll(items: readonly ReaderBookmark[], userId?: string | null) {
   window.localStorage.setItem(storageKey(userId), JSON.stringify(items));
 }
 
+export function listAllBookmarks(userId?: string | null): ReaderBookmark[] {
+  return readAll(userId);
+}
+
+export function replaceAllBookmarks(
+  items: readonly ReaderBookmark[],
+  userId?: string | null
+): ReaderBookmark[] {
+  writeAll(items, userId);
+  return [...items];
+}
+
 export function listBookmarks(
   documentId: string,
   userId?: string | null

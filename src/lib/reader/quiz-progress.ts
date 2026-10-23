@@ -72,6 +72,20 @@ export function readAllQuizProgress(userId?: string | null): ReaderQuizProgress[
   return Object.values(readMap(userId));
 }
 
+export function replaceAllQuizProgress(
+  items: readonly ReaderQuizProgress[],
+  userId?: string | null
+): ReaderQuizProgress[] {
+  if (typeof window !== "undefined") {
+    const map: Record<string, ReaderQuizProgress> = {};
+    for (const item of items) {
+      map[quizProgressId(item.documentId, item.pageNumber, item.selectionKey)] = item;
+    }
+    window.localStorage.setItem(quizProgressStorageKey(userId), JSON.stringify(map));
+  }
+  return [...items];
+}
+
 export function formatQuizProgressNote(progress: ReaderQuizProgress): string {
   const answered = Object.keys(progress.answers).length;
   const weak =

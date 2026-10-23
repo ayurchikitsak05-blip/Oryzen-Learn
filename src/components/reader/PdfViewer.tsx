@@ -74,11 +74,11 @@ import {
   type ReaderFitMode,
 } from "@/lib/reader/fit";
 import {
-  hasBookmark,
   listBookmarks,
   toggleBookmark,
   type ReaderBookmark,
 } from "@/lib/reader/bookmarks";
+import { hydrateReaderAccountCopy, pushReaderAccountCopy } from "@/lib/reader/sync-client";
 import { ANONYMOUS_READER_SCOPE, scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import {
@@ -284,6 +284,20 @@ export default function PdfViewer({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [readerUserId, scopeReady]);
+
+  useEffect(() => {
+    if (!scopeReady) return;
+    const timer = window.setTimeout(() => {
+      void hydrateReaderAccountCopy(readerUserId).then((result) => {
+        if (activeDoc) {
+          setBookmarks(
+            result.bookmarks.filter((item) => item.documentId === activeDoc.id)
+          );
+        }
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeDoc, readerUserId, scopeReady]);
 
   useEffect(() => {
     if (!scopeReady || !activeDoc) {
@@ -862,6 +876,7 @@ export default function PdfViewer({
                   readerUserId
                 )
               );
+              void pushReaderAccountCopy(readerUserId);
             }}
             className="btn-ghost px-2 text-[11px]"
           >
@@ -1084,6 +1099,7 @@ export default function PdfViewer({
                   },
                   readerUserId
                 );
+                void pushReaderAccountCopy(readerUserId);
                 if (completed) {
                   void persistQuizProgressNote(progress).then((saved) => {
                     setNotebookStatus(
@@ -1157,9 +1173,7 @@ export default function PdfViewer({
           chapters={activeDoc?.chapters ?? []}
           activePage={activePage}
           bookmarks={bookmarks}
-          pageBookmarked={Boolean(
-            activeDoc && hasBookmark(activeDoc.id, activePage, readerUserId)
-          )}
+          pageBookmarked={bookmarks.some((item) => item.pageNumber === activePage)}
           onToggleBookmark={
             activeDoc
               ? () => {
@@ -1176,6 +1190,7 @@ export default function PdfViewer({
                       readerUserId
                     )
                   );
+                  void pushReaderAccountCopy(readerUserId);
                 }
               : undefined
           }

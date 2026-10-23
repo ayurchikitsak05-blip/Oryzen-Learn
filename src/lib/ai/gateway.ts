@@ -518,6 +518,12 @@ async function storeCachedResponse(params: {
           model_used: params.modelUsed,
           response_payload: params.payload,
           hit_count: 1,
+          cache_scope: params.scope,
+          owner_user_id: params.userId,
+          tenant_id:
+            params.scope === "institute_authorized" ? params.auth.tenantId : null,
+          cache_version: APP_CACHE_KEY_VERSION,
+          revocation_epoch: params.auth.revocationEpoch,
         },
         { onConflict: "cache_key" }
       );
