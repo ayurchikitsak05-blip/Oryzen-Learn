@@ -1,12 +1,33 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { coachStorageKey } from "@/lib/coach/persist";
 import { defaultIntake } from "../defaults";
+import {
+  ROADMAP_MAX_BYTES,
+  ROADMAP_MAX_DAYS,
+  rejectRawPayloadSize,
+} from "../limits";
 import {
   clearLocalRoadmap,
   createRoadmapRecord,
+  exportRoadmapFilename,
+  exportRoadmapJson,
   readLocalRoadmap,
+  roadmapStorageKey,
   sanitizeRecord,
+  snapshotLocalRoadmap,
   writeLocalRoadmap,
 } from "../persist";
+import { prepareRoadmapRecord } from "../sanitize";
+
+const TODAY = "2026-11-02";
+
+function sample(userId: string) {
+  return createRoadmapRecord({
+    userId,
+    intake: defaultIntake("2026-12-31"),
+    today: TODAY,
+  });
+}
 
 describe("roadmap persist", () => {
   afterEach(() => {
@@ -14,11 +35,7 @@ describe("roadmap persist", () => {
   });
 
   it("keeps a student plan in localStorage when the table is not live", () => {
-    const record = createRoadmapRecord({
-      userId: "student-1",
-      intake: defaultIntake("2026-12-31"),
-      today: "2026-11-02",
-    });
+    const record = sample("student-1");
     writeLocalRoadmap(record, "student-1");
     const loaded = readLocalRoadmap("student-1");
     expect(loaded?.userId).toBe("student-1");
@@ -30,5 +47,78 @@ describe("roadmap persist", () => {
 
   it("rejects corrupt stored JSON", () => {
     expect(sanitizeRecord({ hello: "no" }, "student-1")).toBeNull();
+  });
+
+  it("isolates roadmap keys per student and leaves coach on its own local key", () => {
+    expect(roadmapStorageKey("student-a")).toBe("oryzen_study_roadmap_v1::student-a");
+    expect(roadmapStorageKey("student-b")).toBe("oryzen_study_roadmap_v1::student-b");
+    expect(roadmapStorageKey("student-a")).not.toBe(roadmapStorageKey("student-b"));
+    expect(coachStorageKey("student-a")).toBe("oryzen_study_coach_v1::student-a");
+    expect(coachStorageKey("student-a")).not.toBe(roadmapStorageKey("student-a"));
+  });
+
+  it("keeps a dated snapshot for Keep Both without replacing the live local plan", () => {
+    const record = sample("student-1");
+    writeLocalRoadmap(record, "student-1");
+    const key = snapshotLocalRoadmap(record, "student-1");
+    expect(key).toContain("oryzen_study_roadmap_v1::student-1::snapshot::");
+    expect(window.localStorage.getItem(key)).toContain(record.id);
+    expect(readLocalRoadmap("student-1")?.id).toBe(record.id);
+    expect(exportRoadmapJson(record)).toContain(record.id);
+    expect(exportRoadmapFilename(record, new Date("2026-11-02T00:00:00.000Z"))).toContain("2026-11-02");
+  });
+});
+
+describe("roadmap sanitizer and upload limits", () => {
+  it("binds the session user and drops extra plan fields", () => {
+    const record = sample("attacker");
+    const prepared = prepareRoadmapRecord(
+      {
+        ...record,
+        userId: "attacker",
+        plan: { ...record.plan, extra: "drop-me", days: record.plan.days },
+      },
+      "session-user"
+    );
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) return;
+    expect(prepared.record.userId).toBe("session-user");
+    expect(prepared.record.plan).not.toHaveProperty("extra");
+    expect(prepared.record.plan.weeks.length).toBeGreaterThan(0);
+  });
+
+  it("rejects malformed JSON-shaped records", () => {
+    const prepared = prepareRoadmapRecord({ plan: { days: "nope" } }, "student-1");
+    expect(prepared.ok).toBe(false);
+    if (prepared.ok) return;
+    expect(prepared.status).toBe(400);
+    expect(prepared.code).toBe("malformed");
+  });
+
+  it("rejects oversized raw payloads", () => {
+    const huge = "x".repeat(ROADMAP_MAX_BYTES + 8);
+    const rejected = rejectRawPayloadSize(huge);
+    expect(rejected?.status).toBe(413);
+    expect(rejected?.code).toBe("payload_too_large");
+    expect(rejectRawPayloadSize("{}")).toBeNull();
+  });
+
+  it("rejects too many days instead of truncating", () => {
+    const record = sample("student-1");
+    const day = record.plan.days[0];
+    const prepared = prepareRoadmapRecord(
+      {
+        ...record,
+        plan: {
+          ...record.plan,
+          days: Array.from({ length: ROADMAP_MAX_DAYS + 1 }, () => day),
+        },
+      },
+      "student-1"
+    );
+    expect(prepared.ok).toBe(false);
+    if (prepared.ok) return;
+    expect(prepared.status).toBe(400);
+    expect(prepared.code).toBe("too_complex");
   });
 });

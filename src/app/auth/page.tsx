@@ -76,6 +76,7 @@ function AuthScreen() {
   const [passwordMismatch, setPasswordMismatch] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isolatedPreview, setIsolatedPreview] = useState(false);
   const linkError = readAuthLinkError(searchParams);
 
   useEffect(() => {
@@ -91,6 +92,8 @@ function AuthScreen() {
         setDeviceId(generated);
       }
       setDeviceType(detected);
+      const host = window.location.hostname;
+      setIsolatedPreview(host.endsWith(".vercel.app") && host !== "oryzen-learn.vercel.app");
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -279,6 +282,11 @@ function AuthScreen() {
               ? "Email, password, and an optional name."
               : "Email and password for your account."}
           </p>
+          {isolatedPreview ? (
+            <p className="mt-3 text-sm text-muted">
+              Preview keeps its own accounts. A Production password will not open a Preview account.
+            </p>
+          ) : null}
 
           <div role="tablist" aria-label="Account" className="mt-6 grid grid-cols-2 gap-2">
             <button

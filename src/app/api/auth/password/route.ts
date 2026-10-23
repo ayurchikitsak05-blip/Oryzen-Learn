@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { destinationAfterAuth } from "@/lib/access/gate";
 import { describeSupabaseFailure, supabaseConfigError } from "@/lib/supabase/client";
 import { ensureSignedInProfile } from "@/lib/supabase/ensure-profile";
+import { describePasswordAuthFailure } from "@/lib/supabase/password-auth-errors";
 import { createAuthRouteClient } from "@/lib/supabase/route-client";
 import { detectDeviceCategory, enforceTwoDeviceLock } from "@/lib/supabase/device-lock";
 import {
@@ -79,23 +80,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (authResult.error || !authResult.data.user || !authResult.data.session) {
-      const raw = authResult.error?.message ?? "";
-      const friendly = describeSupabaseFailure(raw);
-      const invalidPassword = /invalid login|invalid credentials/i.test(raw);
-      const notConfirmed = /email not confirmed/i.test(raw);
-      const emailTaken = alreadyRegistered || invalidPassword;
+      const failure = describePasswordAuthFailure({
+        rawMessage: authResult.error?.message ?? "",
+        networkMessage: describeSupabaseFailure(authResult.error?.message ?? ""),
+        alreadyRegistered,
+        createdWithoutSession: Boolean(
+          created && authResult.data.user && !authResult.data.session
+        ),
+      });
       return NextResponse.json(
-        {
-          error: friendly
-            ? friendly
-            : emailTaken
-              ? "This email already has an account, and that password does not match the one that was saved."
-              : notConfirmed
-                ? "This email is not ready for sign-in yet. Save the password on this page, then sign in."
-                : raw || "Unable to sign in.",
-          code: emailTaken ? "password_mismatch" : undefined,
-        },
-        { status: friendly ? 503 : emailTaken ? 409 : 401 }
+        { error: failure.error, code: failure.code },
+        { status: failure.status }
       );
     }
 
