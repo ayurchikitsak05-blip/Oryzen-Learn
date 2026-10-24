@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import type { HighlightLensType } from "@/lib/prakriti/config";
+import type { ReaderStudyLens } from "@/components/reader/StudyWorkspace";
 import { clampToolbarAnchor } from "@/lib/reader/highlight-toolbar";
 
 export interface HighlightLensActionItem {
@@ -22,9 +23,9 @@ export interface HighlightToolbarProps {
   selectedText: string;
   pageNumber: number;
   sectionHeading: string;
-  activeLens: HighlightLensType | null;
+  activeLens: ReaderStudyLens | null;
   loading: boolean;
-  onSelectLens: (lens: HighlightLensType) => void;
+  onSelectLens: (lens: ReaderStudyLens) => void;
   onHighlight?: () => void;
   onUnderline?: () => void;
   onClearSelection?: () => void;
@@ -159,6 +160,19 @@ export default function HighlightToolbar({
             className="inline-flex min-h-8 w-full items-center rounded-lg px-2 text-left text-[11px] font-medium text-ink hover:bg-beige-2 disabled:opacity-50"
           >
             Explore My Learning Approach
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            data-testid="lens-btn-ask_my_book"
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => {
+              onSelectLens("ask_my_book");
+              setMoreOpen(false);
+            }}
+            className="inline-flex min-h-8 w-full items-center rounded-lg px-2 text-left text-[11px] font-medium text-ink hover:bg-beige-2 disabled:opacity-50"
+          >
+            Ask My Book
           </button>
         </div>
       ) : null}

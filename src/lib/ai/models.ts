@@ -1,14 +1,17 @@
 /**
  * Provider-independent model catalog for the ORYZEN Learn study gateway.
  *
- * Prices and IDs were verified against official pages on 21 Oct 2026.
+ * Prices and IDs were verified against official pages on 23 Oct 2026.
  * Do not invent model IDs. Server-only env names live here as documentation —
  * never prefix them with NEXT_PUBLIC_ and never hardcode keys.
  */
 
 import type { HighlightLensType } from "@/lib/prakriti/config";
 
-export type CatalogTaskType = HighlightLensType | "deep_integrative_synthesis";
+export type CatalogTaskType =
+  | HighlightLensType
+  | "deep_integrative_synthesis"
+  | "ask_my_book";
 
 export type PaidAiProvider = "openai" | "google" | "mistral";
 export type AiProvider = PaidAiProvider | "deterministic";
@@ -17,11 +20,12 @@ export type GatewayModelId =
   | "gemini-2.5-flash"
   | "gemini-2.5-pro"
   | "gemini-2.5-flash-lite"
+  | "gemini-3.5-flash-lite"
   | "gpt-6-luna"
   | "ministral-3b-2512"
   | "deterministic";
 
-export const PRICING_AS_OF = "2026-10-21";
+export const PRICING_AS_OF = "2026-10-23";
 
 /** Market close ~₹94.47/$ (Business Standard / News On AIR, 21 Oct 2026). Estimate. */
 export const USD_INR_RATE_ESTIMATE = 94.47;
@@ -74,16 +78,32 @@ export const MODEL_CATALOG: Record<GatewayModelId, OfficialModelRecord> = {
     officialId: "gemini-2.5-flash-lite",
     vercelGatewayId: "google/gemini-2.5-flash-lite",
     displayName: "Gemini 2.5 Flash-Lite",
-    availability: "available",
+    availability: "unavailable",
     inputUsdPer1M: 0.1,
     outputUsdPer1M: 0.4,
     structuredOutput: true,
     structuredOutputNotes:
-      "Google lists Structured outputs. Vercel AI Gateway tags structured-output. Access may be limited to prior 2.5 users; Google now recommends newer Flash-Lite SKUs for new projects.",
+      "Google now limits 2.5 Flash-Lite to prior users. Preview uses gemini-3.5-flash-lite instead.",
     sources: [
       "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite",
       "https://ai.google.dev/gemini-api/docs/pricing",
-      "https://ai-gateway.vercel.sh/v1/models",
+    ],
+  },
+  "gemini-3.5-flash-lite": {
+    id: "gemini-3.5-flash-lite",
+    provider: "google",
+    officialId: "gemini-3.5-flash-lite",
+    vercelGatewayId: "google/gemini-3.5-flash-lite",
+    displayName: "Gemini 3.5 Flash-Lite",
+    availability: "available",
+    inputUsdPer1M: 0.3,
+    outputUsdPer1M: 2.5,
+    structuredOutput: true,
+    structuredOutputNotes:
+      "Google lists structured outputs. Standard paid list price includes thinking tokens in output.",
+    sources: [
+      "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite",
+      "https://ai.google.dev/gemini-api/docs/pricing",
     ],
   },
   "gemini-2.5-flash": {
@@ -152,7 +172,7 @@ export const MODEL_CATALOG: Record<GatewayModelId, OfficialModelRecord> = {
 };
 
 export const PROVIDER_DEFAULT_MODEL: Record<PaidAiProvider, GatewayModelId> = {
-  google: "gemini-2.5-flash-lite",
+  google: "gemini-3.5-flash-lite",
   mistral: "ministral-3b-2512",
   openai: "gpt-6-luna",
 };
@@ -171,20 +191,21 @@ export const CHEAPEST_PROVIDER_ORDER: PaidAiProvider[] = [
  * Task → preferred model. Config only — student UI keeps calling lens ids.
  *
  * Supported highlight / explain / story / revise / quiz / diagram tasks
- * prefer Gemini 2.5 Flash-Lite (cheapest Google structured-output SKU).
+ * prefer Gemini 3.5 Flash-Lite (current Google Flash-Lite SKU for new keys).
  * Flash-Lite is not claimed to match Flash or Pro quality.
  *
  * Quality fallback: GPT-6 Luna. Cheap extractive fallback: Ministral 3B.
  * Deep synthesis stays on Pro and is gated by a tighter remaining-wallet check.
  */
 export const TASK_PREFERRED_MODELS: Record<CatalogTaskType, GatewayModelId> = {
-  ayurvedic: "gemini-2.5-flash-lite",
-  illustrative: "gemini-2.5-flash-lite",
-  high_yield_revision: "gemini-2.5-flash-lite",
-  save_passage: "gemini-2.5-flash-lite",
-  test_me: "gemini-2.5-flash-lite",
-  explain: "gemini-2.5-flash-lite",
-  story: "gemini-2.5-flash-lite",
+  ayurvedic: "gemini-3.5-flash-lite",
+  illustrative: "gemini-3.5-flash-lite",
+  high_yield_revision: "gemini-3.5-flash-lite",
+  save_passage: "gemini-3.5-flash-lite",
+  test_me: "gemini-3.5-flash-lite",
+  explain: "gemini-3.5-flash-lite",
+  story: "gemini-3.5-flash-lite",
+  ask_my_book: "gemini-3.5-flash-lite",
   deep_integrative_synthesis: "gemini-2.5-pro",
 };
 
@@ -280,7 +301,13 @@ export function modelForProvider(
   provider: PaidAiProvider,
   preferred: GatewayModelId
 ): GatewayModelId {
-  if (MODEL_CATALOG[preferred].provider === provider) return preferred;
+  const preferredRow = MODEL_CATALOG[preferred];
+  if (
+    preferredRow.provider === provider &&
+    preferredRow.availability === "available"
+  ) {
+    return preferred;
+  }
   if (provider === "google" && preferred === "gemini-2.5-pro") {
     return "gemini-2.5-pro";
   }

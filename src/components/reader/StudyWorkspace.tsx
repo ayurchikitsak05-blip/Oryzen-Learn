@@ -10,7 +10,11 @@ import {
   type LensFeedbackKind,
 } from "@/lib/ai/lens-feedback";
 import type { HighlightLensType } from "@/lib/prakriti/config";
+import type { AskBookThreadTurn } from "@/lib/ai/ask-my-book";
+import { AskMyBookPanel } from "@/components/reader/AskMyBookPanel";
 import { StudyLensOutput } from "@/components/reader/StudyLensOutput";
+
+export type ReaderStudyLens = HighlightLensType | "ask_my_book";
 
 export function StudyWorkspace({
   open,
@@ -24,6 +28,11 @@ export function StudyWorkspace({
   lens,
   selectedMcqOptions,
   selectedText,
+  askDraft = "",
+  askTurns = [],
+  askEmptyHint = null,
+  onAskDraftChange,
+  onAsk,
   onPickMcq,
   onRetry,
   onClose,
@@ -36,9 +45,14 @@ export function StudyWorkspace({
   error: string | null;
   notebookStatus: string | null;
   result: AiGatewayExecutionResult | null;
-  lens: HighlightLensType | null;
+  lens: ReaderStudyLens | null;
   selectedMcqOptions: Record<number, number>;
   selectedText?: string;
+  askDraft?: string;
+  askTurns?: readonly AskBookThreadTurn[];
+  askEmptyHint?: string | null;
+  onAskDraftChange?: (value: string) => void;
+  onAsk?: () => void;
   onPickMcq: (questionIndex: number, optionIndex: number) => void;
   onRetry: () => void;
   onClose: () => void;
@@ -67,7 +81,7 @@ export function StudyWorkspace({
           <p className="text-[11px] font-medium text-muted">Study response</p>
           <h3 className="mt-0.5 flex items-center gap-2 font-display text-base text-heading">
             <Highlighter className="h-4 w-4 shrink-0" />
-            <span className="truncate">{title}</span>
+            <span className="truncate">{lens === "ask_my_book" ? "Ask My Book" : title}</span>
           </h3>
           {pageRef ? <p className="mt-1 text-xs text-muted">{pageRef}</p> : null}
         </div>
@@ -81,8 +95,23 @@ export function StudyWorkspace({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-        {loading ? (
+      <div className={`min-h-0 flex-1 px-4 py-4 ${lens === "ask_my_book" ? "flex flex-col overflow-hidden" : "space-y-4 overflow-y-auto"}`}>
+        {lens === "ask_my_book" ? (
+          <AskMyBookPanel
+            passageExcerpt={selectedText ? selectedText.slice(0, 240) : ""}
+            draft={askDraft}
+            turns={askTurns}
+            loading={loading}
+            error={error}
+            emptyHint={askEmptyHint}
+            disabled={!selectedText?.trim()}
+            onDraftChange={onAskDraftChange ?? (() => undefined)}
+            onAsk={onAsk ?? (() => undefined)}
+            onRetry={onRetry}
+          />
+        ) : null}
+
+        {lens !== "ask_my_book" && loading ? (
           <div
             data-testid="ai-lens-loading-skeleton"
             role="status"
@@ -95,7 +124,7 @@ export function StudyWorkspace({
           </div>
         ) : null}
 
-        {error && !loading ? (
+        {lens !== "ask_my_book" && error && !loading ? (
           <div
             data-testid="ai-lens-error"
             role="alert"
@@ -114,7 +143,7 @@ export function StudyWorkspace({
           </p>
         ) : null}
 
-        {result && !loading ? (
+        {lens !== "ask_my_book" && result && !loading ? (
           <div data-testid="ai-lens-response-card" className="space-y-4">
             {result.usedDeterministicFallback ? (
               <p

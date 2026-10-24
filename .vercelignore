@@ -1,0 +1,13 @@
+# Local verification and IDE noise must not ride Preview uploads.
+tmp-e2e-artifacts
+tmp-e2e-*.mjs
+.cursor
+-w
+agent-transcripts
+*.pem
+.env*
+coverage
+.next
+out
+build
+node_modules

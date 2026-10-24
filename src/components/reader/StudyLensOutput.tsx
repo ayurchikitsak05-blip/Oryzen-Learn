@@ -407,7 +407,7 @@ export function StudyLensOutput({
   onPickMcq,
 }: {
   result: AiGatewayExecutionResult;
-  lens: HighlightLensType | null;
+  lens: HighlightLensType | "ask_my_book" | null;
   selectedMcqOptions: Record<number, number>;
   selectedText?: string;
   onPickMcq: (questionIndex: number, optionIndex: number) => void;
@@ -415,6 +415,17 @@ export function StudyLensOutput({
   const resolved = lens ?? (result.payload.lens_type === "deep_integrative_synthesis"
     ? "explain"
     : result.payload.lens_type);
+  if (resolved === "ask_my_book") {
+    const asked = result.payload.askMyBook;
+    return (
+      <div data-testid="ask-my-book-output" className="space-y-3">
+        <p className="text-sm text-heading">{asked?.question ?? "Your question"}</p>
+        <div className="text-sm leading-relaxed text-ink [&_p]:whitespace-pre-wrap [&_p]:break-words">
+          <StudyMarkdown markdown={asked?.answer ?? result.payload.markdown_body} />
+        </div>
+      </div>
+    );
+  }
   if (resolved === "explain") return <ExplainOutput result={result} />;
   if (resolved === "story") return <StoryOutput result={result} />;
   if (resolved === "illustrative") return <IllustrateOutput result={result} />;

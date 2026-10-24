@@ -42,6 +42,7 @@ export const MODEL_COST_PER_1K_TOKENS_INR: Record<
   "gemini-2.5-pro": { inputInr: 0.14, outputInr: 0.42 },
   "gemini-2.5-flash": { inputInr: 0.018, outputInr: 0.054 },
   "gemini-2.5-flash-lite": { inputInr: 0.006, outputInr: 0.018 },
+  "gemini-3.5-flash-lite": { inputInr: 0.0283, outputInr: 0.2362 },
   "gpt-6-luna": { inputInr: 0.0094, outputInr: 0.0472 },
   "ministral-3b-2512": { inputInr: 0.0094, outputInr: 0.0094 },
   deterministic: { inputInr: 0, outputInr: 0 },

@@ -18,9 +18,12 @@ export async function POST(request: NextRequest) {
       selectedText?: string;
       selectionBoundingBox?: BoundingBox;
       lensType?: GatewayTaskType;
+      studentQuestion?: string;
+      conversationHistory?: Array<{ question: string; answer: string }>;
       prakritiDosha?: Dosha;
       activePageText?: string;
       candidateChunks?: CitationReadyChunk[];
+      maxProviderAttempts?: number;
     };
 
     if (
@@ -37,6 +40,16 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    if (body.lensType === "ask_my_book") {
+      const question = body.studentQuestion?.replace(/\s+/g, " ").trim() ?? "";
+      if (question.length < 3) {
+        return NextResponse.json(
+          { error: "Ask a question about this passage." },
+          { status: 400 }
+        );
+      }
     }
 
     const supabase = await createClient().catch(() => null);
@@ -60,11 +73,16 @@ export async function POST(request: NextRequest) {
       selectedText: body.selectedText,
       selectionBoundingBox: body.selectionBoundingBox,
       lensType: body.lensType,
+      studentQuestion: body.studentQuestion,
+      conversationHistory: body.conversationHistory,
       prakritiDosha: body.prakritiDosha ?? "Vata",
       activePageText: body.activePageText,
-      candidateChunks: body.candidateChunks ?? [],
+      candidateChunks: (body.candidateChunks ?? []).filter(
+        (chunk) => chunk.document_id === body.documentId
+      ),
       documentClass: "private_upload",
       supabase,
+      maxProviderAttempts: body.maxProviderAttempts === 1 ? 1 : undefined,
     });
 
     return NextResponse.json(result);

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
@@ -33,7 +32,6 @@ import {
 import {
   recommendedStudyLenses,
   type Dosha,
-  type HighlightLensType,
   type PrakritiThemePalette,
 } from "@/lib/prakriti/config";
 import HighlightToolbar from "@/components/reader/HighlightToolbar";
@@ -62,7 +60,12 @@ import {
   selectionKeyFromText,
 } from "@/lib/reader/quiz-progress";
 import { PdfPageCanvas } from "@/components/reader/PdfPageCanvas";
-import { StudyWorkspace } from "@/components/reader/StudyWorkspace";
+import { StudyWorkspace, type ReaderStudyLens } from "@/components/reader/StudyWorkspace";
+import {
+  type AskBookThreadTurn,
+  buildAskMyBookLensBody,
+  isBlankAskQuestion,
+} from "@/lib/ai/ask-my-book";
 import TransformDialog from "@/components/reader/TransformDialog";
 import {
   DEFAULT_FIT_MODE,
@@ -171,7 +174,10 @@ export default function PdfViewer({
   const [selectedChunk, setSelectedChunk] = useState<CitationReadyChunk | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [activeLens, setActiveLens] = useState<HighlightLensType | null>(null);
+  const [activeLens, setActiveLens] = useState<ReaderStudyLens | null>(null);
+  const [askDraft, setAskDraft] = useState("");
+  const [askTurns, setAskTurns] = useState<AskBookThreadTurn[]>([]);
+  const [askEmptyHint, setAskEmptyHint] = useState<string | null>(null);
   const [aiResult, setAiResult] = useState<AiGatewayExecutionResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -205,6 +211,7 @@ export default function PdfViewer({
   } | null>(null);
   const lensRequestIdRef = useRef(0);
   const lensAbortRef = useRef<AbortController | null>(null);
+  const askLastQuestionRef = useRef("");
 
   const zoomScale = resolveReaderScale({
     fitMode,
@@ -683,11 +690,146 @@ export default function PdfViewer({
     });
   };
 
+  const resolveAskPassage = (chunk = selectedChunk, selectedOverride?: string) => {
+    const pageChunks =
+      activeDoc?.chunks.filter((item) => item.page_number === (chunk?.page_number ?? activePage)) ??
+      [];
+    const resolvedChunk = chunk ?? pageChunks[0] ?? null;
+    const text = (
+      selectedOverride ??
+      lensText ??
+      resolvedChunk?.text ??
+      pageChunks.map((item) => item.text).join("\n")
+    ).trim();
+    return { chunk: resolvedChunk, text };
+  };
+
+  const openAskMyBook = (chunk = selectedChunk, selectedOverride?: string) => {
+    if (!activeDoc) {
+      setAiError("Open a PDF before asking about it.");
+      setWorkspaceOpen(true);
+      setActiveLens("ask_my_book");
+      return;
+    }
+    snapshotReading();
+    const resolved = resolveAskPassage(chunk, selectedOverride);
+    if (resolved.chunk) setSelectedChunk(resolved.chunk);
+    if (resolved.text) setLensText(resolved.text);
+    setActiveLens("ask_my_book");
+    setAiResult(null);
+    setAiError(null);
+    setAiLoading(false);
+    setAskEmptyHint(null);
+    setNotebookStatus(null);
+    setWorkspaceOpen(true);
+    setSelectionUi(null);
+  };
+
+  const handleAskMyBook = async (questionOverride?: string) => {
+    if (!activeDoc || aiLoading) return;
+    const question = (questionOverride ?? askDraft).trim();
+    if (isBlankAskQuestion(question)) {
+      setAskEmptyHint("Type a question about this passage first.");
+      return;
+    }
+    const resolved = resolveAskPassage();
+    if (!resolved.chunk || !resolved.text) {
+      setAskEmptyHint(null);
+      setAiError("Select a passage, or open a page with text, before asking.");
+      return;
+    }
+    snapshotReading();
+    askLastQuestionRef.current = question;
+    setAskEmptyHint(null);
+    setSelectedChunk(resolved.chunk);
+    setLensText(resolved.text);
+    setActiveLens("ask_my_book");
+    setAiError(null);
+    setNotebookStatus(null);
+    setAiLoading(true);
+    setWorkspaceOpen(true);
+    lensAbortRef.current?.abort();
+    const controller = new AbortController();
+    lensAbortRef.current = controller;
+    const requestId = lensRequestIdRef.current + 1;
+    lensRequestIdRef.current = requestId;
+    try {
+      const nearbyChunks = isolateAskChunks(resolved.chunk.page_number);
+      const activePageText = nearbyChunks
+        .filter((item) => item.page_number === resolved.chunk.page_number)
+        .map((item) => item.text)
+        .join("\n");
+      const res = await fetch("/api/ai/lens", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          buildAskMyBookLensBody({
+            documentId: activeDoc.id,
+            documentHash: activeDoc.fileHash,
+            pageNumber: resolved.chunk.page_number,
+            sectionHeading: resolved.chunk.section_heading,
+            selectedText: resolved.text,
+            selectionBoundingBox: resolved.chunk.bounding_box,
+            studentQuestion: question,
+            conversationHistory: askTurns,
+            prakritiDosha: resolvedPrakritiDosha,
+            activePageText,
+            candidateChunks: nearbyChunks,
+          })
+        ),
+        signal: controller.signal,
+      });
+      if (requestId !== lensRequestIdRef.current) return;
+      const data = (await res.json()) as AiGatewayExecutionResult & { error?: string };
+      const asked = data.payload?.askMyBook;
+      const usable = Boolean(asked?.answer?.trim() || data.payload?.markdown_body?.trim());
+      if (!res.ok || !usable) {
+        setAiError(data.error ?? "We couldn't answer from this passage. Please try again.");
+        return;
+      }
+      setAiResult(data);
+      setAskTurns((current) => [
+        ...current,
+        {
+          question: asked?.question ?? question,
+          answer: asked?.answer ?? data.payload.markdown_body,
+          sufficientSource: asked?.sufficientSource ?? true,
+          citations: (data.payload.citations ?? []).map((item) => ({
+            label: item.label,
+            page_number: item.page_number,
+            section_heading: item.section_heading,
+          })),
+        },
+      ]);
+      setAskDraft("");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (requestId !== lensRequestIdRef.current) return;
+      setAiError("We couldn't answer from this passage. Please try again.");
+    } finally {
+      if (requestId === lensRequestIdRef.current) setAiLoading(false);
+    }
+  };
+
+  const isolateAskChunks = (pageNumber = selectedChunk?.page_number ?? activePage) => {
+    if (!activeDoc) return [];
+    return activeDoc.chunks.filter(
+      (item) =>
+        item.document_id === activeDoc.id &&
+        Math.abs(item.page_number - pageNumber) <= 2
+    );
+  };
+
   const handleTriggerLens = async (
-    lens: HighlightLensType,
+    lens: ReaderStudyLens,
     chunk = selectedChunk,
     selectedOverride?: string
   ) => {
+    if (lens === "ask_my_book") {
+      openAskMyBook(chunk, selectedOverride);
+      return;
+    }
     if (!chunk || !activeDoc || aiLoading) return;
     const selected = (selectedOverride ?? lensText)?.trim() || chunk.text;
     if (!selected.trim()) {
@@ -747,7 +889,8 @@ export default function PdfViewer({
         Boolean(payload?.explain) ||
         Boolean(payload?.illustrative) ||
         Boolean(payload?.revision) ||
-        Boolean(payload?.story);
+        Boolean(payload?.story) ||
+        Boolean(payload?.askMyBook?.answer);
       if (!res.ok || !usable) {
         setAiResult(null);
         setAiError(data.error ?? "We couldn't explore this passage. Please try again.");
@@ -841,6 +984,9 @@ export default function PdfViewer({
                 setFitMode(persisted?.fitMode ?? DEFAULT_FIT_MODE);
                 setSelectedChunk(null);
                 setAiResult(null);
+                setAskTurns([]);
+                setAskDraft("");
+                setAskEmptyHint(null);
                 setWorkspaceOpen(false);
                 const bytes = await getLocalPdfBinary(next.id);
                 if (bytes) setActivePdfBytes(bytes);
@@ -903,9 +1049,14 @@ export default function PdfViewer({
         >
           Transform
         </button>
-        <Link href="/vaults" className="btn-ghost px-2 text-[11px]">
+        <button
+          type="button"
+          data-testid="ask-my-book-open"
+          onClick={() => openAskMyBook()}
+          className="btn-ghost px-2 text-[11px]"
+        >
           Ask My Book
-        </Link>
+        </button>
         <button
           type="button"
           aria-label="Previous Page"
@@ -1077,6 +1228,16 @@ export default function PdfViewer({
           lens={activeLens}
           selectedMcqOptions={selectedMcqOptions}
           selectedText={lensText?.trim() || selectedChunk?.text}
+          askDraft={askDraft}
+          askTurns={askTurns}
+          askEmptyHint={askEmptyHint}
+          onAskDraftChange={(value) => {
+            setAskDraft(value);
+            if (askEmptyHint) setAskEmptyHint(null);
+          }}
+          onAsk={() => {
+            void handleAskMyBook();
+          }}
           onPickMcq={(questionIndex, optionIndex) => {
             setSelectedMcqOptions((current) => {
               const next = { ...current, [questionIndex]: optionIndex };
@@ -1116,6 +1277,10 @@ export default function PdfViewer({
             });
           }}
           onRetry={() => {
+            if (activeLens === "ask_my_book") {
+              void handleAskMyBook(askLastQuestionRef.current || askDraft);
+              return;
+            }
             if (activeLens && selectedChunk) void handleTriggerLens(activeLens, selectedChunk);
           }}
           onClose={closeWorkspace}

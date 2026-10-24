@@ -12,15 +12,19 @@ import {
   longestSharedWordRun,
   parseRectangleMeasures,
   passageDiscussesAyurveda,
-  preferTenGroundedMcqs,
+  preferValidatedMcqs,
   weakConceptsFromMisses,
 } from "../lens-compose";
+import { isGenericExplainTemplate, isGenericStudyStory } from "../lens-quality";
 
 const PHYSICS_PASSAGE =
   "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law, and it is the reason a free-body diagram starts by asking what is actually pushing or pulling.";
 
 const MATH_PASSAGE =
   "The area of a rectangle is length times width. If the length is 8 cm and the width is 5 cm, the area is 40 square centimetres.";
+
+const LINEAR_PASSAGE =
+  "A linear equation in one variable has the form ax + b = 0, where a is not zero. Solving for x gives x = -b / a. The graph of y = ax + b is a straight line.";
 
 const AYURVEDA_PASSAGE =
   "Vata, Pitta, and Kapha are three study energies. Balance supports clear grasping in any subject.";
@@ -50,7 +54,19 @@ function explainCorpus(payload: ReturnType<typeof composeDeterministicLensPayloa
   ].join(" ");
 }
 
-function requestFor(lensType: "ayurvedic" | "illustrative" | "high_yield_revision" | "save_passage" | "test_me" | "explain" | "story", text: string) {
+function requestFor(
+  lensType:
+    | "ayurvedic"
+    | "illustrative"
+    | "high_yield_revision"
+    | "save_passage"
+    | "test_me"
+    | "explain"
+    | "story"
+    | "ask_my_book",
+  text: string,
+  studentQuestion?: string
+) {
   return {
     request: {
       documentId: "doc-1",
@@ -58,6 +74,7 @@ function requestFor(lensType: "ayurvedic" | "illustrative" | "high_yield_revisio
       sectionHeading: "Campaign blueprint",
       selectedText: text,
       lensType,
+      studentQuestion,
       prakritiDosha: "Pitta" as const,
     },
     ragChunks: [],
@@ -112,30 +129,32 @@ describe("deterministic study lenses", () => {
     expect(payload.revision?.memoryAid).not.toMatch(/Vata|Pitta|Kapha|Dosha|Ayurveda/i);
   });
 
-  it("grounds ten Test Me answers in the selected science passage", () => {
+  it("grounds Test Me answers in the selected science passage without dummy always-A quizzes", () => {
     const payload = composeDeterministicLensPayload(
       requestFor("test_me", PHYSICS_PASSAGE)
     );
-    expect(payload.mcqs).toHaveLength(TEST_ME_QUESTION_COUNT);
-    expect(payload.mcqs?.[0].options[0]).toMatch(/velocity|Newton|force/i);
-    expect(payload.mcqs?.[0].explanation).toMatch(/passage/i);
+    expect(payload.mcqs?.length).toBeGreaterThanOrEqual(3);
+    expect(payload.mcqs?.length).toBeLessThanOrEqual(TEST_ME_QUESTION_COUNT);
+    const indexes = new Set(payload.mcqs?.map((item) => item.correctIndex));
+    expect(indexes.size).toBeGreaterThan(1);
     expect(payload.mcqs?.every((item) => item.citationLabel === "[Page 13]")).toBe(true);
-    expect(payload.mcqs?.every((item) => /velocity|Newton|force|object|diagram/i.test(JSON.stringify(item)))).toBe(true);
+    expect(JSON.stringify(payload.mcqs)).not.toMatch(/author biography|not mentioned on this page/i);
+    expect(payload.mcqs?.every((item) => /velocity|Newton|force|puck|object/i.test(JSON.stringify(item)))).toBe(true);
     expect(payload.short_answers?.[0].prompt).toMatch(/velocity|Newton|force|free-body|idea/i);
   });
 
-  it("grounds ten math questions and rolls misses into a revision sheet", () => {
+  it("grounds math questions and rolls misses into a revision sheet", () => {
     const payload = composeDeterministicLensPayload(
       requestFor("test_me", MATH_PASSAGE)
     );
-    expect(payload.mcqs).toHaveLength(10);
-    expect(payload.mcqs?.[0].options[0]).toMatch(/area|length|width|40/i);
+    expect(payload.mcqs?.length).toBeGreaterThanOrEqual(2);
+    expect(payload.mcqs?.some((item) => /area|length|width|40/i.test(item.options[item.correctIndex]))).toBe(true);
     expect(JSON.stringify(payload.mcqs)).not.toMatch(/Vata|Pitta|Kapha|Ayurveda/i);
     const wrongAll = Object.fromEntries(
-      (payload.mcqs ?? []).map((_, index) => [index, 1])
+      (payload.mcqs ?? []).map((item, index) => [index, (item.correctIndex + 1) % 4])
     );
     const misses = identifyIncorrectAnswers(payload.mcqs ?? [], wrongAll);
-    expect(misses).toHaveLength(10);
+    expect(misses.length).toBe(payload.mcqs?.length);
     const weak = weakConceptsFromMisses(misses);
     expect(weak.length).toBeGreaterThan(0);
     const revision = composeRevisionFromMisses({
@@ -144,7 +163,27 @@ describe("deterministic study lenses", () => {
     });
     expect(revision.quickSummary).toMatch(/missed|area|width|length/i);
     expect(revision.revisionTable.some((row) => /area|width|length|rectangle/i.test(row.topic + row.remember))).toBe(true);
-    expect(preferTenGroundedMcqs(payload.mcqs?.slice(0, 2), payload.mcqs)).toHaveLength(10);
+    expect(preferValidatedMcqs(payload.mcqs?.slice(0, 2), payload.mcqs, MATH_PASSAGE)).toHaveLength(2);
+    expect(
+      preferValidatedMcqs(
+        [
+          {
+            question: "According to the selected passage, which statement is grounded in the text?",
+            options: [
+              "A formula or date that is not mentioned on this page.",
+              "An author biography that the passage never gives.",
+              "A definition copied from a different subject.",
+              "A later chapter result that these selected lines do not give.",
+            ],
+            correctIndex: 0,
+            explanation: "Dummy",
+            citationLabel: "[Page 13]",
+          },
+        ],
+        payload.mcqs,
+        MATH_PASSAGE
+      )?.every((item) => item.question !== "According to the selected passage, which statement is grounded in the text?")
+    ).toBe(true);
   });
 
   it("explains the passage without reprinting the whole source", () => {
@@ -305,5 +344,98 @@ describe("deterministic study lenses", () => {
     expect(corpus).toMatch(/too thin|will not invent|exact selection/i);
     expect(corpus).not.toMatch(/W = F|hockey puck|notice board/i);
     expect(leaksForeignStockStory(corpus, "Energy.")).toBe(false);
+  });
+
+  it("teaches linear equations instead of a generic claim/support scaffold", () => {
+    expect(detectPassageTopic(LINEAR_PASSAGE)).toBe("linear_equation");
+    const explain = composeDeterministicLensPayload(requestFor("explain", LINEAR_PASSAGE));
+    const corpus = explainCorpus(explain);
+    expect(isGenericExplainTemplate(corpus)).toBe(false);
+    expect(corpus).toMatch(/ax \+ b = 0/);
+    expect(corpus).toMatch(/x = -b \/ a/);
+    expect(corpus).toMatch(/coefficient|inverse/i);
+    expect(corpus).not.toMatch(/2x \+ 4|x = -2\b/);
+    expect(explanationsAreDistinct(explain.explain!)).toBe(true);
+    expect(explain.explain?.simpleExplanation).toMatch(/one unknown|ax \+ b/i);
+    expect(explain.explain?.standardExplanation).toMatch(/subtract|divide|straight line/i);
+    expect(explain.explain?.deeperExplanation).toMatch(/a ≠ 0|a were zero|misconception/i);
+
+    const story = composeDeterministicLensPayload(requestFor("story", LINEAR_PASSAGE));
+    const storyText = `${story.story?.opening} ${story.story?.turningPoint} ${story.story?.close}`;
+    expect(isGenericStudyStory(storyText)).toBe(false);
+    expect(storyText).toMatch(/ax \+ b = 0|x = -b \/ a|straight line/i);
+    expect(storyText).not.toMatch(/paragraph to copy|retell the scene/i);
+
+    const revision = composeDeterministicLensPayload(
+      requestFor("high_yield_revision", LINEAR_PASSAGE)
+    );
+    expect(revision.revision?.revisionTable.every((row) => row.remember.trim().split(/\s+/).length >= 2)).toBe(
+      true
+    );
+    expect(revision.revision?.revisionTable.some((row) => /keeps|where|gives/i.test(row.remember) && row.remember.split(/\s+/).length === 1)).toBe(
+      false
+    );
+
+    const visual = composeDeterministicLensPayload(requestFor("illustrative", LINEAR_PASSAGE));
+    expect(visual.illustrative?.flowchart.nodes.some((node) => /subtract|divide|ax \+ b/i.test(node.label))).toBe(
+      true
+    );
+    expect(visual.illustrative?.mindMap.nodes.every((node) => node.label.split(/\s+/).length >= 2)).toBe(
+      true
+    );
+    expect(visual.illustrative?.mindMap.nodes[0]?.label).toMatch(/linear equation/i);
+  });
+
+  it("answers Ask My Book from the document and reports missing evidence", () => {
+    const hit = composeDeterministicLensPayload(
+      requestFor("ask_my_book", LINEAR_PASSAGE, "What is the solution for x?")
+    );
+    expect(hit.askMyBook?.sufficientSource).toBe(true);
+    expect(hit.askMyBook?.answer).toMatch(/x = -b \/ a/i);
+
+    const how = composeDeterministicLensPayload(
+      requestFor("ask_my_book", LINEAR_PASSAGE, "How do you solve ax + b = 0 for x?")
+    );
+    expect(how.askMyBook?.sufficientSource).toBe(true);
+    expect(how.askMyBook?.answer).toMatch(/ax \+ b = 0/);
+    expect(how.askMyBook?.answer).toMatch(/x = -b \/ a/);
+    expect(how.askMyBook?.answer).toMatch(/not zero/);
+    expect(hit.markdown_body).toMatch(/Question/);
+    expect(hit.citations[0]?.document_id).toBe("doc-1");
+
+    const science = composeDeterministicLensPayload(
+      requestFor("ask_my_book", PHYSICS_PASSAGE, "What stays the same until a net force acts?")
+    );
+    expect(science.askMyBook?.sufficientSource).toBe(true);
+    expect(science.askMyBook?.answer).toMatch(/velocity|net force/i);
+
+    const miss = composeDeterministicLensPayload(
+      requestFor("ask_my_book", LINEAR_PASSAGE, "Who wrote the Kalinga edicts?")
+    );
+    expect(miss.askMyBook?.sufficientSource).toBe(false);
+    expect(miss.askMyBook?.answer).toMatch(/not give enough evidence/i);
+    expect(miss.askMyBook?.answer).not.toMatch(/Ashoka/i);
+
+    const follow = composeDeterministicLensPayload({
+      ...requestFor("ask_my_book", LINEAR_PASSAGE, "Why?"),
+      request: {
+        ...requestFor("ask_my_book", LINEAR_PASSAGE, "Why?").request,
+        conversationHistory: [
+          { question: "What is the solution for x?", answer: "Solving for x gives x = -b / a." },
+        ],
+      },
+    });
+    expect(follow.askMyBook?.sufficientSource).toBe(true);
+    expect(follow.askMyBook?.answer).toMatch(/-b \/ a|ax \+ b|last question/i);
+  });
+
+  it("does not leave a single-word leftover in Newton revision", () => {
+    const payload = composeDeterministicLensPayload(
+      requestFor("high_yield_revision", PHYSICS_PASSAGE)
+    );
+    expect(payload.revision?.revisionTable.every((row) => row.remember.trim().split(/\s+/).length >= 2)).toBe(
+      true
+    );
+    expect(payload.explain ?? payload.revision?.quickSummary).toBeTruthy();
   });
 });

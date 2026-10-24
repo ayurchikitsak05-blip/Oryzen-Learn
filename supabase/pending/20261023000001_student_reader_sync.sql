@@ -30,8 +30,8 @@ CREATE TABLE IF NOT EXISTS public.student_quiz_progress (
 ALTER TABLE public.student_bookmarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_quiz_progress ENABLE ROW LEVEL SECURITY;
 
-REVOKE ALL ON public.student_bookmarks FROM anon, PUBLIC;
-REVOKE ALL ON public.student_quiz_progress FROM anon, PUBLIC;
+REVOKE ALL ON public.student_bookmarks FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON public.student_quiz_progress FROM anon, authenticated, PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.student_bookmarks TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.student_quiz_progress TO authenticated;
 

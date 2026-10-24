@@ -55,11 +55,19 @@ export interface ProviderAttempt {
   officialId: string;
 }
 
+export interface SanitizedProviderError {
+  httpStatus: number | null;
+  googleStatus: string | null;
+  message: string;
+  errorClass: ProviderErrorClass;
+}
+
 export interface ProviderCallResult {
   payload: AiLensResponsePayload;
   promptTokens?: number;
   completionTokens?: number;
   errorClass: ProviderErrorClass | null;
+  errorDetail: SanitizedProviderError | null;
   provider: AiProvider;
   model: GatewayModelId;
 }
@@ -107,6 +115,42 @@ export function hasUsableGoogleKey(): boolean {
   return Boolean(googleApiKey());
 }
 
+export async function listGoogleModelIds(fetchImpl?: FetchLike): Promise<string[]> {
+  const key = googleApiKey();
+  if (!key) return [];
+  const fetchFn = fetchImpl ?? (fetch as FetchLike);
+  const ids: string[] = [];
+  let pageToken = "";
+  for (let page = 0; page < 8; page += 1) {
+    const url = new URL("https://generativelanguage.googleapis.com/v1beta/models");
+    url.searchParams.set("pageSize", "200");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+    const response = await fetchFn(url.toString(), {
+      method: "GET",
+      headers: {
+        "x-goog-api-key": key,
+      },
+    });
+    const json = (await response.json()) as {
+      models?: Array<{ name?: string }>;
+      nextPageToken?: string;
+      error?: { status?: string; message?: string; code?: number };
+    };
+    if (!response.ok) {
+      const status = json.error?.status ?? "UNKNOWN";
+      const message = stripSecretsFromMessage(String(json.error?.message ?? "")).slice(0, 180);
+      throw new Error(`HTTP ${response.status} ${status} ${message}`.trim());
+    }
+    for (const row of json.models ?? []) {
+      const id = String(row.name ?? "").replace(/^models\//, "");
+      if (id) ids.push(id);
+    }
+    pageToken = String(json.nextPageToken ?? "");
+    if (!pageToken) break;
+  }
+  return Array.from(new Set(ids));
+}
+
 export function hasUsableOpenAiKey(): boolean {
   return Boolean(openaiApiKey());
 }
@@ -130,30 +174,6 @@ export function availablePaidProviders(): PaidAiProvider[] {
 
 export function hasAnyPaidProvider(): boolean {
   return availablePaidProviders().length > 0;
-}
-
-export function classifyProviderError(error: unknown): ProviderErrorClass {
-  const text =
-    error instanceof Error
-      ? `${error.name} ${error.message}`
-      : typeof error === "string"
-        ? error
-        : "unknown";
-  const compact = text.toLowerCase();
-  if (/abort|timeout|timed out/i.test(compact)) return "timeout";
-  if (/quota|resource.?exhausted|rate.?limit|429/.test(compact)) return "quota";
-  if (
-    /billing|payment|customer.?to.?enable|activate.?billing|insufficient.?funds|insufficient_funds/.test(
-      compact
-    )
-  ) {
-    return "billing";
-  }
-  if (/api.?key|permission|unauthorized|forbidden|401|403/.test(compact)) {
-    return "auth";
-  }
-  if (/safety|blocked|prohibited/.test(compact)) return "safety";
-  return "unknown";
 }
 
 export function planProviderAttempts(
@@ -373,6 +393,16 @@ export const LENS_JSON_SCHEMA = {
         required: ["prompt", "sampleAnswer"],
       },
     },
+    askMyBook: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        question: { type: "string" },
+        answer: { type: "string" },
+        sufficientSource: { type: "boolean" },
+      },
+      required: ["question", "answer", "sufficientSource"],
+    },
   },
   required: ["title", "markdown_body", "key_points"],
 } as const;
@@ -419,14 +449,95 @@ function parseJsonContent(text: string): unknown {
 function stripSecretsFromMessage(message: string): string {
   return message
     .replace(/key=[^&\s]+/gi, "key=redacted")
-    .replace(/Bearer\s+\S+/gi, "Bearer redacted");
+    .replace(/Bearer\s+\S+/gi, "Bearer redacted")
+    .replace(/x-goog-api-key["\s:=]+[^"\s]+/gi, "x-goog-api-key=[redacted]")
+    .replace(/AIza[0-9A-Za-z_\-]{6,}/g, "[redacted]");
+}
+
+function googleErrorFields(text: string): { status: string | null; message: string | null } {
+  try {
+    const parsed = JSON.parse(text) as {
+      error?: { status?: string; message?: string; code?: number };
+    };
+    const status = parsed.error?.status ? String(parsed.error.status) : null;
+    const message = parsed.error?.message
+      ? stripSecretsFromMessage(String(parsed.error.message)).slice(0, 180)
+      : null;
+    return { status, message };
+  } catch {
+    return { status: null, message: null };
+  }
+}
+
+export function sanitizeProviderError(error: unknown): SanitizedProviderError {
+  const text =
+    error instanceof Error
+      ? `${error.name} ${error.message}`
+      : typeof error === "string"
+        ? error
+        : "unknown";
+  const sanitized = stripSecretsFromMessage(text);
+  const httpMatch = sanitized.match(/HTTP\s+(\d{3})/i);
+  const statusMatch = sanitized.match(
+    /\b(INVALID_ARGUMENT|FAILED_PRECONDITION|PERMISSION_DENIED|UNAUTHENTICATED|NOT_FOUND|RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|INTERNAL|CANCELLED)\b/
+  );
+  return {
+    httpStatus: httpMatch ? Number(httpMatch[1]) : null,
+    googleStatus: statusMatch ? statusMatch[1] : null,
+    message: sanitized.slice(0, 240),
+    errorClass: classifyProviderError(error),
+  };
+}
+
+export function classifyProviderError(error: unknown): ProviderErrorClass {
+  const text =
+    error instanceof Error
+      ? `${error.name} ${error.message}`
+      : typeof error === "string"
+        ? error
+        : "unknown";
+  const compact = text.toLowerCase();
+  const httpMatch = text.match(/HTTP\s+(\d{3})/i);
+  const httpStatus = httpMatch ? Number(httpMatch[1]) : null;
+  if (/abort|timeout|timed out|deadline_exceeded|504|499/i.test(compact)) {
+    return "timeout";
+  }
+  if (
+    httpStatus === 429 ||
+    httpStatus === 402 ||
+    /quota|resource.?exhausted|rate.?limit/.test(compact)
+  ) {
+    return "quota";
+  }
+  if (
+    /failed_precondition/.test(compact) ||
+    /billing|payment|customer.?to.?enable|activate.?billing|enable billing|insufficient.?funds|insufficient_funds/.test(
+      compact
+    )
+  ) {
+    return "billing";
+  }
+  if (
+    httpStatus === 401 ||
+    httpStatus === 403 ||
+    /permission_denied|unauthenticated|api.?key|unauthorized|forbidden/.test(compact)
+  ) {
+    return "auth";
+  }
+  if (/safety|blocked|prohibited/.test(compact)) return "safety";
+  if (/missing google key|missing .*key/.test(compact)) return "missing_key";
+  return "unknown";
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text();
   if (!response.ok) {
+    const google = googleErrorFields(text);
+    const detail = google.message || stripSecretsFromMessage(text).slice(0, 180);
     throw new Error(
-      stripSecretsFromMessage(`HTTP ${response.status} ${text.slice(0, 240)}`)
+      stripSecretsFromMessage(
+        `HTTP ${response.status}${google.status ? ` ${google.status}` : ""} ${detail}`
+      )
     );
   }
   return JSON.parse(text) as Record<string, unknown>;
@@ -437,6 +548,7 @@ async function callGoogleStructured(params: {
   prompt: string;
   fetchImpl: FetchLike;
   signal: AbortSignal;
+  maxOutputTokens?: number;
 }): Promise<{ raw: unknown; promptTokens?: number; completionTokens?: number }> {
   const key = googleApiKey();
   const gatewayKey = aiGatewayApiKey();
@@ -469,6 +581,9 @@ async function callGoogleStructured(params: {
         temperature: 0.2,
         responseMimeType: "application/json",
         responseSchema: geminiRestSchema(),
+        ...(params.maxOutputTokens
+          ? { maxOutputTokens: params.maxOutputTokens }
+          : {}),
       },
     }),
     signal: params.signal,
@@ -590,11 +705,15 @@ export async function callProviderStructuredLens(params: {
   prompt: string;
   fallback: AiLensResponsePayload;
   fetchImpl?: FetchLike;
+  maxAttempts?: number;
+  maxOutputTokens?: number;
 }): Promise<ProviderCallResult> {
   const fetchImpl = params.fetchImpl ?? (fetch as FetchLike);
   let lastClass: ProviderErrorClass = "unknown";
+  let lastDetail: SanitizedProviderError | null = null;
+  const maxAttempts = Math.max(1, params.maxAttempts ?? PROVIDER_MAX_ATTEMPTS);
 
-  for (let attempt = 1; attempt <= PROVIDER_MAX_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const modeled = await withTimeout(PROVIDER_CALL_TIMEOUT_MS, (signal) => {
         if (params.provider === "google") {
@@ -603,6 +722,7 @@ export async function callProviderStructuredLens(params: {
             prompt: params.prompt,
             fetchImpl,
             signal,
+            maxOutputTokens: params.maxOutputTokens,
           });
         }
         if (params.provider === "openai") {
@@ -630,11 +750,25 @@ export async function callProviderStructuredLens(params: {
         promptTokens: modeled.promptTokens,
         completionTokens: modeled.completionTokens,
         errorClass: null,
+        errorDetail: null,
         provider: params.provider,
         model: params.model,
       };
     } catch (error) {
-      lastClass = classifyProviderError(error);
+      lastDetail = sanitizeProviderError(error);
+      lastClass = lastDetail.errorClass;
+      console.warn(
+        JSON.stringify({
+          event: "oryzen.ai.provider_error",
+          provider: params.provider,
+          model: params.model,
+          attempt,
+          httpStatus: lastDetail.httpStatus,
+          googleStatus: lastDetail.googleStatus,
+          errorClass: lastDetail.errorClass,
+          message: lastDetail.message,
+        })
+      );
       if (
         lastClass === "billing" ||
         lastClass === "quota" ||
@@ -650,6 +784,7 @@ export async function callProviderStructuredLens(params: {
   return {
     payload: params.fallback,
     errorClass: lastClass,
+    errorDetail: lastDetail,
     provider: "deterministic",
     model: "deterministic",
   };
@@ -675,7 +810,7 @@ export async function generateStudyText(params: {
   const userId = params.userId ?? "local-student-scholar";
   const billingMonth = params.billingMonth ?? new Date().toISOString().slice(0, 7);
   const spendClass = params.spendClass ?? "standard";
-  const attempts = planStudyProviderAttempts("gemini-2.5-flash-lite");
+  const attempts = planStudyProviderAttempts("gemini-3.5-flash-lite");
   if (attempts.length === 0) return null;
 
   const promptTokensEst =

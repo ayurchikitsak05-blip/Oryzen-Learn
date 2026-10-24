@@ -91,4 +91,56 @@ describe("structured Gemini helpers", () => {
     expect(merged.payload.diagram?.nodes.length).toBe(3);
     expect(merged.payload.explain?.simpleExplanation).toMatch(/moving|force/i);
   });
+
+  it("rejects generic claim/support explain and copy/retell stories", () => {
+    const generic = mergeStructuredLensPayload(fallback, {
+      title: "Explain",
+      markdown_body: "A long enough markdown body that looks usable to the merger but teaches nothing extra about the excerpt.",
+      explain: {
+        simpleExplanation: "This page is about equation. Hold one clear claim.",
+        standardExplanation: "equation is defined by the claim. Worked example: restate the claim, then the support, without copying the paragraph.",
+        deeperExplanation: "Cover the page and say the claim.",
+        importantConcepts: ["equation"],
+        relevantExample: "Hold one clear claim.",
+        keyTakeaway: "Hold one clear claim.",
+      },
+      story: {
+        opening: "A student meets “equation” as a problem, not as a paragraph to copy.",
+        turningPoint: "They stack quotes.",
+        close: "If they can retell the scene without looking back, they have the idea. Copying the page is not the same as being able to use it.",
+      },
+    });
+    expect(generic.payload.explain).toBeUndefined();
+    expect(generic.payload.story).toBeUndefined();
+    expect(generic.payload.explain?.simpleExplanation ?? "").not.toMatch(/this page is about/i);
+    expect(generic.payload.story?.opening ?? "").not.toMatch(/paragraph to copy/i);
+  });
+
+  it("keeps a longer multiline Ask My Book answer from the model", () => {
+    const merged = mergeStructuredLensPayload(
+      {
+        ...fallback,
+        lens_type: "ask_my_book",
+        askMyBook: {
+          question: "How do you solve ax + b = 0 for x?",
+          answer: "A linear equation has the form ax + b = 0.",
+          sufficientSource: true,
+        },
+      },
+      {
+        title: "Ask My Book",
+        markdown_body: "To solve ax + b = 0, isolate x.\nThe result is x = -b / a.",
+        key_points: ["x = -b / a"],
+        askMyBook: {
+          question: "How do you solve ax + b = 0 for x?",
+          answer:
+            "Subtract b from both sides, then divide by a.\n\nThe result is x = -b / a, with a ≠ 0.",
+          sufficientSource: true,
+        },
+      }
+    );
+    expect(merged.usable).toBe(true);
+    expect(merged.payload.askMyBook?.answer).toMatch(/x = -b \/ a/);
+    expect(merged.payload.askMyBook?.answer).toMatch(/\n/);
+  });
 });

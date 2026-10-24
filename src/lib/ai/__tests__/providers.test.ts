@@ -7,6 +7,7 @@ import {
   hasAnyPaidProvider,
   planProviderAttempts,
   planStudyProviderAttempts,
+  sanitizeProviderError,
 } from "../providers";
 import type { AiLensResponsePayload } from "../gateway";
 
@@ -99,7 +100,7 @@ describe("provider-independent adapters", () => {
       "openai",
       "mistral",
     ]);
-    expect(planned[0].model).toBe("gemini-2.5-flash-lite");
+    expect(planned[0].model).toBe("gemini-3.5-flash-lite");
     expect(planned[1].model).toBe("gpt-6-luna");
     expect(planned[2].model).toBe("ministral-3b-2512");
   });
@@ -128,6 +129,44 @@ describe("provider-independent adapters", () => {
     expect(result.payload.used_fallback).toBe(false);
     expect(result.payload.explain?.simpleExplanation).toMatch(/moving|force/i);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.errorDetail).toBeNull();
+  });
+
+  it("keeps a sanitized Google HTTP error instead of swallowing it", async () => {
+    setEnv("GEMINI_API_KEY", "gemini-test-key");
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(
+        {
+          error: {
+            code: 403,
+            message: "Permission denied for that API key.",
+            status: "PERMISSION_DENIED",
+          },
+        },
+        403
+      )
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const result = await callProviderStructuredLens({
+      provider: "google",
+      model: "gemini-2.5-flash-lite",
+      prompt: "Explain the passage.",
+      fallback,
+      fetchImpl,
+    });
+    expect(result.errorClass).toBe("auth");
+    expect(result.errorDetail?.httpStatus).toBe(403);
+    expect(result.errorDetail?.googleStatus).toBe("PERMISSION_DENIED");
+    expect(result.errorDetail?.message).toMatch(/HTTP 403/);
+    expect(result.errorDetail?.message).not.toMatch(/gemini-test-key|AIza/);
+    expect(classifyProviderError("HTTP 400 FAILED_PRECONDITION Please enable billing")).toBe(
+      "billing"
+    );
+    const leaked = sanitizeProviderError(
+      "HTTP 403 PERMISSION_DENIED x-goog-api-key=AIzaSyDummyValue123456"
+    );
+    expect(leaked.message).not.toMatch(/AIza|DummyValue/);
+    warn.mockRestore();
   });
 
   it("parses mocked OpenAI and Mistral chat completions", async () => {

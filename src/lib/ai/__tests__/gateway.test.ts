@@ -104,7 +104,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
   });
 
   describe("2. Shield 2: Hybrid Model Routing (Flash-Lite preferred, Pro gated)", () => {
-    it("routes supported highlight lenses to gemini-2.5-flash-lite and deep synthesis to gemini-2.5-pro when under wallet ceiling", () => {
+    it("routes supported highlight lenses to gemini-3.5-flash-lite and deep synthesis to gemini-2.5-pro when under wallet ceiling", () => {
       for (const lens of [
         "ayurvedic",
         "illustrative",
@@ -119,8 +119,8 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
           currentMonthlySpendInr: 12.5,
           walletCapInr: 70,
         });
-        expect(route.requestedModel).toBe("gemini-2.5-flash-lite");
-        expect(route.effectiveModel).toBe("gemini-2.5-flash-lite");
+        expect(route.requestedModel).toBe("gemini-3.5-flash-lite");
+        expect(route.effectiveModel).toBe("gemini-3.5-flash-lite");
         expect(route.downgradedToFlashLite).toBe(false);
       }
 
@@ -138,7 +138,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         currentMonthlySpendInr: 60,
         walletCapInr: 70,
       });
-      expect(tightPro.effectiveModel).toBe("gemini-2.5-flash-lite");
+      expect(tightPro.effectiveModel).toBe("gemini-3.5-flash-lite");
       expect(tightPro.downgradedToFlashLite).toBe(true);
     });
   });
@@ -417,7 +417,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         },
       });
 
-      expect(result.requestedModel).toBe("gemini-2.5-flash-lite");
+      expect(result.requestedModel).toBe("gemini-3.5-flash-lite");
       expect(result.modelUsed).toBe("deterministic");
       expect(result.usedDeterministicFallback).toBe(true);
       expect(result.budgetBlocked).toBe(true);
@@ -428,7 +428,7 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       expect(result.costInr).toBe(0);
     });
 
-    it("still returns ten grounded MCQs when the wallet is exhausted", async () => {
+    it("still returns usable grounded MCQs when the wallet is exhausted", async () => {
       setLocalWalletSpendForUser("quiz-user", "2026-10", 70);
       const fetchImpl = vi.fn();
       const result = await executeControlledAiGateway({
@@ -446,9 +446,110 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       });
       expect(result.budgetBlocked).toBe(true);
       expect(result.usedDeterministicFallback).toBe(true);
-      expect(result.payload.mcqs).toHaveLength(10);
+      expect(result.payload.mcqs?.length).toBeGreaterThanOrEqual(3);
       expect(fetchImpl).not.toHaveBeenCalled();
-      expect(result.payload.mcqs?.[0].options[0]).toMatch(/velocity|Newton|force/i);
+      expect(result.payload.mcqs?.some((item) => /velocity|Newton|force|puck/i.test(item.options[item.correctIndex]))).toBe(
+        true
+      );
+      expect(new Set(result.payload.mcqs?.map((item) => item.correctIndex)).size).toBeGreaterThan(1);
+    });
+
+    it("answers Ask My Book from the selection and refuses unsupported questions", async () => {
+      process.env.GEMINI_API_KEY = "";
+      process.env.OPENAI_API_KEY = "";
+      process.env.MISTRAL_API_KEY = "";
+      const hit = await executeControlledAiGateway({
+        userId: "ask-user",
+        documentId: "linear-eq",
+        documentHash: "doc-linear",
+        pageNumber: 2,
+        sectionHeading: "Linear equations",
+        selectedText:
+          "A linear equation in one variable has the form ax + b = 0, where a is not zero. Solving for x gives x = -b / a.",
+        lensType: "ask_my_book",
+        studentQuestion: "What is the solution for x?",
+      });
+      expect(hit.requestedModel).toBe("gemini-3.5-flash-lite");
+      expect(hit.payload.askMyBook?.sufficientSource).toBe(true);
+      expect(hit.payload.askMyBook?.answer).toMatch(/x = -b \/ a/i);
+
+      const miss = await executeControlledAiGateway({
+        userId: "ask-user",
+        documentId: "linear-eq",
+        documentHash: "doc-linear-2",
+        pageNumber: 2,
+        sectionHeading: "Linear equations",
+        selectedText:
+          "A linear equation in one variable has the form ax + b = 0, where a is not zero. Solving for x gives x = -b / a.",
+        lensType: "ask_my_book",
+        studentQuestion: "Who wrote the Kalinga edicts?",
+      });
+      expect(miss.payload.askMyBook?.sufficientSource).toBe(false);
+      expect(miss.payload.askMyBook?.answer).toMatch(/not give enough evidence/i);
+
+      const follow = await executeControlledAiGateway({
+        userId: "ask-user",
+        documentId: "linear-eq",
+        documentHash: "doc-linear-3",
+        pageNumber: 2,
+        sectionHeading: "Linear equations",
+        selectedText:
+          "A linear equation in one variable has the form ax + b = 0, where a is not zero. Solving for x gives x = -b / a.",
+        lensType: "ask_my_book",
+        studentQuestion: "Why?",
+        conversationHistory: [
+          { question: "What is the solution for x?", answer: "Solving for x gives x = -b / a." },
+        ],
+        candidateChunks: [
+          {
+            chunk_id: "foreign",
+            document_id: "other-doc",
+            page_number: 1,
+            section_heading: "Edicts",
+            text: "Ashoka wrote the Kalinga edicts.",
+            bounding_box: { x: 1, y: 1, width: 10, height: 10 },
+            token_estimate: 12,
+          },
+        ],
+      });
+      expect(follow.payload.askMyBook?.sufficientSource).toBe(true);
+      expect(follow.payload.askMyBook?.answer).not.toMatch(/Ashoka/i);
+      expect(follow.payload.citations.every((item) => item.document_id !== "other-doc")).toBe(true);
+    });
+
+    it("prefers a complete model markdown answer over a short Ask My Book excerpt", async () => {
+      const result = await executeControlledAiGateway({
+        userId: "ask-user",
+        documentId: "linear-eq",
+        documentHash: "doc-linear-complete",
+        pageNumber: 2,
+        sectionHeading: "Linear equations",
+        selectedText:
+          "A linear equation in one variable has the form ax + b = 0, where a is not zero. Solving for x gives x = -b / a.",
+        lensType: "ask_my_book",
+        studentQuestion: "How do you solve ax + b = 0 for x?",
+        llmGenerator: async () => ({
+          payload: {
+            lens_type: "ask_my_book",
+            prakriti_dosha: "Vata",
+            title: "Solving Linear Equations",
+            markdown_body:
+              "To solve ax + b = 0, subtract b from both sides and divide by a. The result is x = -b / a, and a cannot be zero.",
+            key_points: ["x = -b / a"],
+            citations: [],
+            askMyBook: {
+              question: "How do you solve ax + b = 0 for x?",
+              answer: "A linear equation in one variable has the form ax + b = 0, where a is not zero.",
+              sufficientSource: true,
+            },
+          },
+          promptTokens: 40,
+          completionTokens: 30,
+        }),
+      });
+      expect(result.usedDeterministicFallback).toBe(false);
+      expect(result.payload.askMyBook?.answer).toMatch(/x = -b \/ a/);
+      expect(result.payload.askMyBook?.answer).toMatch(/subtract|divide/i);
     });
 
     it("integrates with Supabase `ai_response_cache` and `ai_usage_logs` tables when client is provided", async () => {
@@ -647,6 +748,97 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
         expect(result.providerUsed).toBe("mistral");
         expect(result.modelUsed).toBe("ministral-3b-2512");
       } finally {
+        restoreEnv(previous);
+      }
+    });
+
+    it("preserves the Google error class instead of overwriting it as missing_key", async () => {
+      const previous = {
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
+        AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
+      };
+      process.env.GEMINI_API_KEY = "gemini-test";
+      process.env.OPENAI_API_KEY = "";
+      process.env.MISTRAL_API_KEY = "";
+      process.env.AI_GATEWAY_API_KEY = "";
+      const fetchImpl = vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 403,
+              message: "Permission denied for that API key.",
+              status: "PERMISSION_DENIED",
+            },
+          }),
+          { status: 403, headers: { "Content-Type": "application/json" } }
+        )
+      );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      try {
+        const result = await executeControlledAiGateway({
+          userId: "local-student",
+          documentId: "study-companion-vol1",
+          documentHash: "google-403",
+          pageNumber: 4,
+          sectionHeading: "CHAPTER 4: ACROSS THE FACULTIES",
+          selectedText:
+            "The same passage tools apply to a physics derivation, a historical argument, a formal proof, or a laboratory method.",
+          lensType: "explain",
+          candidateChunks: SAMPLE_CANDIDATE_CHUNKS,
+          fetchImpl,
+        });
+        expect(result.usedDeterministicFallback).toBe(true);
+        expect(result.fallbackReason).toBe("model_error");
+        expect(result.providerErrorClass).toBe("auth");
+        expect(result.geminiErrorClass).toBe("auth");
+        expect(result.providerErrorDetail?.httpStatus).toBe(403);
+        expect(result.providerErrorDetail?.googleStatus).toBe("PERMISSION_DENIED");
+        expect(result.providerErrorDetail?.message).not.toMatch(/gemini-test|AIza/);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      } finally {
+        warn.mockRestore();
+        restoreEnv(previous);
+      }
+    });
+
+    it("honors maxProviderAttempts=1 and does not retry the provider", async () => {
+      const previous = {
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
+        AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
+      };
+      process.env.GEMINI_API_KEY = "gemini-test";
+      process.env.OPENAI_API_KEY = "";
+      process.env.MISTRAL_API_KEY = "";
+      process.env.AI_GATEWAY_API_KEY = "";
+      const fetchImpl = vi.fn(async () =>
+        new Response("temporary unknown failure", {
+          status: 500,
+          headers: { "Content-Type": "text/plain" },
+        })
+      );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      try {
+        const result = await executeControlledAiGateway({
+          userId: "local-student",
+          documentId: "study-companion-vol1",
+          documentHash: "one-attempt",
+          pageNumber: 4,
+          sectionHeading: "CHAPTER 4: ACROSS THE FACULTIES",
+          selectedText:
+            "The same passage tools apply to a physics derivation, a historical argument, a formal proof, or a laboratory method.",
+          lensType: "explain",
+          candidateChunks: SAMPLE_CANDIDATE_CHUNKS,
+          fetchImpl,
+          maxProviderAttempts: 1,
+        });
+        expect(result.usedDeterministicFallback).toBe(true);
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+      } finally {
+        warn.mockRestore();
         restoreEnv(previous);
       }
     });

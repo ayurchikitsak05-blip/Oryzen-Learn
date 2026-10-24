@@ -1,7 +1,19 @@
 import { DOSHA_STUDY_PRESETS, type Dosha, type HighlightLensType } from "@/lib/prakriti/config";
 import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
+import {
+  type AskBookHistoryTurn,
+  resolveAskGrounding,
+  selectAskSupportingText,
+} from "./ask-my-book";
+import {
+  conciseNodeLabel,
+  filterRevisionTable,
+  isEducationallyEmptyLabel,
+  isMeaningfulRevisionCell,
+  placeCorrectOption,
+} from "./lens-quality";
 
-type ComposeTaskType = HighlightLensType | "deep_integrative_synthesis";
+type ComposeTaskType = HighlightLensType | "deep_integrative_synthesis" | "ask_my_book";
 
 export type StudyDiagramKind = "flowchart" | "mind_map" | "concept_diagram";
 
@@ -108,7 +120,8 @@ export interface QuizMiss {
   explanation: string;
 }
 
-export const TEST_ME_QUESTION_COUNT = 10;
+/** Maximum questions to accept. Do not pad to this count with dummy items. */
+export const TEST_ME_QUESTION_COUNT = 8;
 
 export interface ComposedLensPayload {
   lens_type: ComposeTaskType;
@@ -124,6 +137,11 @@ export interface ComposedLensPayload {
   revision?: RevisionSections;
   illustrative?: IllustrativeBundle;
   story?: StorySections;
+  askMyBook?: {
+    question: string;
+    answer: string;
+    sufficientSource: boolean;
+  };
   used_fallback?: boolean;
 }
 
@@ -135,6 +153,8 @@ export interface ComposeLensRequest {
   selectionBoundingBox?: BoundingBox;
   lensType: ComposeTaskType;
   prakritiDosha?: Dosha;
+  studentQuestion?: string;
+  conversationHistory?: AskBookHistoryTurn[];
 }
 
 const AYURVEDA_SIGNAL =
@@ -287,10 +307,13 @@ export type PassageStudyTopic =
   | "power"
   | "marketing"
   | "ayurveda"
+  | "linear_equation"
   | "math"
   | "physics_other"
   | "general";
 
+const LINEAR_EQUATION_TOPIC =
+  /\b(linear equation|one variable|ax\s*\+\s*b\s*=\s*0|x\s*=\s*-?\s*b\s*\/\s*a|y\s*=\s*ax\s*\+\s*b)\b/i;
 const CIRCUIT_TOPIC = /\b(circuit|current|ampere|coulomb)\b/i;
 const NEWTON_FIRST_TOPIC =
   /\b(newton'?s first law|constant velocity|inertia|free-body(?: diagram)?|free body diagram)\b/i;
@@ -324,6 +347,7 @@ export function detectPassageTopic(text: string): PassageStudyTopic {
   if (WORK_JOULE_TOPIC.test(text)) return "work_joule";
   if (isWorkEnergySelection(text)) return "work_energy";
   if (NEWTON_FIRST_TOPIC.test(text)) return "newton_first";
+  if (LINEAR_EQUATION_TOPIC.test(text)) return "linear_equation";
   if (PHYSICS_SIGNAL.test(text)) return "physics_other";
   if (MATH_SIGNAL.test(text)) return "math";
   return "general";
@@ -339,6 +363,7 @@ export function leaksForeignStockStory(output: string, selection: string): boole
 
 export function cannotReliablyExplain(text: string): boolean {
   const compact = text.replace(/\s+/g, " ").trim();
+  if (passageDiscussesAyurveda(compact)) return false;
   const topic = detectPassageTopic(compact);
   if (
     topic !== "physics_other" &&
@@ -538,6 +563,23 @@ function buildFlowchart(params: {
     };
   }
   const topic = detectPassageTopic(params.text);
+  if (topic === "linear_equation") {
+    return {
+      title: "Solve a linear equation",
+      kind: "flowchart",
+      nodes: [
+        { id: "form", label: "Start from ax + b = 0" },
+        { id: "subtract", label: "Subtract b from both sides" },
+        { id: "divide", label: "Divide both sides by a" },
+        { id: "check", label: "Solution is x = -b / a" },
+      ],
+      edges: [
+        { from: "form", to: "subtract", label: "undo +b" },
+        { from: "subtract", to: "divide", label: "undo ×a" },
+        { from: "divide", to: "check", label: "gives" },
+      ],
+    };
+  }
   if (topic === "newton_first") {
     return {
       title: "When velocity stays the same",
@@ -607,9 +649,9 @@ function buildFlowchart(params: {
     kind: "flowchart",
     nodes: [
       { id: "start", label: "Read the claim" },
-      { id: "claim", label: excerptForDisplay(claim, 42) },
-      { id: "support", label: excerptForDisplay(support, 42) },
-      { id: "check", label: excerptForDisplay(extra, 36) },
+      { id: "claim", label: conciseNodeLabel(claim, 42) },
+      { id: "support", label: conciseNodeLabel(support, 42) },
+      { id: "check", label: conciseNodeLabel(extra, 36) },
     ],
     edges: [
       { from: "start", to: "claim", label: "states" },
@@ -645,6 +687,44 @@ function buildMindMap(params: {
       ],
     };
   }
+  if (detectPassageTopic(params.text) === "linear_equation") {
+    return {
+      title: "Linear equation in one variable",
+      kind: "mind_map",
+      nodes: [
+        { id: "hub", label: "Linear equation" },
+        { id: "b0", label: "One variable x" },
+        { id: "b1", label: "Coefficient a ≠ 0" },
+        { id: "b2", label: "Solution x = -b / a" },
+        { id: "b3", label: "Graph y = ax + b" },
+      ],
+      edges: [
+        { from: "hub", to: "b0", label: "unknown" },
+        { from: "hub", to: "b1", label: "needs" },
+        { from: "hub", to: "b2", label: "solves" },
+        { from: "hub", to: "b3", label: "draws" },
+      ],
+    };
+  }
+  if (detectPassageTopic(params.text) === "newton_first") {
+    return {
+      title: "Newton's first law",
+      kind: "mind_map",
+      nodes: [
+        { id: "hub", label: "Newton's first law" },
+        { id: "b0", label: "Constant velocity" },
+        { id: "b1", label: "Unless a net force" },
+        { id: "b2", label: "Free-body diagram" },
+        { id: "b3", label: "Name real pushes" },
+      ],
+      edges: [
+        { from: "hub", to: "b0", label: "keeps" },
+        { from: "hub", to: "b1", label: "until" },
+        { from: "hub", to: "b2", label: "check with" },
+        { from: "hub", to: "b3", label: "starts by" },
+      ],
+    };
+  }
   if (CIRCUIT_TOPIC.test(params.text)) {
     return {
       title: "Current in a circuit",
@@ -664,13 +744,21 @@ function buildMindMap(params: {
       ],
     };
   }
-  const hub = excerptForDisplay(params.phrases[0] ?? "Core idea", 26);
+  const hub = conciseNodeLabel(params.phrases[0] ?? "Core idea", 26);
   const branches = uniqueKeep([
-    excerptForDisplay(params.sentences[0] ?? "Main claim", 32),
-    excerptForDisplay(params.sentences[1] ?? params.phrases[1] ?? "Support", 32),
-    excerptForDisplay(params.phrases[1] ?? "Key term", 24),
-    excerptForDisplay(params.phrases[2] ?? params.sentences[2] ?? "Recall check", 24),
-  ]).slice(0, 4);
+    conciseNodeLabel(params.sentences[0] ?? "Main claim", 32),
+    conciseNodeLabel(params.sentences[1] ?? params.phrases[1] ?? "Support", 32),
+    conciseNodeLabel(params.phrases[1] ?? "Key term", 24),
+    conciseNodeLabel(params.phrases[2] ?? params.sentences[2] ?? "Recall check", 24),
+  ])
+    .filter((label) => !isEducationallyEmptyLabel(label))
+    .slice(0, 4);
+  if (branches.length < 2) {
+    branches.push(
+      conciseNodeLabel(params.sentences[0] ?? "Main claim", 32),
+      conciseNodeLabel(params.sentences[1] ?? "Supporting point", 32)
+    );
+  }
   const nodes: StudyDiagramNode[] = [
     { id: "hub", label: hub },
     ...branches.map((label, index) => ({ id: `b${index}`, label })),
@@ -708,6 +796,23 @@ function buildConceptDiagram(params: {
         { from: "length", to: "formula", label: "one side" },
         { from: "width", to: "formula", label: "other side" },
         { from: "formula", to: "area", label: "product" },
+      ],
+    };
+  }
+  if (detectPassageTopic(params.text) === "linear_equation") {
+    return {
+      title: "From equation to graph",
+      kind: "concept_diagram",
+      nodes: [
+        { id: "a", label: "ax + b = 0" },
+        { id: "b", label: "Inverse operations" },
+        { id: "c", label: "x = -b / a" },
+        { id: "d", label: "Straight line y = ax + b" },
+      ],
+      edges: [
+        { from: "a", to: "b", label: "undo" },
+        { from: "b", to: "c", label: "isolate x" },
+        { from: "c", to: "d", label: "same a, b" },
       ],
     };
   }
@@ -759,6 +864,14 @@ function buildAnalogy(text: string, sentences: string[], phrases: string[]): Ana
       mapping: `You need ${geometry.length} squares along one edge and ${geometry.width} along the other. The number of squares is ${geometry.length} × ${geometry.width} = ${geometry.area}.`,
       takeaway:
         "Area is the count of unit squares that fill the rectangle, not the walk around the edge.",
+    };
+  }
+  if (detectPassageTopic(text) === "linear_equation") {
+    return {
+      setup: "Think of undoing a packing job: first take off the extra box, then split what is left.",
+      mapping:
+        "In ax + b = 0, adding b is the extra box and multiplying by a is the packing. Inverse operations take b off, then divide by a, so x = -b / a.",
+      takeaway: "Undo addition, then undo multiplication. Do not invent a number the page does not give.",
     };
   }
   if (CIRCUIT_TOPIC.test(text)) {
@@ -834,103 +947,220 @@ function buildAnalogy(text: string, sentences: string[], phrases: string[]): Ana
   };
 }
 
-const OUTSIDE_DISTRACTORS = [
-  "A formula or date that is not mentioned on this page.",
-  "An author biography that the passage never gives.",
-  "A conclusion the writer explicitly says is out of scope.",
-  "The passage says students should skip this idea and move on.",
-  "The passage only names a heading and gives no explanation.",
-  "The passage states that this point is unsolved and should be ignored.",
-  "A later chapter result that these selected lines do not give.",
-  "A definition copied from a different subject.",
-  "A numerical answer that does not appear in the selection.",
-  "A claim the writer marks as optional extra reading.",
-] as const;
-
 function clipOption(text: string): string {
   return text.length > 110 ? `${text.slice(0, 107).trim()}…` : text;
 }
 
-function groundedOptions(correct: string, salt: number): [string, string, string, string] {
-  const first = OUTSIDE_DISTRACTORS[salt % OUTSIDE_DISTRACTORS.length];
-  const second = OUTSIDE_DISTRACTORS[(salt + 3) % OUTSIDE_DISTRACTORS.length];
-  const third = OUTSIDE_DISTRACTORS[(salt + 7) % OUTSIDE_DISTRACTORS.length];
-  return [clipOption(correct), first, second, third];
+function makeMcq(
+  question: string,
+  correct: string,
+  distractors: [string, string, string],
+  explanation: string,
+  concept: string,
+  slot: number,
+  citationLabel: string
+): ComposedMcqItem {
+  const placed = placeCorrectOption(clipOption(correct), distractors.map(clipOption) as [string, string, string], slot);
+  return {
+    question,
+    ...placed,
+    explanation,
+    concept,
+    citationLabel,
+  };
 }
 
-function groundedMcqs(text: string, pageNumber: number): ComposedMcqItem[] {
-  const sentences = splitPassageSentences(text);
-  const phrases = extractKeyPhrases(text, 8);
-  const units = sentences.length > 0 ? sentences.map(clipClaim) : [clipClaim(text.trim())];
+function qualityMcqs(text: string, pageNumber: number): ComposedMcqItem[] {
+  const topic = detectPassageTopic(text);
   const citationLabel = `[Page ${pageNumber}]`;
+  const geometry = rectangleGeometryFromText(text);
 
-  const builders: Array<(unit: string, phrase: string, index: number) => Omit<ComposedMcqItem, "options" | "correctIndex" | "citationLabel">> = [
-    (unit, phrase) => ({
-      question: `According to the selected passage, which statement is grounded in the text?`,
-      explanation: `The passage itself states: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `What should you be able to recall about “${phrase}” after reading this passage?`,
-      explanation: `Stay inside the selected lines. A faithful recall is: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `Which wording about “${phrase}” stays inside the selected lines?`,
-      explanation: `Only this wording is on the page: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `The passage’s own support for “${phrase}” is closest to which line?`,
-      explanation: `The selected text supports this as: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `Which self-check for “${phrase}” uses only this passage?`,
-      explanation: `A fair check uses the page’s own line: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `After this passage, which claim about “${phrase}” is fair?`,
-      explanation: `The selected lines allow this claim: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `Which example would still be faithful to the selected text on “${phrase}”?`,
-      explanation: `A faithful example stays with: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `Which of these is from the page, not added from outside, about “${phrase}”?`,
-      explanation: `This is on the page: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `What follows the opening idea when the passage discusses “${phrase}”?`,
-      explanation: `The selected continuation is: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
-    (unit, phrase) => ({
-      question: `Which recall of “${phrase}” would an exam marker accept from these lines alone?`,
-      explanation: `The marker can accept: “${excerptForDisplay(unit, 180)}”`,
-      concept: phrase,
-    }),
+  if (topic === "linear_equation") {
+    return [
+      makeMcq(
+        "In ax + b = 0, why must a not be zero?",
+        "If a is zero, you cannot divide to get the unique solution x = -b / a.",
+        [
+          "a is only a label and can be anything, including zero.",
+          "b has to be zero or the graph is not a line.",
+          "x is already known, so a does not matter.",
+        ],
+        "The passage writes ax + b = 0 with a not zero, then solves x = -b / a. Division by zero is not a solution of that form.",
+        "coefficient a",
+        0,
+        citationLabel
+      ),
+      makeMcq(
+        "Which inverse operations isolate x in ax + b = 0?",
+        "Subtract b, then divide by a, giving x = -b / a.",
+        [
+          "Add a and b, then divide by x.",
+          "Multiply by b, then add a.",
+          "Swap a and b, then take the square root.",
+        ],
+        "Solving for x undoes +b and then ×a. The page states the result x = -b / a.",
+        "inverse operations",
+        1,
+        citationLabel
+      ),
+      makeMcq(
+        "What does the passage say about the graph of y = ax + b?",
+        "It is a straight line.",
+        [
+          "It is a circle centred at the origin.",
+          "It is a curve that never crosses the x-axis.",
+          "It is a single point at x = 0.",
+        ],
+        "The selected lines say the graph of y = ax + b is a straight line.",
+        "straight line graph",
+        2,
+        citationLabel
+      ),
+      makeMcq(
+        "Which statement matches the form of a linear equation in one variable on this page?",
+        "ax + b = 0, with a not zero.",
+        [
+          "a/x + b = 0, with x not zero.",
+          "ax² + b = 0, with a not zero.",
+          "x + y + b = 0, with two variables.",
+        ],
+        "The page gives the one-variable form ax + b = 0, where a is not zero.",
+        "standard form",
+        3,
+        citationLabel
+      ),
+    ];
+  }
+
+  if (topic === "newton_first") {
+    const items = [
+      makeMcq(
+        "What stays the same until a net force acts?",
+        "The object’s velocity — its speed and direction.",
+        [
+          "Only the object’s colour.",
+          "The object must come to rest as soon as you stop pushing.",
+          "The mass must double.",
+        ],
+        "Newton's first law says an object keeps a constant velocity unless a net force acts on it.",
+        "constant velocity",
+        0,
+        citationLabel
+      ),
+      makeMcq(
+        "When does the first law say velocity can change?",
+        "When a net force acts on the object.",
+        [
+          "Whenever time passes, even with no force.",
+          "Only when the object is at rest.",
+          "Only if the mass is zero.",
+        ],
+        "The selected lines require a net force before velocity changes.",
+        "net force",
+        1,
+        citationLabel
+      ),
+      makeMcq(
+        "What name does the passage give this rule?",
+        "Newton's first law",
+        [
+          "The law of reflection",
+          "The area rule for rectangles",
+          "A later-chapter energy formula",
+        ],
+        "The passage names Newton's first law as the rule for constant velocity.",
+        "Newton's first law",
+        2,
+        citationLabel
+      ),
+    ];
+    if (/\bpuck\b/i.test(text)) {
+      items.push(
+        makeMcq(
+          "In the puck example, what can change the velocity?",
+          "A stick or friction.",
+          [
+            "The ice forcing the puck to keep moving by itself.",
+            "A formula from a later chapter.",
+            "The puck changing colour.",
+          ],
+          "The passage says a puck on ice keeps sliding until a stick or friction changes that velocity.",
+          "changing velocity",
+          3,
+          citationLabel
+        )
+      );
+    }
+    return items;
+  }
+
+  if (geometry) {
+    return [
+      makeMcq(
+        "How do you find the area of the rectangle on this page?",
+        `Multiply length ${geometry.length} ${geometry.unit} by width ${geometry.width} ${geometry.unit}.`,
+        [
+          `Add ${geometry.length} and ${geometry.width}.`,
+          `Subtract ${geometry.width} from ${geometry.length}.`,
+          "Count only the walk around the edge.",
+        ],
+        `The page’s numbers give ${geometry.length} × ${geometry.width} = ${geometry.area} ${geometry.unit}².`,
+        "area formula",
+        0,
+        citationLabel
+      ),
+      makeMcq(
+        "What does the area number count?",
+        `The unit squares that fill the rectangle, ${geometry.area} ${geometry.unit}².`,
+        [
+          "Only the two sides you walk along.",
+          "The perimeter around the shape.",
+          "A volume in cubic units.",
+        ],
+        "Area is the space inside, not the walk around the edge.",
+        "area meaning",
+        1,
+        citationLabel
+      ),
+    ];
+  }
+
+  if (topic === "circuit") {
+    return [
+      makeMcq(
+        "What must be true before current can flow?",
+        "The path must be a closed loop.",
+        [
+          "The path must stay open.",
+          "Current is used up at the first bulb.",
+          "Charge only moves if the wire is painted.",
+        ],
+        "A circuit is a closed path. An open path stops the flow.",
+        "closed path",
+        0,
+        citationLabel
+      ),
+    ];
+  }
+
+  const sentences = splitPassageSentences(text);
+  const claim = clipClaim(sentences[0] ?? text);
+  if (!claim || claim.split(/\s+/).length < 4) return [];
+  return [
+    makeMcq(
+      "Which statement restates the main claim from these lines?",
+      claim,
+      [
+        "A later-chapter formula that these lines do not give.",
+        "The idea is optional and can be skipped.",
+        "The page gives only a heading and no claim.",
+      ],
+      `Stay with the selected claim: ${excerptForDisplay(claim, 120)}`,
+      "main claim",
+      0,
+      citationLabel
+    ),
   ];
-
-  return Array.from({ length: TEST_ME_QUESTION_COUNT }, (_, index) => {
-    const unit = units[index % units.length] ?? clipClaim(text);
-    const phrase =
-      phrases[index % Math.max(1, phrases.length)] ??
-      extractKeyPhrases(unit, 1)[0] ??
-      "this idea";
-    const built = builders[index]!(unit, phrase, index);
-    return {
-      ...built,
-      options: groundedOptions(unit, index),
-      correctIndex: 0,
-      citationLabel,
-    };
-  });
 }
 
 export function identifyIncorrectAnswers(
@@ -1009,15 +1239,7 @@ export function composeRevisionFromMisses(params: {
   };
 }
 
-export function preferTenGroundedMcqs(
-  modelMcqs: ComposedMcqItem[] | undefined,
-  fallbackMcqs: ComposedMcqItem[] | undefined
-): ComposedMcqItem[] | undefined {
-  if (modelMcqs && modelMcqs.length >= TEST_ME_QUESTION_COUNT) {
-    return modelMcqs.slice(0, TEST_ME_QUESTION_COUNT);
-  }
-  return fallbackMcqs;
-}
+export { preferValidatedMcqs } from "./lens-quality";
 
 function learningApproachBody(
   request: ComposeLensRequest,
@@ -1054,33 +1276,78 @@ function learningApproachBody(
 }
 
 function buildRevision(request: ComposeLensRequest, sentences: string[], phrases: string[]): RevisionSections {
+  const topic = detectPassageTopic(request.selectedText);
+  if (topic === "newton_first") {
+    return {
+      quickSummary:
+        "Newton's first law: an object keeps a constant velocity unless a net force acts on it.",
+      keyPoints: [
+        "Velocity is speed with a direction, and it stays the same until a leftover force acts.",
+        "A free-body diagram starts by asking what is actually pushing or pulling.",
+        "Motion does not need a force to continue; it needs a force to change.",
+      ],
+      revisionTable: [
+        { topic: "First law", remember: "Constant velocity unless a net force acts." },
+        { topic: "Net force", remember: "The leftover push after all forces are combined." },
+        { topic: "Free-body diagram", remember: "Start by naming the actual pushes and pulls." },
+      ],
+      memoryAid: "Hold this as a cause-and-effect line: no leftover force, same velocity.",
+      examPractice: [
+        "What stays the same until a net force acts?",
+        "What should a free-body diagram ask first?",
+      ],
+    };
+  }
+  if (topic === "linear_equation") {
+    return {
+      quickSummary: "A linear equation in one variable has the form ax + b = 0, with a not zero. Solve x = -b / a. The graph of y = ax + b is a straight line.",
+      keyPoints: [
+        "Form: ax + b = 0, where a is the coefficient of x and is not zero.",
+        "Inverse operations give the solution x = -b / a.",
+        "The related graph y = ax + b is a straight line.",
+      ],
+      revisionTable: [
+        { topic: "Standard form", remember: "ax + b = 0, with a not zero." },
+        { topic: "Solve for x", remember: "Undo +b, then undo ×a: x = -b / a." },
+        { topic: "Check", remember: "Substitute x back into ax + b and confirm the sum is 0." },
+        { topic: "Graph", remember: "y = ax + b is a straight line." },
+      ],
+      memoryAid: "Undo plus, then undo times: subtract b, divide by a, get x = -b / a.",
+      examPractice: [
+        "Name a, b, and x in ax + b = 0 without inventing numbers.",
+        "How would you check that x = -b / a is the solution?",
+      ],
+    };
+  }
+
   const claim = clipClaim(sentences[0] ?? request.selectedText);
   const support = clipClaim(sentences[1] ?? "Restate the claim in one line.");
-  const detail = clipClaim(sentences[2] ?? phrases[1] ?? "Name one supporting word from the page.");
+  const detail = clipClaim(sentences[2] ?? "");
   const domain = passageDomain(request.selectedText);
-  const initials = uniqueKeep(
-    phrases.map((phrase) => phrase.charAt(0).toUpperCase()).filter(Boolean)
-  ).slice(0, 4);
   const memoryAid =
     domain === "marketing"
       ? `Remember the page’s own sequence: ${excerptForDisplay(claim, 100)} Then keep ${excerptForDisplay(support, 80)}.`
       : domain === "physics"
         ? `Hold this as a cause-and-effect line: ${excerptForDisplay(claim, 120)}`
-        : initials.length >= 2
-          ? `${initials.join("-")} stands for ${phrases.slice(0, initials.length).join(", ")}.`
-          : `Say this without looking: ${excerptForDisplay(claim, 140)}`;
+        : `Say this without looking: ${excerptForDisplay(claim, 140)}`;
+  const keyPoints = [claim, support, detail]
+    .map((item) => excerptForDisplay(item, 140))
+    .filter((item) => isMeaningfulRevisionCell(item));
+  const revisionTable = filterRevisionTable([
+    { topic: "Main claim", remember: excerptForDisplay(claim, 140) },
+    { topic: "Support", remember: excerptForDisplay(support, 140) },
+    ...(isMeaningfulRevisionCell(detail)
+      ? [{ topic: "Extra detail", remember: excerptForDisplay(detail, 140) }]
+      : []),
+    { topic: "Self-check", remember: "Cover the page and say the claim, then the support." },
+  ]);
   return {
     quickSummary: excerptForDisplay(claim, 220),
-    keyPoints: [claim, support, detail].map((item) => excerptForDisplay(item, 140)),
-    revisionTable: [
-      { topic: "Main claim", remember: excerptForDisplay(claim, 140) },
-      { topic: "Support", remember: excerptForDisplay(support, 140) },
-      { topic: "Extra detail", remember: excerptForDisplay(detail, 140) },
-      { topic: "Self-check", remember: "Cover the page and say the claim, then the support." },
-    ],
+    keyPoints: keyPoints.length > 0 ? keyPoints : [excerptForDisplay(claim, 140)],
+    revisionTable,
     memoryAid,
     examPractice: [
-      `In one sentence, what does the passage claim about ${phrases[0] ?? "this idea"}?`,
+      `In one sentence, what does the passage claim about ${phrases[0] && phrases[0].length > 3 ? phrases[0] : "this idea"}?`,
       `What would count as a faithful example of that claim, using only these lines?`,
     ],
   };
@@ -1267,6 +1534,32 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
   const otherPhysics = buildTopicPhysicsExplain(text, sentences, phrases, topic);
   if (otherPhysics) return otherPhysics;
 
+  if (topic === "linear_equation") {
+    return {
+      simpleExplanation:
+        "A linear equation has one unknown, x. It looks like ax + b = 0. Example: undo the +b and the ×a to find x = -b / a.",
+      standardExplanation:
+        "a is the coefficient of x and is not zero. b is the constant term. Inverse operations isolate x: subtract b, then divide by a, so x = -b / a. Check by substituting that x back into ax + b. The related graph y = ax + b is a straight line.",
+      deeperExplanation:
+        "Why a ≠ 0: if a were zero, you could not divide to get a unique x of the form -b / a. Why inverse operations: subtraction undoes addition, and division undoes multiplication. A common misconception is to write x = b / a or to treat y = ax + b as a different unknown instead of the straight-line graph of the same a and b. Self-check: if you put x = -b / a into ax + b, what must you get? Self-check: which sentence on this page names the graph?",
+      importantConcepts: ["ax + b = 0", "Coefficient a ≠ 0", "x = -b / a", "Straight line y = ax + b"],
+      relevantExample:
+        "From the page only: start with ax + b = 0, subtract b, divide by a, and verify ax + b returns 0. Do not invent a number the selection does not give.",
+      keyTakeaway: "Isolate x with inverse operations. The solution is x = -b / a, and y = ax + b is a straight line.",
+    };
+  }
+
+  if (passageDomain(text) === "ayurveda") {
+    return {
+      simpleExplanation: `The page names three study energies: Vata, Pitta, and Kapha. Example: ${excerptForDisplay(claim, 70)}`,
+      standardExplanation: `These lines treat Vata, Pitta, and Kapha as named energies on the page, not as a lecture added from outside. ${support ? `The next line adds: ${excerptForDisplay(support, 90)}.` : ""} Worked example: name each energy the selection actually writes.`,
+      deeperExplanation: `Why stay with those names? The passage itself introduces them. A common misconception is to import a different constitution theory. Self-check: which three names are on this page? Self-check: what do these lines say balance supports?`,
+      importantConcepts: uniqueKeep(["Vata", "Pitta", "Kapha", excerptForDisplay(support ?? "Balance", 40)]).slice(0, 4),
+      relevantExample: excerptForDisplay(support ?? claim, 200),
+      keyTakeaway: excerptForDisplay(claim, 160),
+    };
+  }
+
   if (topic === "newton_first") {
     return {
       simpleExplanation:
@@ -1301,22 +1594,33 @@ function buildExplain(request: ComposeLensRequest, sentences: string[], phrases:
     };
   }
 
-  const phraseTopic = phrases[0] ?? "this idea";
+  const formula = request.selectedText.match(/[A-Za-z]\s*=\s*[^\n.]{2,48}/)?.[0];
+  if (domain === "math" && formula) {
+    return {
+      simpleExplanation: `The page gives a rule you can write as ${formula.trim()}. Example: name each letter from the selected lines only.`,
+      standardExplanation: `The relationship on the page is ${formula.trim()}. ${support ? `The next line adds: ${excerptForDisplay(support, 90)}.` : "Keep every letter as the page defines it."} Worked example: substitute only values that appear in these lines.`,
+      deeperExplanation: `Why that rule? Each symbol is defined on this selection; do not import a different chapter. A common misconception is to invent a number the page never gives. Self-check: which letters are named here? Self-check: what would count as a check that stays inside these lines?`,
+      importantConcepts: uniqueKeep([
+        excerptForDisplay(formula, 40),
+        excerptForDisplay(phrases[0] ?? "Named quantity", 40),
+        excerptForDisplay(support ?? "Check the substitution", 40),
+      ]).slice(0, 4),
+      relevantExample: excerptForDisplay(support ?? claim, 200),
+      keyTakeaway: excerptForDisplay(formula, 160),
+    };
+  }
+
   return {
-    simpleExplanation: `This page is about ${phraseTopic}. Hold one clear claim. Example: ${excerptForDisplay(claim, 70)}`,
-    standardExplanation: `${phraseTopic} is defined by the claim on the page. The next line is the relationship that supports it${support ? `: ${excerptForDisplay(support, 90)}` : ""}. Worked example: restate the claim, then the support, without copying the paragraph.`,
-    deeperExplanation: `The reasoning to keep is why the support belongs with the claim, not only that both appear. You use this whenever you have to explain the idea to someone else. A common misconception is to memorize the wording and skip the link between the lines. Self-check: cover the page and say the claim. Self-check: what would count as a fair example that stays inside these lines?`,
+    simpleExplanation: `${excerptForDisplay(claim, 90)} Example: ${excerptForDisplay(support ?? claim, 70)}`,
+    standardExplanation: `The governing idea is ${excerptForDisplay(claim, 110)}${support ? ` The support is ${excerptForDisplay(support, 90)}.` : ""} Worked example: restate that idea, then the support, using only these lines.`,
+    deeperExplanation: `Why that link? The support is what makes the claim usable. A common misconception is to memorize wording and drop the reason. Self-check: cover the page and say the claim. Self-check: what would count as a fair example that stays inside these lines?`,
     importantConcepts: uniqueKeep([
       excerptForDisplay(phrases[0] ?? "Main claim", 40),
       excerptForDisplay(phrases[1] ?? support ?? "Support", 40),
-      excerptForDisplay(phrases[2] ?? extra ?? "Recall check", 40),
+      excerptForDisplay(support ?? extra ?? "Recall check", 40),
     ]).slice(0, 4),
-    relevantExample: support
-      ? excerptForDisplay(support, 200)
-      : `If you can restate “${excerptForDisplay(claim, 80)}” without looking back, you have the example.`,
-    keyTakeaway: extra
-      ? excerptForDisplay(extra, 180)
-      : `If you can restate that claim in one sentence without looking back, you have the passage.`,
+    relevantExample: excerptForDisplay(support ?? claim, 200),
+    keyTakeaway: excerptForDisplay(extra ?? claim, 180),
   };
 }
 
@@ -1344,14 +1648,24 @@ function buildStory(request: ComposeLensRequest, sentences: string[], phrases: s
   }
 
   const topic = detectPassageTopic(text);
+  if (topic === "linear_equation") {
+    return {
+      opening:
+        "Rina writes a linear equation in one variable, ax + b = 0, and asks what x is. She will not pick a number the page never gave.",
+      turningPoint:
+        "Solving for x, she subtracts b from both sides, then divides by a, because a is not zero. That isolates x = -b / a. She substitutes it back and ax + b becomes 0.",
+      close:
+        "Then she sketches the graph y = ax + b. The same a and b make a straight line, so the solution is where that line meets y = 0.",
+    };
+  }
   if (topic === "newton_first") {
     return {
       opening:
-        "Leah sets a hockey puck on smooth ice and gives it one tap. It keeps sliding in a straight line even after she stops touching it.",
+        "Leah writes Newton's first law, then sets a hockey puck on smooth ice and gives it one tap. The object keeps a constant velocity in a straight line even after she stops touching it.",
       turningPoint:
-        "A patch of rough ice tugs on the puck. That leftover force is the first thing that changes its velocity. Until then, nothing had to keep pushing.",
+        "A patch of rough ice tugs on the puck. That leftover net force is the first thing that changes its velocity. Until then, nothing had to keep pushing.",
       close:
-        "That is why a force sketch begins by naming the real pushes and pulls. Motion continues by itself. A leftover force is needed to change it.",
+        "Unless a net force acts, velocity stays the same. That is why a free-body diagram starts by naming the real pushes and pulls.",
     };
   }
   if (
@@ -1389,14 +1703,49 @@ function buildStory(request: ComposeLensRequest, sentences: string[], phrases: s
     };
   }
 
-  const subject = excerptForDisplay(phrases[0] ?? "this idea", 28);
+  const claim = clipClaim(sentences[0] ?? text);
   return {
-    opening: `A student meets “${subject}” as a problem, not as a paragraph to copy. They write one sentence they could teach to a friend.`,
+    opening: `A student has to use this idea, not copy it: ${excerptForDisplay(claim, 90)}`,
     turningPoint: sentences[1]
-      ? `The hard part is connecting the next fact — ${excerptForDisplay(sentences[1], 80)} — to that sentence, instead of stacking quotes.`
-      : "The hard part is saying what would have to change for the claim to stop being true.",
-    close:
-      "If they can retell the scene without looking back, they have the idea. Copying the page is not the same as being able to use it.",
+      ? `They try a wrong first move, then correct it using ${excerptForDisplay(sentences[1], 90)}`
+      : "They try a wrong first move, then correct it using only the selected rule.",
+    close: excerptForDisplay(sentences[2] ?? sentences[0] ?? text, 180),
+  };
+}
+
+function buildAskMyBook(
+  request: ComposeLensRequest,
+  sentences: string[]
+): { question: string; answer: string; sufficientSource: boolean; keyPoints: string[] } {
+  const raw = (request.studentQuestion ?? "").trim();
+  const question =
+    raw.length >= 3
+      ? raw
+      : "What does the selected passage claim?";
+  const history = request.conversationHistory ?? [];
+  const grounding = resolveAskGrounding({
+    question,
+    selectedText: request.selectedText,
+    history,
+  });
+  if (!grounding.sufficient) {
+    return {
+      question,
+      answer: `The selected lines do not give enough evidence to answer that. They discuss: ${excerptForDisplay(request.selectedText, 160)} Highlight a passage that names the idea you asked about.`,
+      sufficientSource: false,
+      keyPoints: ["Insufficient source evidence", excerptForDisplay(request.selectedText, 80)],
+    };
+  }
+  const followNote =
+    grounding.followUp && history[history.length - 1]
+      ? ` Following your last question (“${excerptForDisplay(history[history.length - 1].question, 80)}”), stay with the same lines.`
+      : "";
+  const supporting = selectAskSupportingText(question, request.selectedText);
+  return {
+    question,
+    answer: `${supporting}${followNote}`,
+    sufficientSource: true,
+    keyPoints: [excerptForDisplay(supporting, 90), `Source: page ${request.pageNumber}`],
   };
 }
 
@@ -1484,7 +1833,7 @@ export function composeDeterministicLensPayload(params: {
   const citations = buildCitations(request, ragChunks);
   const sentences = splitPassageSentences(request.selectedText);
   const phrases = extractKeyPhrases(request.selectedText);
-  const lens: HighlightLensType =
+  const lens: ComposeTaskType =
     request.lensType === "deep_integrative_synthesis"
       ? "explain"
       : request.lensType;
@@ -1563,8 +1912,28 @@ export function composeDeterministicLensPayload(params: {
         key_points: body.keyPoints,
       };
     }
+    case "ask_my_book": {
+      const asked = buildAskMyBook(request, sentences);
+      return {
+        ...base,
+        lens_type: "ask_my_book",
+        title: "Ask My Book",
+        markdown_body: [
+          `### Question`,
+          asked.question,
+          asked.sufficientSource ? "### Answer" : "### Insufficient source evidence",
+          asked.answer,
+        ].join("\n"),
+        key_points: asked.keyPoints,
+        askMyBook: {
+          question: asked.question,
+          answer: asked.answer,
+          sufficientSource: asked.sufficientSource,
+        },
+      };
+    }
     case "test_me": {
-      const mcqs = groundedMcqs(request.selectedText, request.pageNumber);
+      const mcqs = qualityMcqs(request.selectedText, request.pageNumber);
       const shortAnswers = groundedShortAnswers(request.selectedText, phrases);
       const revision = buildRevision(request, sentences, phrases);
       return {
@@ -1573,7 +1942,7 @@ export function composeDeterministicLensPayload(params: {
         title: "Test Me",
         markdown_body: [
           `### Check yourself`,
-          `Answer all ${TEST_ME_QUESTION_COUNT} questions from the selected passage only.`,
+          `Answer these ${mcqs.length} questions from the selected passage only.`,
         ].join("\n"),
         key_points: mcqs.map((item) => item.question),
         mcqs,

@@ -17,6 +17,11 @@ import type {
   StudyDiagramNode,
 } from "./lens-compose";
 import { isUsableModelText } from "./lens-compose";
+import {
+  filterRevisionTable,
+  isGenericExplainTemplate,
+  isGenericStudyStory,
+} from "./lens-quality";
 
 export const GEMINI_CALL_TIMEOUT_MS = 20_000;
 export const GEMINI_MAX_ATTEMPTS = 2;
@@ -213,6 +218,15 @@ export const LENS_RESPONSE_SCHEMA = {
         required: ["prompt", "sampleAnswer"],
       },
     },
+    askMyBook: {
+      type: Type.OBJECT,
+      properties: {
+        question: stringSchema,
+        answer: stringSchema,
+        sufficientSource: { type: Type.BOOLEAN },
+      },
+      required: ["question", "answer", "sufficientSource"],
+    },
   },
   required: ["title", "markdown_body", "key_points"],
 };
@@ -291,6 +305,13 @@ function asExplain(value: unknown): ExplainSections | null {
   const relevantExample = asCleanString(raw.relevantExample, 280);
   const importantConcepts = asStringList(raw.importantConcepts, 4, 80);
   if (!simpleExplanation || !standardExplanation || !keyTakeaway) return null;
+  if (
+    isGenericExplainTemplate(
+      `${simpleExplanation} ${standardExplanation} ${deeperExplanation ?? ""}`
+    )
+  ) {
+    return null;
+  }
   return {
     simpleExplanation,
     standardExplanation,
@@ -309,6 +330,7 @@ function asStory(value: unknown): StorySections | null {
   const turningPoint = asCleanString(raw.turningPoint, 400);
   const close = asCleanString(raw.close, 400);
   if (!opening || !turningPoint || !close) return null;
+  if (isGenericStudyStory(`${opening} ${turningPoint} ${close}`)) return null;
   return { opening, turningPoint, close };
 }
 
@@ -331,17 +353,44 @@ function asRevision(value: unknown): RevisionSections | null {
         .filter((row): row is { topic: string; remember: string } => Boolean(row))
         .slice(0, 6)
     : [];
-  if (!quickSummary || keyPoints.length < 1 || revisionTable.length < 2) return null;
+  const cleanedTable = filterRevisionTable(revisionTable);
+  const cleanedPoints = keyPoints.filter((item) => item.trim().split(/\s+/).length >= 2);
+  if (!quickSummary || cleanedPoints.length < 1 || cleanedTable.length < 2) return null;
   return {
     quickSummary,
-    keyPoints,
-    revisionTable,
+    keyPoints: cleanedPoints,
+    revisionTable: cleanedTable,
     memoryAid: memoryAid ?? quickSummary,
     examPractice:
       examPractice.length > 0
         ? examPractice
         : ["Restate the main claim from these lines only."],
   };
+}
+
+function asAskAnswer(value: unknown, max = 2400): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (trimmed.length < 2) return null;
+  return trimmed.slice(0, max);
+}
+
+function asAskMyBook(
+  value: unknown
+): { question: string; answer: string; sufficientSource: boolean } | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const question = asCleanString(raw.question, 280);
+  const answer = asAskAnswer(raw.answer, 2400);
+  if (!question || !answer) return null;
+  const sufficient =
+    raw.sufficientSource === true ||
+    (raw.sufficientSource !== false &&
+      !/not give enough evidence|insufficient source/i.test(answer));
+  return { question, answer, sufficientSource: sufficient };
 }
 
 function asAnalogy(value: unknown): AnalogySections | null {
@@ -382,7 +431,7 @@ function asMcqs(value: unknown, fallbackLabel: string): TestMeMcqItem[] {
       };
     })
     .filter((item): item is TestMeMcqItem => Boolean(item))
-    .slice(0, 4);
+    .slice(0, 8);
 }
 
 function asShortAnswers(value: unknown): ShortAnswerItem[] {
@@ -440,6 +489,7 @@ export function mergeStructuredLensPayload(
   const mcqs = asMcqs(parsed.mcqs, fallback.citations[0]?.label ?? "[Page]");
   const shortAnswers = asShortAnswers(parsed.short_answers);
   const analogy = asAnalogy(parsed.analogy);
+  const askMyBook = asAskMyBook(parsed.askMyBook) ?? fallback.askMyBook;
 
   const structuredOk = Boolean(
     explain ||
@@ -447,6 +497,7 @@ export function mergeStructuredLensPayload(
       revision ||
       illustrative ||
       diagram ||
+      askMyBook ||
       mcqs.length > 0 ||
       isUsableModelText(markdown)
   );
@@ -469,6 +520,7 @@ export function mergeStructuredLensPayload(
       analogy: analogy ?? illustrative?.analogy ?? fallback.analogy,
       mcqs: mcqs.length > 0 ? mcqs : fallback.mcqs,
       short_answers: shortAnswers.length > 0 ? shortAnswers : fallback.short_answers,
+      askMyBook,
       used_fallback: false,
     },
   };

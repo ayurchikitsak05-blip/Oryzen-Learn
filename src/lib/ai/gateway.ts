@@ -24,8 +24,13 @@ import type { Dosha, HighlightLensType } from "@/lib/prakriti/config";
 import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
 import { computeSha256Hex } from "@/lib/reader/hashing";
 import {
+  askMyBookCacheSeed,
+  isolateChunksForDocument,
+  preferAskMyBookAnswer,
+} from "./ask-my-book";
+import {
   composeDeterministicLensPayload,
-  preferTenGroundedMcqs,
+  preferValidatedMcqs,
   type AnalogySections,
   type ExplainSections,
   type IllustrativeBundle,
@@ -95,11 +100,15 @@ export type { ProviderErrorClass } from "./providers";
 
 export type GatewayTaskType =
   | HighlightLensType
-  | "deep_integrative_synthesis";
+  | "deep_integrative_synthesis"
+  | "ask_my_book";
 
 export type GeminiModelTier = Extract<
   GatewayModelId,
-  "gemini-2.5-flash" | "gemini-2.5-pro" | "gemini-2.5-flash-lite"
+  | "gemini-2.5-flash"
+  | "gemini-2.5-pro"
+  | "gemini-2.5-flash-lite"
+  | "gemini-3.5-flash-lite"
 >;
 
 export const SHIELD_1_MAX_PROMPT_TOKENS = 2000;
@@ -144,6 +153,11 @@ export interface AiLensResponsePayload {
   illustrative?: IllustrativeBundle;
   analogy?: AnalogySections;
   story?: StorySections;
+  askMyBook?: {
+    question: string;
+    answer: string;
+    sufficientSource: boolean;
+  };
   used_fallback?: boolean;
 }
 
@@ -177,6 +191,11 @@ export interface AiGatewayExecutionResult {
     | null;
   geminiErrorClass: GeminiErrorClass | null;
   providerErrorClass: ProviderErrorClass | null;
+  providerErrorDetail: {
+    httpStatus: number | null;
+    googleStatus: string | null;
+    message: string;
+  } | null;
   payload: AiLensResponsePayload;
 }
 
@@ -189,6 +208,8 @@ export interface AiGatewayRequest {
   selectedText: string;
   selectionBoundingBox?: BoundingBox;
   lensType: GatewayTaskType;
+  studentQuestion?: string;
+  conversationHistory?: Array<{ question: string; answer: string }>;
   prakritiDosha?: Dosha;
   activePageText?: string;
   candidateChunks?: CitationReadyChunk[];
@@ -209,6 +230,8 @@ export interface AiGatewayRequest {
     completionTokens?: number;
   }>;
   fetchImpl?: (input: string, init?: RequestInit) => Promise<Response>;
+  /** When 1, skip provider-level retries for a single diagnostic call. */
+  maxProviderAttempts?: 1;
 }
 
 /**
@@ -373,9 +396,10 @@ export function resolveShieldedModelRoute(params: {
   const requestedModel: GeminiModelTier =
     preferred === "gemini-2.5-pro" ||
     preferred === "gemini-2.5-flash" ||
-    preferred === "gemini-2.5-flash-lite"
+    preferred === "gemini-2.5-flash-lite" ||
+    preferred === "gemini-3.5-flash-lite"
       ? preferred
-      : "gemini-2.5-flash-lite";
+      : "gemini-3.5-flash-lite";
 
   const softProCapReached =
     requestedModel === "gemini-2.5-pro" &&
@@ -384,7 +408,7 @@ export function resolveShieldedModelRoute(params: {
   if (softProCapReached) {
     return {
       requestedModel,
-      effectiveModel: "gemini-2.5-flash-lite",
+      effectiveModel: "gemini-3.5-flash-lite",
       downgradedToFlashLite: true,
     };
   }
@@ -577,6 +601,7 @@ async function finishGatewayResult(params: {
   fallbackReason: AiGatewayExecutionResult["fallbackReason"];
   geminiErrorClass: GeminiErrorClass | null;
   providerErrorClass: ProviderErrorClass | null;
+  providerErrorDetail?: AiGatewayExecutionResult["providerErrorDetail"];
   payload: AiLensResponsePayload;
 }): Promise<AiGatewayExecutionResult> {
   if (!params.cacheHit) {
@@ -646,6 +671,7 @@ async function finishGatewayResult(params: {
     fallbackReason: params.fallbackReason,
     geminiErrorClass: params.geminiErrorClass,
     providerErrorClass: params.providerErrorClass,
+    providerErrorDetail: params.providerErrorDetail ?? null,
     payload: params.payload,
   };
 }
@@ -666,11 +692,15 @@ export async function executeControlledAiGateway(
     request.walletCapInr ?? SHIELD_4_DEFAULT_WALLET_CAP_INR;
   const cacheAuth = resolveRequestCacheAuth(request);
 
+  const isolatedChunks = isolateChunksForDocument(
+    request.candidateChunks ?? [],
+    request.documentId
+  );
   const rag = selectPageLevelRagContext({
     selectedText: request.selectedText,
     activePageNumber: request.pageNumber,
     activePageText: request.activePageText,
-    candidateChunks: request.candidateChunks ?? [],
+    candidateChunks: isolatedChunks,
     maxTokens: SHIELD_1_MAX_PROMPT_TOKENS,
     topK: SHIELD_1_TOP_K_CHUNKS,
   });
@@ -693,7 +723,13 @@ export async function executeControlledAiGateway(
     MODEL_CATALOG[route.requestedModel].provider;
 
   const normalizedSelectionHash = await computeNormalizedSelectionHash(
-    request.selectedText
+    request.lensType === "ask_my_book"
+      ? askMyBookCacheSeed({
+          selectedText: request.selectedText,
+          studentQuestion: request.studentQuestion,
+          conversationHistory: request.conversationHistory,
+        })
+      : request.selectedText
   );
   const isolated = await buildIsolatedAppCacheKey({
     auth: cacheAuth,
@@ -754,13 +790,38 @@ export async function executeControlledAiGateway(
   const systemPrompt = [
     `You are the Oryzen Learn study engine.`,
     `Lens: ${request.lensType}.`,
-    `Explain only the selected passage. Do not invent facts beyond it.`,
+    request.lensType === "ask_my_book"
+      ? `Answer the student's question using only the selected passage and cited chunks. Student question: ${request.studentQuestion ?? "What does the passage claim?"}.${
+          request.conversationHistory?.length
+            ? ` Prior turns in this same passage:\n${request.conversationHistory
+                .map((turn) => `Q: ${turn.question}\nA: ${turn.answer}`)
+                .join("\n")}`
+            : ""
+        } If the source does not contain enough evidence, say so clearly. Do not reuse a general Explain template. Fill askMyBook.question, askMyBook.answer, and askMyBook.sufficientSource.`
+      : `Teach only the selected passage. Do not invent facts, numbers, or worked solutions the selection does not support.`,
+    request.lensType === "explain"
+      ? `Write Simple, Standard, and Deeper explanations with genuinely different instructional depth. For linear equations, teach variables, coefficients, inverse operations, the given formula, and verification. Never write "this page is about" or "hold one clear claim".`
+      : "",
+    request.lensType === "test_me"
+      ? `Write only as many MCQs as you can ground in the excerpt. Test understanding, not quote-matching. Use plausible misconception distractors. Spread correctIndex across 0-3. Do not pad to a fixed count. Reject a question rather than inventing a dummy option.`
+      : "",
+    request.lensType === "story"
+      ? `Tell a short narrative that teaches the selected concept. For algebra, a student should solve or interpret the given equation or graph. Never write a story about copying, summarizing, or retelling a page.`
+      : "",
+    request.lensType === "high_yield_revision"
+      ? `Revision rows must be complete teaching points, never a single leftover word.`
+      : "",
+    request.lensType === "illustrative"
+      ? `Mind-map labels must be short complete phrases. Flowcharts must show a real conceptual sequence from the excerpt.`
+      : "",
     `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
     `Return JSON matching the study lens schema. Diagrams must use nodes and edges, not mermaid or arrow prose.`,
     `Never use image generation for ordinary diagrams.`,
     `Never reprint the entire source passage.`,
     rag.boundedPromptContext,
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   const fallbackPayload = buildDeterministicLensPayload({
     request,
@@ -795,6 +856,7 @@ export async function executeControlledAiGateway(
     requestedProvider === "google" ? "missing_gemini_key" : "missing_api_key";
   let geminiErrorClass: GeminiErrorClass | null = "missing_key";
   let providerErrorClass: ProviderErrorClass | null = "missing_key";
+  let providerErrorDetail: AiGatewayExecutionResult["providerErrorDetail"] = null;
   let providerUsed: AiProvider = "deterministic";
   let modelUsed: GatewayModelId = "deterministic";
   let promptTokens = 0;
@@ -803,15 +865,21 @@ export async function executeControlledAiGateway(
 
   const applyDeterministic = (
     reason: AiGatewayExecutionResult["fallbackReason"],
-    blocked: boolean
+    blocked: boolean,
+    classes?: {
+      gemini?: GeminiErrorClass | null;
+      provider?: ProviderErrorClass | null;
+      detail?: AiGatewayExecutionResult["providerErrorDetail"];
+    }
   ) => {
     generatedPayload = fallbackPayload;
     usedDeterministicFallback = true;
     usedProviderFallback = false;
     budgetBlocked = blocked;
     fallbackReason = reason;
-    geminiErrorClass = blocked ? null : "missing_key";
-    providerErrorClass = blocked ? null : "missing_key";
+    geminiErrorClass = blocked ? null : (classes?.gemini ?? "missing_key");
+    providerErrorClass = blocked ? null : (classes?.provider ?? "missing_key");
+    providerErrorDetail = blocked ? null : (classes?.detail ?? null);
     providerUsed = "deterministic";
     modelUsed = "deterministic";
     promptTokens = 0;
@@ -837,9 +905,10 @@ export async function executeControlledAiGateway(
           generatedPayload = {
             ...fallbackPayload,
             ...customResult.payload,
-            mcqs: preferTenGroundedMcqs(
+            mcqs: preferValidatedMcqs(
               customResult.payload.mcqs,
-              fallbackPayload.mcqs
+              fallbackPayload.mcqs,
+              request.selectedText
             ),
             short_answers:
               customResult.payload.short_answers ?? fallbackPayload.short_answers,
@@ -849,6 +918,7 @@ export async function executeControlledAiGateway(
             illustrative:
               customResult.payload.illustrative ?? fallbackPayload.illustrative,
             story: customResult.payload.story ?? fallbackPayload.story,
+            askMyBook: customResult.payload.askMyBook ?? fallbackPayload.askMyBook,
             used_fallback: false,
           };
           usedDeterministicFallback = false;
@@ -867,6 +937,7 @@ export async function executeControlledAiGateway(
         }
       } else if (hasAnyPaidProvider()) {
         let lastClass: ProviderErrorClass = "unknown";
+        let lastDetail: AiGatewayExecutionResult["providerErrorDetail"] = null;
         let attemptedPaid = false;
         for (const [index, attempt] of attempts.entries()) {
           const nextEstimate = calculateCallCostInr(
@@ -884,6 +955,9 @@ export async function executeControlledAiGateway(
             prompt: systemPrompt,
             fallback: fallbackPayload,
             fetchImpl: request.fetchImpl,
+            maxAttempts: request.maxProviderAttempts === 1 ? 1 : undefined,
+            maxOutputTokens:
+              request.maxProviderAttempts === 1 ? 800 : undefined,
           });
           const attemptCost = calculateCallCostInr(
             attempt.model,
@@ -892,10 +966,21 @@ export async function executeControlledAiGateway(
           );
           consumeReservation(decision.reservation, attemptCost);
           lastClass = modeled.errorClass ?? "unknown";
+          lastDetail = modeled.errorDetail
+            ? {
+                httpStatus: modeled.errorDetail.httpStatus,
+                googleStatus: modeled.errorDetail.googleStatus,
+                message: modeled.errorDetail.message,
+              }
+            : null;
           if (modeled.errorClass === null) {
             generatedPayload = {
               ...modeled.payload,
-              mcqs: preferTenGroundedMcqs(modeled.payload.mcqs, fallbackPayload.mcqs),
+              mcqs: preferValidatedMcqs(
+                modeled.payload.mcqs,
+                fallbackPayload.mcqs,
+                request.selectedText
+              ),
               revision: modeled.payload.revision ?? fallbackPayload.revision,
             };
             usedDeterministicFallback = false;
@@ -925,7 +1010,14 @@ export async function executeControlledAiGateway(
                     ? "missing_gemini_key"
                     : "missing_api_key"
                   : "model_error",
-            !attemptedPaid
+            !attemptedPaid,
+            attemptedPaid
+              ? {
+                  gemini: lastClass,
+                  provider: lastClass,
+                  detail: lastDetail,
+                }
+              : undefined
           );
           if (!attemptedPaid) {
             budgetBlocked = true;
@@ -940,6 +1032,25 @@ export async function executeControlledAiGateway(
     } finally {
       releaseMonthlyAiReservation(decision.reservation);
     }
+  }
+
+  if (request.lensType === "ask_my_book") {
+    const asked = preferAskMyBookAnswer({
+      question:
+        request.studentQuestion ?? generatedPayload.askMyBook?.question ?? "",
+      sourceText: request.selectedText,
+      model: usedDeterministicFallback ? null : generatedPayload.askMyBook,
+      fallback: fallbackPayload.askMyBook,
+      markdownBody: usedDeterministicFallback
+        ? undefined
+        : generatedPayload.markdown_body,
+      history: request.conversationHistory,
+    });
+    generatedPayload = {
+      ...generatedPayload,
+      askMyBook: asked,
+      markdown_body: `### Question\n${asked.question}\n\n### Answer\n${asked.answer}`,
+    };
   }
 
   return finishGatewayResult({
@@ -968,6 +1079,7 @@ export async function executeControlledAiGateway(
     fallbackReason,
     geminiErrorClass,
     providerErrorClass,
+    providerErrorDetail,
     payload: generatedPayload,
   });
 }
