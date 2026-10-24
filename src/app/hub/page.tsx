@@ -10,7 +10,9 @@ import {
   Compass,
   Library,
   Map,
+  MessageCircle,
   PenLine,
+  Timer,
 } from "lucide-react";
 import AccountMenu from "@/components/auth/AccountMenu";
 import CoachHost, { useSignedInScope } from "@/components/coach/CoachHost";
@@ -26,6 +28,20 @@ import {
 import { fetchSignedInUser } from "@/lib/supabase/session";
 
 const TOOLS = [
+  {
+    href: "/sprint",
+    title: "StudySprint",
+    description:
+      "Set a goal, pick 15 to 60 minutes, and start, pause, or resume a study block with breaks.",
+    icon: Timer,
+  },
+  {
+    href: "/companion",
+    title: "AI Study Companion",
+    description:
+      "A text companion that helps you plan, explain, take a break, and return to unfinished work.",
+    icon: MessageCircle,
+  },
   {
     href: "/reader",
     title: "Read & Explore",
@@ -121,6 +137,27 @@ export default function StudyHubPage() {
 
         <CoachHost surface="hub" userId={coachScope} />
 
+        <ol
+          data-testid="study-workflow"
+          className="mt-8 flex flex-wrap gap-2 text-xs text-muted"
+        >
+          {[
+            ["Open book", "/reader"],
+            ["Choose a goal", "/sprint"],
+            ["Start StudySprint", "/sprint"],
+            ["Learn with companion", "/companion"],
+            ["Take a quiz", "/reader?lens=test_me"],
+            ["Save notes", "/notes"],
+            ["Plan next session", "/sprint"],
+          ].map(([label, href]) => (
+            <li key={label}>
+              <Link href={href} className="rounded-full bg-beige-2 px-3 py-1 text-heading">
+                {label}
+              </Link>
+            </li>
+          ))}
+        </ol>
+
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {TOOLS.map((tool) => {
             const Icon = tool.icon;
@@ -128,7 +165,15 @@ export default function StudyHubPage() {
               <Link
                 key={tool.href}
                 href={tool.href}
-                data-testid={tool.href === "/roadmap" ? "hub-roadmap-link" : undefined}
+                data-testid={
+                  tool.href === "/roadmap"
+                    ? "hub-roadmap-link"
+                    : tool.href === "/sprint"
+                      ? "hub-sprint-link"
+                      : tool.href === "/companion"
+                        ? "hub-companion-link"
+                        : undefined
+                }
                 className={`${ui.card} flex min-h-[180px] flex-col transition-colors hover:bg-beige-2`}
               >
                 <span className={ui.chip}>

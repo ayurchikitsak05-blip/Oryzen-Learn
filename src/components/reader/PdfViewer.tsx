@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -67,6 +67,7 @@ import {
   isBlankAskQuestion,
 } from "@/lib/ai/ask-my-book";
 import TransformDialog from "@/components/reader/TransformDialog";
+import { SprintDock } from "@/components/sprint/SprintDock";
 import {
   DEFAULT_FIT_MODE,
   readLastReaderDocumentId,
@@ -958,6 +959,12 @@ export default function PdfViewer({
       data-page-scale={zoomScale}
       className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-canvas"
     >
+      <Suspense fallback={null}>
+        <SprintDock
+          quizCompleted={Boolean(aiResult?.payload.mcqs && activeLens === "test_me")}
+          notesSaved={notebookStatus === "saved"}
+        />
+      </Suspense>
       <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1">
         <label className="btn-secondary cursor-pointer px-2.5 py-1 text-[11px]">
           <FileUp className="h-4 w-4" />

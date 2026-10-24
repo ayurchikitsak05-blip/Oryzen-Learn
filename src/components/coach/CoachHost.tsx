@@ -66,8 +66,12 @@ export default function CoachHost({
   const messageRef = React.useRef<CoachMessage | null>(null);
   messageRef.current = message;
 
+  const refreshBusy = React.useRef(false);
   const refresh = useCallback(
     (rotate = false) => {
+      if (refreshBusy.current) return;
+      refreshBusy.current = true;
+      try {
       const scope = userId ?? "local-anonymous";
       const day = today ?? localIsoDate();
       const rhythm = readRhythmPrefs();
@@ -103,6 +107,9 @@ export default function CoachHost({
       setConfirmSimplify(false);
       setHidden(false);
       setRestNoted(false);
+      } finally {
+        refreshBusy.current = false;
+      }
     },
     [record, today, userId]
   );

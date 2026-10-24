@@ -225,7 +225,7 @@ export default function PrakritiOnboardingPage() {
       }
 
       setTimeout(() => {
-        router.push("/hub");
+        router.push("/companion?from=onboarding");
       }, 600);
     } catch (err) {
       const msg =

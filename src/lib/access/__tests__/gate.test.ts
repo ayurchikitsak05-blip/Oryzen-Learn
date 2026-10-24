@@ -181,6 +181,30 @@ describe("access gate", () => {
         role: "student",
       })
     ).toBe("/pricing");
+    expect(
+      decideAccessRedirect({
+        pathname: "/sprint",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/companion",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/sprint",
+        isAuthenticated: false,
+        accessStatus: null,
+        role: null,
+      })
+    ).toBe("/auth");
   });
 
   it("keeps the instructor desk limited to instructor and admin roles", () => {
