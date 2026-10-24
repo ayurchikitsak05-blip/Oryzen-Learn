@@ -37,6 +37,7 @@ describe("SprintStudio", () => {
     expect(readSprintStore("student-a").sessions[0]?.status).toBe("completed");
     expect(view.getByTestId("sprint-setup")).toBeTruthy();
     expect(view.getByTestId("sprint-history").textContent).toMatch(/Finish linear equations/);
+    expect(view.getByTestId("sprint-next-block").textContent).toMatch(/Next recommended|complete/i);
   });
 
   it("splits a longer daily target and keeps another student isolated", () => {

@@ -13,11 +13,11 @@ import {
   openingCompanionTurn,
   readCompanionStore,
   writeCompanionPrefs,
+  writeCompanionStore,
   type CompanionPrefs,
   type CompanionStore,
 } from "@/lib/companion";
-import { activeSession } from "@/lib/sprint";
-import { readSprintStore } from "@/lib/sprint";
+import { activeSession, quizHref, readSprintStore, saveSprintNote } from "@/lib/sprint";
 
 const EMPTY_COMPANION_STORE: CompanionStore = {
   version: 1,
@@ -35,6 +35,7 @@ export function CompanionChat({
   const [store, setStore] = useState<CompanionStore>(EMPTY_COMPANION_STORE);
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(true);
+  const [noteStatus, setNoteStatus] = useState("");
   const unfinished = useMemo(
     () => activeSession(readSprintStore(userId).sessions),
     [userId, store.turns.length]
@@ -49,10 +50,17 @@ export function CompanionChat({
   }, [userId]);
 
   const savePrefs = (prefs: CompanionPrefs) => {
+    const previous = store.prefs;
+    const voiceChanged =
+      previous.onboarded &&
+      (previous.style !== prefs.style || previous.name !== prefs.name);
     const next = writeCompanionPrefs(prefs, userId);
     const opened =
-      next.turns.length === 0
-        ? appendCompanionTurn(openingCompanionTurn(prefs, unfinished), userId)
+      voiceChanged || next.turns.length === 0
+        ? writeCompanionStore(
+            { ...next, turns: [openingCompanionTurn(prefs, unfinished)] },
+            userId
+          )
         : next;
     setStore(opened);
     setEditing(false);
@@ -111,6 +119,11 @@ export function CompanionChat({
       <p data-testid="companion-mock-notice" className={ui.notice}>
         {COMPANION_MOCK_NOTICE}
       </p>
+      {noteStatus ? (
+        <p data-testid="companion-note-status" className={ui.success}>
+          {noteStatus}
+        </p>
+      ) : null}
       <ol data-testid="companion-thread" className="min-h-0 flex-1 space-y-3 overflow-y-auto">
         {store.turns.map((turn) => (
           <li
@@ -133,6 +146,36 @@ export function CompanionChat({
             Return to unfinished work
           </Link>
         ) : null}
+        {unfinished ? (
+          <Link href={quizHref(unfinished)} className={ui.ghost} data-testid="companion-open-quiz">
+            Take quiz
+          </Link>
+        ) : null}
+        <button
+          type="button"
+          data-testid="companion-save-note"
+          className={ui.ghost}
+          onClick={() => {
+            const last = [...store.turns].reverse().find((turn) => turn.role === "companion");
+            if (!last || !unfinished) {
+              setNoteStatus("Start a StudySprint first, then save a reply with its book source.");
+              return;
+            }
+            saveSprintNote(
+              {
+                session: unfinished,
+                kind: "companion",
+                title: `${store.prefs.name} on ${unfinished.goal}`,
+                body: last.text,
+                source: `${store.prefs.name} · ${unfinished.documentTitle || unfinished.subject || "StudySprint"}`,
+              },
+              userId
+            );
+            setNoteStatus("Saved that study draft to your notebook, with the sprint and book as the source.");
+          }}
+        >
+          Save reply to notebook
+        </button>
         {fromOnboarding ? (
           <Link href="/hub" data-testid="companion-continue-hub" className={ui.ghost}>
             Continue to Learning Space

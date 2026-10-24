@@ -24,6 +24,9 @@ export interface SprintSession {
   date: string;
   quizLinked: boolean;
   notesLinked: boolean;
+  passageText: string;
+  pageNumber: number;
+  sectionHeading: string;
 }
 
 export interface SprintStore {

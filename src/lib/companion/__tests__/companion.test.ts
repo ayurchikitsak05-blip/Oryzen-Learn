@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createSprintSession } from "@/lib/sprint/engine";
-import { companionReply, COMPANION_MOCK_NOTICE } from "../replies";
+import { companionReply, COMPANION_MOCK_NOTICE, repliesDifferByStyle } from "../replies";
 import {
   companionStorageKey,
   readCompanionStore,
@@ -43,6 +43,9 @@ describe("AI Study Companion", () => {
       unfinished,
     });
     expect(resume.text).toMatch(/Solve ax \+ b = 0|Resume/i);
+    expect(repliesDifferByStyle("How do I explain this?", unfinished)).toBe(true);
+    expect(teacher.text).toMatch(/in one sentence|First review/i);
+    expect(coach.text).toMatch(/One clear next step/);
   });
 
   it("stores companion names per student", () => {

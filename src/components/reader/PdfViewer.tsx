@@ -69,6 +69,13 @@ import {
 import TransformDialog from "@/components/reader/TransformDialog";
 import { SprintDock } from "@/components/sprint/SprintDock";
 import {
+  activeSession,
+  attachSprintMaterial,
+  readSprintStore,
+  resolveSprintPassage,
+  upsertSprintSession,
+} from "@/lib/sprint";
+import {
   DEFAULT_FIT_MODE,
   readLastReaderDocumentId,
   readPersistedReaderView,
@@ -132,6 +139,8 @@ export interface PdfViewerProps {
   theme?: PrakritiThemePalette;
   initialActivePage?: number;
   promptUpload?: boolean;
+  initialLens?: string | null;
+  sprintId?: string | null;
 }
 
 const READER_MARKS_STORAGE_KEY = "oryzen_reader_text_marks_v1";
@@ -154,6 +163,8 @@ export default function PdfViewer({
   theme = DEFAULT_THEME,
   initialActivePage = 1,
   promptUpload = false,
+  initialLens = null,
+  sprintId = null,
 }: PdfViewerProps) {
   const [documents, setDocuments] = useState<LocalPdfDocumentRecord[]>([]);
   const [activeDoc, setActiveDoc] = useState<LocalPdfDocumentRecord | null>(null);
@@ -213,6 +224,7 @@ export default function PdfViewer({
   const lensRequestIdRef = useRef(0);
   const lensAbortRef = useRef<AbortController | null>(null);
   const askLastQuestionRef = useRef("");
+  const autoQuizFiredRef = useRef(false);
 
   const zoomScale = resolveReaderScale({
     fitMode,
@@ -934,6 +946,40 @@ export default function PdfViewer({
       if (requestId === lensRequestIdRef.current) setAiLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!activeDoc || !readerUserId && !scopeReady) return;
+    const store = readSprintStore(readerUserId);
+    const session =
+      store.sessions.find((item) => item.id === sprintId) ?? activeSession(store.sessions);
+    if (!session) return;
+    const passage = resolveSprintPassage(session, activeDoc.chunks);
+    if (!passage) return;
+    const next = attachSprintMaterial(session, {
+      documentId: activeDoc.id,
+      documentTitle: activeDoc.title,
+      chapter: session.chapter || passage.section_heading,
+      passageText: session.passageText || passage.text,
+      pageNumber: session.pageNumber || passage.page_number,
+      sectionHeading: session.sectionHeading || passage.section_heading,
+    });
+    if (
+      next.documentId !== session.documentId ||
+      next.passageText !== session.passageText ||
+      next.pageNumber !== session.pageNumber
+    ) {
+      upsertSprintSession(next, readerUserId);
+    }
+    if (initialLens === "test_me" && !autoQuizFiredRef.current && !aiLoading) {
+      const chunk =
+        activeDoc.chunks.find((item) => item.page_number === passage.page_number) ??
+        activeDoc.chunks[0];
+      if (chunk) {
+        autoQuizFiredRef.current = true;
+        void handleTriggerLens("test_me", chunk, passage.text);
+      }
+    }
+  }, [activeDoc, aiLoading, initialLens, readerUserId, scopeReady, sprintId]);
 
   const closeWorkspace = () => {
     setWorkspaceOpen(false);

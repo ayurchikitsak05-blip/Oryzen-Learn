@@ -98,6 +98,8 @@ function ReaderStudio() {
         <PdfViewer
           theme={profile.activeConfiguration.theme}
           promptUpload={searchParams.get("upload") === "1"}
+          initialLens={searchParams.get("lens")}
+          sprintId={searchParams.get("sprint")}
         />
       </div>
     </AppChrome>

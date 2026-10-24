@@ -7,7 +7,7 @@ export {
   writeCompanionPrefs,
   writeCompanionStore,
 } from "./persist";
-export { COMPANION_MOCK_NOTICE, companionReply, openingCompanionTurn } from "./replies";
+export { COMPANION_MOCK_NOTICE, companionReply, openingCompanionTurn, repliesDifferByStyle } from "./replies";
 export {
   CHARACTER_COPY,
   COMPANION_CHARACTERS,

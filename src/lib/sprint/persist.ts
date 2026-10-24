@@ -58,6 +58,9 @@ function sanitizeSession(value: unknown): SprintSession | null {
     date: typeof raw.date === "string" ? raw.date : "",
     quizLinked: Boolean(raw.quizLinked),
     notesLinked: Boolean(raw.notesLinked),
+    passageText: typeof raw.passageText === "string" ? raw.passageText.replace(/\s+/g, " ").trim().slice(0, 2400) : "",
+    pageNumber: Math.max(0, Math.round(Number(raw.pageNumber) || 0)),
+    sectionHeading: typeof raw.sectionHeading === "string" ? raw.sectionHeading.trim() : "",
   };
 }
 

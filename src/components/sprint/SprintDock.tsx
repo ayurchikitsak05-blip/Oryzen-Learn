@@ -10,6 +10,7 @@ import {
   markNotesLinked,
   markQuizLinked,
   pauseSprint,
+  quizHref,
   readSprintStore,
   resumeSprint,
   tickSprint,
@@ -90,6 +91,9 @@ export function SprintDock({
           Resume
         </button>
       )}
+      <Link href={quizHref(session)} className="btn-ghost px-2 text-[11px]" data-testid="sprint-dock-quiz">
+        Quiz
+      </Link>
       <Link href="/companion" className="btn-ghost px-2 text-[11px]">
         Companion
       </Link>

@@ -301,6 +301,7 @@ export default function PrakritiOnboardingPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            data-testid="onboarding-mode-toggle"
             onClick={() =>
               setInputMode((prev) =>
                 prev === "questions" ? "sliders" : "questions"
@@ -311,6 +312,9 @@ export default function PrakritiOnboardingPage() {
             <Sliders className="h-4 w-4" />
             {inputMode === "questions" ? "Questions" : "Sliders"}
           </button>
+          <Link href="/companion?from=onboarding" className={ui.ghost}>
+            Skip personalization
+          </Link>
           <Link href="/body-type" className={ui.ghost}>
             <ArrowLeft className="h-4 w-4" />
             Back
@@ -327,6 +331,11 @@ export default function PrakritiOnboardingPage() {
             Ayurveda-inspired perspective. It is a starting point for how you
             study, not a scientific claim about intelligence, memory, or academic
             performance.
+          </p>
+          <p className="mt-3">
+            <Link href="/companion?from=onboarding" className={ui.secondary} data-testid="onboarding-skip">
+              Skip personalization
+            </Link>
           </p>
         </div>
         {formNotice && (
@@ -456,6 +465,7 @@ export default function PrakritiOnboardingPage() {
               </button>
               <button
                 type="button"
+                data-testid="onboarding-continue-habits"
                 onClick={advancePhysical}
                 className="btn-primary text-sm"
               >
@@ -556,6 +566,7 @@ export default function PrakritiOnboardingPage() {
               </button>
               <button
                 type="button"
+                data-testid="onboarding-see-rhythm"
                 onClick={advanceReading}
                 className="btn-primary text-sm"
               >
@@ -649,6 +660,7 @@ export default function PrakritiOnboardingPage() {
               </button>
               <button
                 type="button"
+                data-testid="onboarding-finish"
                 disabled={saving}
                 onClick={handleSaveAndFinish}
                 className="btn-primary text-sm disabled:opacity-50"

@@ -1,4 +1,5 @@
 export {
+  attachSprintMaterial,
   beginBreak,
   completeSprint,
   createSprintSession,
@@ -28,6 +29,17 @@ export {
   studiedMinutesOnDate,
   suggestSprintDefaults,
   todayKey,
+} from "./plan";
+export {
+  listSprintNotes,
+  saveSprintNote,
+  sprintNotesKey,
+  type SprintNote,
+  type SprintNoteKind,
+} from "./notes";
+export {
+  nextRecommendedBlock,
+  resolveSprintPassage,
 } from "./plan";
 export {
   patchSprintPrefs,

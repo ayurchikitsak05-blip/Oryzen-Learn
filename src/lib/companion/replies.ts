@@ -5,33 +5,93 @@ import type { CompanionPrefs, CompanionStyle, CompanionTurn } from "./types";
 export const COMPANION_MOCK_NOTICE =
   "Study draft from your companion (not a live model). It cannot feel, and it is not a person.";
 
-function opener(prefs: CompanionPrefs): string {
-  if (prefs.style === "teacher") return `${prefs.name} here — a study companion, not a person.`;
-  if (prefs.style === "coach") return `${prefs.name} here. One clear next step.`;
-  return `Hi — I'm ${prefs.name}, your study companion.`;
+function titleOf(session: SprintSession | null): string {
+  if (!session) return "your next page";
+  return session.topic || session.chapter || session.subject || session.goal;
 }
 
-function unfinishedLine(session: SprintSession | null): string {
-  if (!session) return "If a StudySprint is waiting, open it and press resume.";
-  const title = session.topic || session.chapter || session.subject || session.goal;
-  return `You still have “${title}” on the clock. Resume the sprint, then open the reader.`;
-}
-
-function planLine(session: SprintSession | null): string {
-  if (!session) {
-    return "Open StudySprint, pick a 15, 25, 45, or 60 minute block, and name one goal from the PDF.";
-  }
-  return `Stay with ${session.durationMinutes} minutes on “${session.goal}”. After that, take a ${session.breakMinutes}-minute break.`;
-}
-
-function explainLine(style: CompanionStyle): string {
+function styleBody(
+  style: CompanionStyle,
+  name: string,
+  intent: "break" | "quiz" | "plan" | "resume" | "explain" | "encourage" | "other",
+  session: SprintSession | null
+): string {
+  const title = titleOf(session);
   if (style === "teacher") {
-    return "Highlight the hard sentence in the reader and use Explain or Ask My Book so the answer stays inside that page.";
+    if (intent === "break") {
+      return `${name} here — a study companion, not a person. Close the page for ${session?.breakMinutes ?? 5} minutes. When you return, reread the last heading on “${title}” before you continue.`;
+    }
+    if (intent === "quiz") {
+      return `${name} here — a study companion, not a person. First review the passage on “${title}”. Then take Test Me on that same page and write the items you miss. ${session ? `Stay on ${quizHref(session)}.` : ""}`;
+    }
+    if (intent === "plan") {
+      return session
+        ? `${name} here — a study companion, not a person. Work ${session.durationMinutes} minutes on “${session.goal}”, then stop for a ${session.breakMinutes}-minute break. After the break, say the main idea in one sentence.`
+        : `${name} here — a study companion, not a person. Open StudySprint, choose 15, 25, 45, or 60 minutes, and name one goal from the PDF.`;
+    }
+    if (intent === "resume") {
+      return session
+        ? `${name} here — a study companion, not a person. Resume “${session.goal}” where you left “${title}”. Reader: ${readerHref(session)}. Notes: ${notesHref(session)}.`
+        : `${name} here — a study companion, not a person. If a StudySprint is waiting, open it and press resume.`;
+    }
+    if (intent === "explain") {
+      return `${name} here — a study companion, not a person. Open the hard sentence on the page, then use Explain or Ask My Book so the answer stays inside that PDF. After you read it, say the idea in one sentence without looking.`;
+    }
+    if (intent === "encourage") {
+      return `${name} here — a study companion, not a person. Choose the smallest check: start the sprint or answer one quiz item on “${title}”.`;
+    }
+    return `${name} here — a study companion, not a person. Return to “${title}”, then explain the last paragraph in your own words.`;
   }
+
   if (style === "coach") {
-    return "Do not guess from memory. Open the page, highlight the line, and ask the reader to explain it.";
+    if (intent === "break") {
+      return `${name} here. One clear next step: stand up for the break you set. Come back when the timer says resume.`;
+    }
+    if (intent === "quiz") {
+      return `${name} here. One clear next step: open Test Me on “${title}” and mark every miss. ${session ? `Go to ${quizHref(session)}.` : ""}`;
+    }
+    if (intent === "plan") {
+      return session
+        ? `${name} here. One clear next step: stay with ${session.durationMinutes} minutes on “${session.goal}”, then take the ${session.breakMinutes}-minute break.`
+        : `${name} here. One clear next step: open StudySprint and lock a 15, 25, 45, or 60 minute block.`;
+    }
+    if (intent === "resume") {
+      return session
+        ? `${name} here. One clear next step: resume “${session.goal}”. Reader: ${readerHref(session)}.`
+        : `${name} here. One clear next step: open StudySprint and press resume.`;
+    }
+    if (intent === "explain") {
+      return `${name} here. One clear next step: do not guess from memory. Open the page, find the stuck line, and tap Explain.`;
+    }
+    if (intent === "encourage") {
+      return `${name} here. One clear next step: start the sprint or answer one quiz item. Stop there.`;
+    }
+    return `${name} here. One clear next step: open “${title}” and finish the current block.`;
   }
-  return "Let’s look at the page together. Highlight the sentence that feels stuck, then tap Explain.";
+
+  if (intent === "break") {
+    return `Hi — I'm ${name}, your study companion. A short break is part of the plan. Leave “${title}”, then come back when you are ready.`;
+  }
+  if (intent === "quiz") {
+    return `Hi — I'm ${name}, your study companion. Let’s check “${title}” with Test Me, then keep the weak lines for later. ${session ? `Open ${quizHref(session)}.` : ""}`;
+  }
+  if (intent === "plan") {
+    return session
+      ? `Hi — I'm ${name}, your study companion. Stay with ${session.durationMinutes} minutes on “${session.goal}”. After that we take a ${session.breakMinutes}-minute break.`
+      : `Hi — I'm ${name}, your study companion. Open StudySprint, pick 15, 25, 45, or 60 minutes, and name one goal from the PDF.`;
+  }
+  if (intent === "resume") {
+    return session
+      ? `Hi — I'm ${name}, your study companion. You still have “${session.goal}” on the clock. Resume it, then open the reader for “${title}”.`
+      : `Hi — I'm ${name}, your study companion. If a StudySprint is waiting, open it and press resume.`;
+  }
+  if (intent === "explain") {
+    return `Hi — I'm ${name}, your study companion. Let’s look at the page together. Highlight the sentence that feels stuck, then tap Explain. Then tell me which line is still unclear.`;
+  }
+  if (intent === "encourage") {
+    return `Hi — I'm ${name}, your study companion. You do not have to finish the chapter. One timed block on “${title}” is enough for now.`;
+  }
+  return `Hi — I'm ${name}, your study companion. Let’s return to “${title}” and take the next small step together.`;
 }
 
 export function companionReply(input: {
@@ -43,46 +103,18 @@ export function companionReply(input: {
   const asked = input.question.replace(/\s+/g, " ").trim();
   const low = asked.toLowerCase();
   const session = input.unfinished ?? null;
-  const parts = [opener(input.prefs)];
-
-  if (/break|rest|tired|pause/i.test(low)) {
-    parts.push(
-      input.prefs.style === "coach"
-        ? "Stand up for the break you set. Come back when the timer says resume."
-        : "A short break is part of the plan. Leave the page, then return when the break ends."
-    );
-  } else if (/quiz|test|mcq|revise|revision|weak/i.test(low)) {
-    parts.push("Use Test Me on the same passage, then mark the weak lines for revision.");
-    if (session) parts.push(`Open the quiz from this sprint: stay on ${quizHref(session)}.`);
-  } else if (/plan|session|sprint|schedule|today|target/i.test(low)) {
-    parts.push(planLine(session));
-  } else if (/unfinished|resume|left off|continue|pending/i.test(low)) {
-    parts.push(unfinishedLine(session));
-    if (session) parts.push(`Reader: ${readerHref(session)}. Notes: ${notesHref(session)}.`);
-  } else if (/explain|how|why|what is|mean|concept|difficult|hard/i.test(low)) {
-    parts.push(explainLine(input.prefs.style));
-    if (input.prefs.style === "teacher") {
-      parts.push("After you read the explanation, say the idea in one sentence without looking.");
-    } else {
-      parts.push("Then tell me which line still feels unclear.");
-    }
-  } else if (/encourage|stuck|overwhelm|motivat/i.test(low)) {
-    parts.push(
-      input.prefs.style === "buddy"
-        ? "You do not have to finish the chapter. One timed block is enough for now."
-        : "Pick the smallest next action: start the sprint or answer one quiz item."
-    );
-  } else {
-    parts.push(unfinishedLine(session));
-    parts.push(explainLine(input.prefs.style));
-  }
-
-  parts.push(COMPANION_MOCK_NOTICE);
+  let intent: "break" | "quiz" | "plan" | "resume" | "explain" | "encourage" | "other" = "other";
+  if (/break|rest|tired|pause/i.test(low)) intent = "break";
+  else if (/quiz|test|mcq|revise|revision|weak/i.test(low)) intent = "quiz";
+  else if (/plan|session|sprint|schedule|today|target/i.test(low)) intent = "plan";
+  else if (/unfinished|resume|left off|continue|pending/i.test(low)) intent = "resume";
+  else if (/explain|how|why|what is|mean|concept|difficult|hard/i.test(low)) intent = "explain";
+  else if (/encourage|stuck|overwhelm|motivat/i.test(low)) intent = "encourage";
 
   return {
     id: `companion-${Date.now().toString(36)}`,
     role: "companion",
-    text: parts.join(" "),
+    text: `${styleBody(input.prefs.style, input.prefs.name, intent, session)} ${COMPANION_MOCK_NOTICE}`,
     mocked: true,
     createdAt: input.now ?? new Date().toISOString(),
   };
@@ -94,4 +126,23 @@ export function openingCompanionTurn(prefs: CompanionPrefs, unfinished?: SprintS
     prefs,
     unfinished,
   });
+}
+
+export function repliesDifferByStyle(question: string, session?: SprintSession | null): boolean {
+  const buddy = companionReply({
+    question,
+    prefs: { version: 1, name: "Nia", style: "buddy", character: "leaf", onboarded: true },
+    unfinished: session,
+  }).text;
+  const coach = companionReply({
+    question,
+    prefs: { version: 1, name: "Kai", style: "coach", character: "lamp", onboarded: true },
+    unfinished: session,
+  }).text;
+  const teacher = companionReply({
+    question,
+    prefs: { version: 1, name: "Ira", style: "teacher", character: "stone", onboarded: true },
+    unfinished: session,
+  }).text;
+  return buddy !== coach && coach !== teacher && buddy !== teacher;
 }

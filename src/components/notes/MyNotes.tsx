@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { PenLine, Trash2 } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
 import { ui } from "@/components/ui/classes";
+import { useSignedInScope } from "@/components/coach/CoachHost";
+import { listSprintNotes } from "@/lib/sprint";
 
 interface NoteSubject {
   id: string;
@@ -17,6 +20,30 @@ interface StudyNote {
   title: string;
   body: string;
   updated_at: string;
+}
+
+function SprintSessionNotes() {
+  const sprintId = useSearchParams().get("sprint");
+  const userId = useSignedInScope();
+  const [notes, setNotes] = useState<ReturnType<typeof listSprintNotes>>([]);
+  useEffect(() => {
+    setNotes(listSprintNotes(userId).filter((note) => !sprintId || note.sessionId === sprintId));
+  }, [sprintId, userId]);
+  if (notes.length === 0) return null;
+  return (
+    <section data-testid="notebook-sprint-notes" className={`${ui.card} mt-6`}>
+      <h2 className={`${ui.heading} text-lg`}>From this StudySprint</h2>
+      <ul className="mt-3 space-y-2">
+        {notes.slice(0, 8).map((note) => (
+          <li key={note.id} className="text-sm">
+            <p className="font-medium text-heading">{note.title}</p>
+            <p className="text-xs text-muted">{note.source}</p>
+            <p className="mt-1 text-ink">{note.body}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function notesError(message: string): string {
@@ -168,6 +195,9 @@ export default function MyNotes() {
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
           Capture your thoughts, save important ideas, and return to them whenever you need.
         </p>
+        <Suspense fallback={null}>
+          <SprintSessionNotes />
+        </Suspense>
         {error && <p className={`${ui.alert} mt-4`}>{error}</p>}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-12">

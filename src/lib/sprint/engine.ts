@@ -37,6 +37,31 @@ export function createSprintSession(input: {
     date: input.date ?? todayKey(),
     quizLinked: false,
     notesLinked: false,
+    passageText: "",
+    pageNumber: 0,
+    sectionHeading: "",
+  };
+}
+
+export function attachSprintMaterial(
+  session: SprintSession,
+  material: {
+    documentId?: string;
+    documentTitle?: string;
+    chapter?: string;
+    passageText?: string;
+    pageNumber?: number;
+    sectionHeading?: string;
+  }
+): SprintSession {
+  return {
+    ...session,
+    documentId: (material.documentId ?? session.documentId).trim(),
+    documentTitle: (material.documentTitle ?? session.documentTitle).trim(),
+    chapter: (material.chapter ?? session.chapter).trim(),
+    passageText: (material.passageText ?? session.passageText).replace(/\s+/g, " ").trim().slice(0, 2400),
+    pageNumber: Math.max(0, Math.round(material.pageNumber ?? session.pageNumber)),
+    sectionHeading: (material.sectionHeading ?? session.sectionHeading).trim(),
   };
 }
 

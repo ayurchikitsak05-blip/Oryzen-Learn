@@ -139,3 +139,56 @@ export function notesHref(session: Pick<SprintSession, "subject" | "chapter" | "
   params.set("sprint", session.id);
   return `/notes?${params.toString()}`;
 }
+
+export function nextRecommendedBlock(
+  sessions: readonly SprintSession[],
+  dailyTargetMinutes: number,
+  preferredDuration: SprintDuration,
+  date: string
+): { done: boolean; minutes: number; hint: string } {
+  const remaining = Math.max(0, dailyTargetMinutes - studiedMinutesOnDate(sessions, date));
+  if (remaining <= 0) {
+    return { done: true, minutes: 0, hint: "Today's target is complete. Rest, or set a new target." };
+  }
+  const minutes = remaining >= preferredDuration ? preferredDuration : remaining;
+  return {
+    done: false,
+    minutes,
+    hint: `Next recommended block: ${minutes} minutes. You can change this.`,
+  };
+}
+
+export interface SprintPassageChunk {
+  text: string;
+  page_number: number;
+  section_heading: string;
+}
+
+export function resolveSprintPassage(
+  session: Pick<SprintSession, "passageText" | "pageNumber" | "chapter" | "topic" | "goal">,
+  chunks: readonly SprintPassageChunk[]
+): SprintPassageChunk | null {
+  if (session.passageText.trim()) {
+    const match = chunks.find((chunk) => chunk.text.includes(session.passageText.slice(0, 80)));
+    if (match) return { ...match, text: session.passageText };
+    return {
+      text: session.passageText,
+      page_number: session.pageNumber || chunks[0]?.page_number || 1,
+      section_heading: session.chapter || session.topic || "StudySprint",
+    };
+  }
+  const needle = (session.chapter || session.topic || session.goal).toLowerCase();
+  const byTopic = needle
+    ? chunks.find(
+        (chunk) =>
+          chunk.section_heading.toLowerCase().includes(needle) ||
+          chunk.text.toLowerCase().includes(needle)
+      )
+    : null;
+  if (byTopic) return byTopic;
+  if (session.pageNumber > 0) {
+    const onPage = chunks.find((chunk) => chunk.page_number === session.pageNumber);
+    if (onPage) return onPage;
+  }
+  return chunks[0] ?? null;
+}

@@ -12,6 +12,8 @@ import {
   completeSprint,
   createSprintSession,
   formatSprintClock,
+  listSprintNotes,
+  nextRecommendedBlock,
   notesHref,
   pauseSprint,
   pendingSessions,
@@ -20,6 +22,7 @@ import {
   DEFAULT_SPRINT_STORE,
   readSprintStore,
   resumeSprint,
+  saveSprintNote,
   splitDailyTarget,
   startSprint,
   statusLabel,
@@ -46,6 +49,7 @@ export function SprintStudio({ userId }: { userId: string }) {
   const [documentId, setDocumentId] = useState("");
   const [documents, setDocuments] = useState<LocalPdfDocumentRecord[]>([]);
   const [now, setNow] = useState(0);
+  const [noteStatus, setNoteStatus] = useState("");
   const seededRhythm = useRef(false);
   const today = todayKey();
 
@@ -105,6 +109,17 @@ export function SprintStudio({ userId }: { userId: string }) {
   const studied = studiedMinutesOnDate(store.sessions, today);
   const pending = pendingSessions(store.sessions, today);
   const plan = splitDailyTarget(store.dailyTargetMinutes, store.preferredDuration);
+  const nextBlock = nextRecommendedBlock(
+    store.sessions,
+    store.dailyTargetMinutes,
+    store.preferredDuration,
+    today
+  );
+  const sessionNotes = ready
+    ? listSprintNotes(userId).filter((note) =>
+        store.sessions.some((session) => session.id === note.sessionId)
+      )
+    : [];
   const selectedDoc = documents.find((item) => item.id === documentId);
 
   const saveSession = (session: SprintSession) => {
@@ -150,6 +165,9 @@ export function SprintStudio({ userId }: { userId: string }) {
         {pending.length > 0 ? (
           <p className="mt-2 text-sm text-muted">{pending.length} unfinished today.</p>
         ) : null}
+        <p data-testid="sprint-next-block" className="mt-2 text-sm text-heading">
+          {nextBlock.hint}
+        </p>
       </section>
 
       {live ? (
@@ -197,8 +215,27 @@ export function SprintStudio({ userId }: { userId: string }) {
             <Link href={quizHref(live)} className={ui.ghost} data-testid="sprint-open-quiz">
               Take quiz
             </Link>
-            <Link href={notesHref(live)} className={ui.ghost}>
+            <button
+              type="button"
+              data-testid="sprint-save-note"
+              className={ui.ghost}
+              onClick={() => {
+                saveSprintNote(
+                  {
+                    session: live,
+                    kind: "session",
+                    title: live.goal,
+                    body: `StudySprint on ${live.subject || live.documentTitle || "this book"}: ${live.goal}. ${live.passageText || live.topic || live.chapter}`,
+                  },
+                  userId
+                );
+                setNoteStatus("Saved to your notebook with the book and page as the source.");
+              }}
+            >
               Save notes
+            </button>
+            <Link href={notesHref(live)} className={ui.ghost}>
+              Open notebook
             </Link>
             <Link href="/companion" className={ui.ghost}>
               Ask companion
@@ -349,6 +386,12 @@ export function SprintStudio({ userId }: { userId: string }) {
         </section>
       )}
 
+      {noteStatus ? (
+        <p data-testid="sprint-note-status" className={ui.notice}>
+          {noteStatus}
+        </p>
+      ) : null}
+
       <section data-testid="sprint-history">
         <h2 className={`${ui.heading} text-lg`}>Today&apos;s sessions</h2>
         <ul className="mt-3 space-y-2">
@@ -359,11 +402,28 @@ export function SprintStudio({ userId }: { userId: string }) {
                 <p className="font-medium text-heading">{session.goal}</p>
                 <p className="text-xs text-muted">
                   {statusLabel(session.status)} · {session.durationMinutes} min
+                  {session.quizLinked ? " · quiz done" : ""}
+                  {session.notesLinked ? " · notes saved" : ""}
                 </p>
               </li>
             ))}
         </ul>
       </section>
+
+      {sessionNotes.length > 0 ? (
+        <section data-testid="sprint-saved-notes">
+          <h2 className={`${ui.heading} text-lg`}>Saved from this study</h2>
+          <ul className="mt-3 space-y-2">
+            {sessionNotes.slice(0, 6).map((note) => (
+              <li key={note.id} className={`${ui.card} text-sm`}>
+                <p className="font-medium text-heading">{note.title}</p>
+                <p className="text-xs text-muted">{note.source}</p>
+                <p className="mt-1 text-sm text-ink">{note.body}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }
