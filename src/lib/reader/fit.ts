@@ -7,15 +7,18 @@ import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 
 export type ReaderFitMode = "page" | "width" | "custom";
 
-/** Allow a complete page to fit on phones without stretching. */
-export const MIN_FIT_ZOOM = 0.28;
+/**
+ * Floor for a calculated fit. Kept below the pinch/toolbar minimum so a short
+ * viewport can still show every edge. It is not a hardcoded page size.
+ */
+export const MIN_FIT_ZOOM = 0.05;
 
 /** Default to Fit Width so body text is large on laptops and tablets. */
 export const DEFAULT_FIT_MODE: ReaderFitMode = "width";
 
-/** Tight chrome so Fit Width / Fit Page use the pane, not empty margin. */
+/** Inset already consumed by the page stage padding, in CSS pixels (both sides). */
 export const FIT_WIDTH_PADDING = 8;
-export const FIT_PAGE_PADDING = 10;
+export const FIT_PAGE_PADDING = 8;
 
 export interface PageGeometry {
   width: number;
@@ -32,7 +35,30 @@ export function clampFitZoom(scale: number): number {
     return MIN_READER_ZOOM;
   }
   const clamped = Math.min(Math.max(MIN_FIT_ZOOM, scale), MAX_READER_ZOOM);
-  return Number(clamped.toFixed(3));
+  return Math.floor(clamped * 1000) / 1000;
+}
+
+function usableSpan(total: number, padding: number): number {
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  return Math.max(0, total - Math.max(0, padding));
+}
+
+/**
+ * The part of the scroll host that is actually on screen. A host that has
+ * grown with the PDF must not be treated as extra viewing room.
+ */
+export function visibleViewerBox(
+  host: { left: number; top: number; width: number; height: number },
+  frame: { left: number; top: number; width: number; height: number }
+): ViewportBox {
+  const left = Math.max(host.left, frame.left);
+  const top = Math.max(host.top, frame.top);
+  const right = Math.min(host.left + host.width, frame.left + frame.width);
+  const bottom = Math.min(host.top + host.height, frame.top + frame.height);
+  return {
+    width: Math.max(0, right - left),
+    height: Math.max(0, bottom - top),
+  };
 }
 
 export function computeFitPageScale(
@@ -40,9 +66,9 @@ export function computeFitPageScale(
   viewport: ViewportBox,
   padding = FIT_PAGE_PADDING
 ): number {
-  const availW = Math.max(160, viewport.width - padding);
-  const availH = Math.max(200, viewport.height - padding);
-  if (page.width <= 0 || page.height <= 0) return MIN_READER_ZOOM;
+  const availW = usableSpan(viewport.width, padding);
+  const availH = usableSpan(viewport.height, padding);
+  if (page.width <= 0 || page.height <= 0 || availW < 1 || availH < 1) return MIN_FIT_ZOOM;
   return clampFitZoom(Math.min(availW / page.width, availH / page.height));
 }
 
@@ -51,9 +77,34 @@ export function computeFitWidthScale(
   viewport: ViewportBox,
   padding = FIT_WIDTH_PADDING
 ): number {
-  const availW = Math.max(160, viewport.width - padding);
-  if (page.width <= 0) return MIN_READER_ZOOM;
+  const availW = usableSpan(viewport.width, padding);
+  if (page.width <= 0 || availW < 1) return MIN_FIT_ZOOM;
   return clampFitZoom(availW / page.width);
+}
+
+export function nextPinchZoom(
+  startZoom: number,
+  startDistance: number,
+  distance: number
+): number {
+  if (startDistance <= 0 || distance <= 0) return clampFitZoom(startZoom);
+  return clampFitZoom(startZoom * (distance / startDistance));
+}
+
+/** Keep the content point under the fingers stable while the scale changes. */
+export function scrollForFocalZoom(input: {
+  focalContentX: number;
+  focalContentY: number;
+  startZoom: number;
+  nextZoom: number;
+  pointerX: number;
+  pointerY: number;
+}): { left: number; top: number } {
+  const ratio = input.startZoom > 0 ? input.nextZoom / input.startZoom : 1;
+  return {
+    left: input.focalContentX * ratio - input.pointerX,
+    top: input.focalContentY * ratio - input.pointerY,
+  };
 }
 
 export function resolveReaderScale(params: {

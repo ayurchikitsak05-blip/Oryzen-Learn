@@ -5,6 +5,14 @@ import type { CompanionPrefs, CompanionStyle, CompanionTurn } from "./types";
 export const COMPANION_MOCK_NOTICE =
   "Study draft from your companion (not a live model). It cannot feel, and it is not a person.";
 
+function topicFrom(question: string): string {
+  const cleaned = question
+    .replace(/^(please\s+)?(explain|what is|how does|why does|tell me about)\s+/i, "")
+    .replace(/[?.!]+$/g, "")
+    .trim();
+  return cleaned.slice(0, 80);
+}
+
 function titleOf(session: SprintSession | null): string {
   if (!session) return "your next page";
   return session.topic || session.chapter || session.subject || session.goal;
@@ -14,7 +22,8 @@ function styleBody(
   style: CompanionStyle,
   name: string,
   intent: "break" | "quiz" | "plan" | "resume" | "explain" | "encourage" | "other",
-  session: SprintSession | null
+  session: SprintSession | null,
+  topic: string
 ): string {
   const title = titleOf(session);
   if (style === "teacher") {
@@ -35,7 +44,7 @@ function styleBody(
         : `${name} here — a study companion, not a person. If a StudySprint is waiting, open it and press resume.`;
     }
     if (intent === "explain") {
-      return `${name} here — a study companion, not a person. Open the hard sentence on the page, then use Explain or Ask My Book so the answer stays inside that PDF. After you read it, say the idea in one sentence without looking.`;
+      return `${name} here — a study companion, not a person. For “${topic}”, open that page and highlight one sentence, then tap Explain. Close the book and say the idea in one sentence of your own. This draft does not invent the textbook answer.`;
     }
     if (intent === "encourage") {
       return `${name} here — a study companion, not a person. Choose the smallest check: start the sprint or answer one quiz item on “${title}”.`;
@@ -61,7 +70,7 @@ function styleBody(
         : `${name} here. One clear next step: open StudySprint and press resume.`;
     }
     if (intent === "explain") {
-      return `${name} here. One clear next step: do not guess from memory. Open the page, find the stuck line, and tap Explain.`;
+      return `${name} here. One clear next step: for “${topic}”, open the page, highlight the stuck line, and tap Explain. Then write one sentence from the page, not from memory.`;
     }
     if (intent === "encourage") {
       return `${name} here. One clear next step: start the sprint or answer one quiz item. Stop there.`;
@@ -87,7 +96,7 @@ function styleBody(
         : `When you are ready — I'm ${name}, a calm study companion, not a person. If a StudySprint is waiting, open it when you want to continue.`;
     }
     if (intent === "explain") {
-      return `When you are ready — I'm ${name}, a calm study companion, not a person. Find the stuck sentence, tap Explain, and stay with that one line.`;
+      return `When you are ready — I'm ${name}, a calm study companion, not a person. Stay with one line about “${topic}”. Tap Explain, then rest the idea in your own words.`;
     }
     if (intent === "encourage") {
       return `When you are ready — I'm ${name}, a calm study companion, not a person. One page on “${title}” is enough.`;
@@ -112,7 +121,7 @@ function styleBody(
       : `Hi — I'm ${name}, your study companion. If a StudySprint is waiting, open it and press resume.`;
   }
   if (intent === "explain") {
-    return `Hi — I'm ${name}, your study companion. Let’s look at the page together. Highlight the sentence that feels stuck, then tap Explain. Then tell me which line is still unclear.`;
+    return `Hi — I'm ${name}, your study companion. Let’s study “${topic}” from the page. Highlight the sentence that feels stuck, tap Explain, and tell me which line is still unclear. I will not pretend this draft is a live explanation.`;
   }
   if (intent === "encourage") {
     return `Hi — I'm ${name}, your study companion. You do not have to finish the chapter. One timed block on “${title}” is enough for now.`;
@@ -140,7 +149,7 @@ export function companionReply(input: {
   return {
     id: `companion-${Date.now().toString(36)}`,
     role: "companion",
-    text: `${styleBody(input.prefs.style, input.prefs.name, intent, session)} ${COMPANION_MOCK_NOTICE}`,
+    text: `${styleBody(input.prefs.style, input.prefs.name, intent, session, topicFrom(asked) || titleOf(session))} ${COMPANION_MOCK_NOTICE}`,
     mocked: true,
     createdAt: input.now ?? new Date().toISOString(),
   };

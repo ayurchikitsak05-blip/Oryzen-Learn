@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,7 +12,6 @@ import {
   ZoomOut,
 } from "lucide-react";
 import {
-  clampReaderZoom,
   computeThreePageWindow,
   DEFAULT_READER_ZOOM,
 } from "@/lib/reader/pdf-worker";
@@ -76,10 +75,16 @@ import {
   upsertSprintSession,
 } from "@/lib/sprint";
 import {
+  clampFitZoom,
   DEFAULT_FIT_MODE,
+  FIT_PAGE_PADDING,
+  FIT_WIDTH_PADDING,
+  nextPinchZoom,
   readLastReaderDocumentId,
   readPersistedReaderView,
   resolveReaderScale,
+  scrollForFocalZoom,
+  visibleViewerBox,
   writePersistedReaderView,
   type PageGeometry,
   type ReaderFitMode,
@@ -178,16 +183,10 @@ export default function PdfViewer({
   const [readerUserId, setReaderUserId] = useState<string | null>(null);
   const [scopeReady, setScopeReady] = useState(false);
   const [pageGeometry, setPageGeometry] = useState<PageGeometry | null>(null);
-  const [viewportBox, setViewportBox] = useState(() =>
-    typeof window === "undefined"
-      ? { width: 800, height: 900 }
-      : {
-          width: Math.max(280, window.innerWidth),
-          height: Math.max(320, window.innerHeight - 120),
-        }
-  );
+  const [viewportBox, setViewportBox] = useState({ width: 0, height: 0 });
   const [selectedChunk, setSelectedChunk] = useState<CitationReadyChunk | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [uploadToken, setUploadToken] = useState(0);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [activeLens, setActiveLens] = useState<ReaderStudyLens | null>(null);
   const [askDraft, setAskDraft] = useState("");
@@ -211,9 +210,15 @@ export default function PdfViewer({
   const [transformOpen, setTransformOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<ReaderBookmark[]>([]);
 
-  const pinchStartDistanceRef = useRef<number | null>(null);
-  const pinchStartZoomRef = useRef<number>(DEFAULT_READER_ZOOM);
+  const pinchScrollRef = useRef<{ left: number; top: number } | null>(null);
+  const pageGeometriesRef = useRef<Map<number, PageGeometry>>(new Map());
+  const activePageRef = useRef(initialActivePage);
+  const anchorFitRef = useRef<"page" | "width">(
+    DEFAULT_FIT_MODE === "page" ? "page" : "width"
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pickedDocIdRef = useRef<string | null>(null);
+  const uploadLockRef = useRef(false);
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const workspaceRootRef = useRef<HTMLDivElement | null>(null);
   const readingContextRef = useRef<{
@@ -235,6 +240,9 @@ export default function PdfViewer({
     page: pageGeometry,
     viewport: viewportBox,
   });
+  const zoomScaleRef = useRef(zoomScale);
+  zoomScaleRef.current = zoomScale;
+  activePageRef.current = activePage;
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");
@@ -247,17 +255,121 @@ export default function PdfViewer({
   useEffect(() => {
     const host = canvasHostRef.current;
     if (!host) return;
-    const update = () => {
-      setViewportBox({
-        width: host.clientWidth,
-        height: host.clientHeight,
-      });
+
+    const measure = () => {
+      const rect = host.getBoundingClientRect();
+      const visual = window.visualViewport;
+      const frame = visual
+        ? {
+            left: visual.offsetLeft,
+            top: visual.offsetTop,
+            width: visual.width,
+            height: visual.height,
+          }
+        : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+      const next = visibleViewerBox(rect, frame);
+      setViewportBox((current) =>
+        Math.abs(current.width - next.width) < 0.5 && Math.abs(current.height - next.height) < 0.5
+          ? current
+          : next
+      );
     };
-    update();
-    const observer = new ResizeObserver(update);
+
+    let pinching = false;
+    let startDistance = 0;
+    let startZoom = zoomScaleRef.current;
+    let focalX = 0;
+    let focalY = 0;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      pinching = true;
+      startDistance = Math.hypot(
+        event.touches[0].clientX - event.touches[1].clientX,
+        event.touches[0].clientY - event.touches[1].clientY
+      );
+      startZoom = zoomScaleRef.current;
+      const rect = host.getBoundingClientRect();
+      focalX = host.scrollLeft + (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left;
+      focalY = host.scrollTop + (event.touches[0].clientY + event.touches[1].clientY) / 2 - rect.top;
+    };
+
+    const applyFocalZoom = (nextZoom: number, pointerX: number, pointerY: number) => {
+      const next = clampFitZoom(nextZoom);
+      if (Math.abs(next - zoomScaleRef.current) < 0.001) return;
+      pinchScrollRef.current = scrollForFocalZoom({
+        focalContentX: focalX,
+        focalContentY: focalY,
+        startZoom,
+        nextZoom: next,
+        pointerX,
+        pointerY,
+      });
+      setFitMode("custom");
+      setCustomZoom(next);
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!pinching || event.touches.length !== 2 || startDistance <= 0) return;
+      event.preventDefault();
+      const distance = Math.hypot(
+        event.touches[0].clientX - event.touches[1].clientX,
+        event.touches[0].clientY - event.touches[1].clientY
+      );
+      const rect = host.getBoundingClientRect();
+      const pointerX = (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left;
+      const pointerY = (event.touches[0].clientY + event.touches[1].clientY) / 2 - rect.top;
+      applyFocalZoom(nextPinchZoom(startZoom, startDistance, distance), pointerX, pointerY);
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) pinching = false;
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const rect = host.getBoundingClientRect();
+      const pointerX = event.clientX - rect.left;
+      const pointerY = event.clientY - rect.top;
+      startZoom = zoomScaleRef.current;
+      focalX = host.scrollLeft + pointerX;
+      focalY = host.scrollTop + pointerY;
+      applyFocalZoom(startZoom * Math.exp(-event.deltaY * 0.002), pointerX, pointerY);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(host);
-    return () => observer.disconnect();
-  }, [workspaceOpen]);
+    window.visualViewport?.addEventListener("resize", measure);
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    host.addEventListener("touchstart", onTouchStart, { passive: true });
+    host.addEventListener("touchmove", onTouchMove, { passive: false });
+    host.addEventListener("touchend", onTouchEnd);
+    host.addEventListener("touchcancel", onTouchEnd);
+    host.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      observer.disconnect();
+      window.visualViewport?.removeEventListener("resize", measure);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      host.removeEventListener("touchstart", onTouchStart);
+      host.removeEventListener("touchmove", onTouchMove);
+      host.removeEventListener("touchend", onTouchEnd);
+      host.removeEventListener("touchcancel", onTouchEnd);
+      host.removeEventListener("wheel", onWheel);
+    };
+  }, [workspaceOpen, contentsOpen, gridOpen, annotationsOpen, transformOpen]);
+
+  useLayoutEffect(() => {
+    const host = canvasHostRef.current;
+    const pending = pinchScrollRef.current;
+    if (!host || !pending) return;
+    host.scrollLeft = Math.max(0, pending.left);
+    host.scrollTop = Math.max(0, pending.top);
+    pinchScrollRef.current = null;
+  }, [zoomScale]);
 
   useEffect(() => {
     let active = true;
@@ -334,7 +446,9 @@ export default function PdfViewer({
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
-  const handlePageGeometry = useCallback((_pageNumber: number, geometry: PageGeometry) => {
+  const handlePageGeometry = useCallback((pageNumber: number, geometry: PageGeometry) => {
+    pageGeometriesRef.current.set(pageNumber, geometry);
+    if (pageNumber !== activePageRef.current) return;
     setPageGeometry((current) => {
       if (
         current &&
@@ -346,6 +460,33 @@ export default function PdfViewer({
       return geometry;
     });
   }, []);
+
+  useEffect(() => {
+    const known = pageGeometriesRef.current.get(activePage);
+    if (known) setPageGeometry(known);
+  }, [activePage]);
+
+  const resetPan = useCallback(() => {
+    const host = canvasHostRef.current;
+    pinchScrollRef.current = null;
+    host?.scrollTo({ left: 0, top: 0 });
+  }, []);
+
+  const chooseFit = useCallback(
+    (mode: "page" | "width") => {
+      anchorFitRef.current = mode;
+      setFitMode(mode);
+      resetPan();
+    },
+    [resetPan]
+  );
+
+  useEffect(() => {
+    if (fitMode === "page" || fitMode === "width") {
+      anchorFitRef.current = fitMode;
+      resetPan();
+    }
+  }, [fitMode, zoomScale, activePage, activeDoc?.id, resetPan]);
 
   const handleAddMark = (mark: Omit<ReaderTextMark, "id">) => {
     setTextMarks((current) => [
@@ -476,7 +617,7 @@ export default function PdfViewer({
       const allDocs = await listLocalPdfDocuments();
       if (!active || allDocs.length === 0) return;
       setDocuments(allDocs);
-      const lastId = readLastReaderDocumentId(readerUserId);
+      const lastId = pickedDocIdRef.current ?? readLastReaderDocumentId(readerUserId);
       let chosen =
         (lastId ? allDocs.find((doc) => doc.id === lastId) : undefined) ??
         allDocs[0];
@@ -546,7 +687,8 @@ export default function PdfViewer({
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || uploadLockRef.current) return;
+    uploadLockRef.current = true;
     setUploadStatus("Opening your document…");
     try {
       const buffer = await file.arrayBuffer();
@@ -566,6 +708,7 @@ export default function PdfViewer({
       });
       const refreshed = await listLocalPdfDocuments();
       setDocuments(refreshed);
+      pickedDocIdRef.current = result.document.id;
       setActiveDoc(result.document);
       setActivePdfBytes(bytes);
       setActivePage(1);
@@ -580,30 +723,26 @@ export default function PdfViewer({
             : `“${result.document.title}” is ready to read.`
         );
       }
+      setUploadToken((count) => count + 1);
     } catch {
       setUploadStatus("We couldn't upload this file. Please check the format and try again.");
+      setUploadToken((count) => count + 1);
+    } finally {
+      uploadLockRef.current = false;
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      pinchStartDistanceRef.current = Math.hypot(dx, dy);
-      pinchStartZoomRef.current = zoomScale;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2 && pinchStartDistanceRef.current) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const distance = Math.hypot(dx, dy);
-      const ratio = distance / pinchStartDistanceRef.current;
-      setFitMode("custom");
-      setCustomZoom(clampReaderZoom(pinchStartZoomRef.current * ratio));
-    }
-  };
+  const uploadHandlerRef = useRef(handleFileUpload);
+  uploadHandlerRef.current = handleFileUpload;
+  const bindFileInput = useCallback((node: HTMLInputElement | null) => {
+    fileInputRef.current = node;
+    if (!node || node.dataset.uploadBound === "1") return;
+    node.dataset.uploadBound = "1";
+    node.addEventListener("change", () => {
+      void uploadHandlerRef.current({ target: node } as React.ChangeEvent<HTMLInputElement>);
+    });
+  }, []);
 
   const resolvedPrakritiDosha: Dosha =
     theme.cssVariable === "--theme-pitta"
@@ -992,12 +1131,12 @@ export default function PdfViewer({
           notesSaved={notebookStatus === "saved"}
         />
       </Suspense>
-      <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1">
+      <div className="flex w-full min-w-0 shrink-0 flex-nowrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1">
         <label className="btn-secondary cursor-pointer px-2.5 py-1 text-[11px]">
           <FileUp className="h-4 w-4" />
           Open
           <input
-            ref={fileInputRef}
+            ref={bindFileInput}
             type="file"
             accept="application/pdf"
             onChange={handleFileUpload}
@@ -1119,8 +1258,8 @@ export default function PdfViewer({
           type="button"
           data-testid="fit-page-btn"
           aria-pressed={fitMode === "page"}
-          onClick={() => setFitMode("page")}
-          className={`inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] ${
+          onClick={() => chooseFit("page")}
+          className={`inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] ${
             fitMode === "page" ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
           }`}
         >
@@ -1130,8 +1269,8 @@ export default function PdfViewer({
           type="button"
           data-testid="fit-width-btn"
           aria-pressed={fitMode === "width"}
-          onClick={() => setFitMode("width")}
-          className={`inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] ${
+          onClick={() => chooseFit("width")}
+          className={`inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] ${
             fitMode === "width" ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
           }`}
         >
@@ -1139,24 +1278,35 @@ export default function PdfViewer({
         </button>
         <button
           type="button"
+          aria-label="Zoom Out"
+          data-testid="zoom-out-btn"
           onClick={() => {
             setFitMode("custom");
-            setCustomZoom((z) => clampReaderZoom(z - 0.15));
+            setCustomZoom(clampFitZoom(zoomScale - 0.15));
           }}
-          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-heading"
         >
           <ZoomOut className="h-4 w-4" />
         </button>
         <button
           type="button"
           aria-label="Zoom In"
+          data-testid="zoom-in-btn"
           onClick={() => {
             setFitMode("custom");
-            setCustomZoom((z) => clampReaderZoom(z + 0.15));
+            setCustomZoom(clampFitZoom(zoomScale + 0.15));
           }}
-          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-heading"
         >
           <ZoomIn className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          data-testid="reset-zoom-btn"
+          onClick={() => chooseFit(anchorFitRef.current)}
+          className="inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] text-ink hover:bg-beige-2"
+        >
+          Reset Zoom
         </button>
         <button
           type="button"
@@ -1170,7 +1320,11 @@ export default function PdfViewer({
       </div>
 
       {uploadStatus ? (
-        <p className="flex items-center gap-2 px-3 py-1 text-xs text-muted">
+        <p
+          data-testid="reader-upload-status"
+          data-upload-token={uploadToken}
+          className="flex items-center gap-2 px-3 py-1 text-xs text-muted"
+        >
           <FileCheck2 className="h-4 w-4 shrink-0" />
           <span>{uploadStatus}</span>
         </p>
@@ -1179,16 +1333,21 @@ export default function PdfViewer({
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div
           ref={canvasHostRef}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={() => {
-            pinchStartDistanceRef.current = null;
-          }}
-          className="relative min-w-0 flex-1 overflow-auto"
+          data-testid="pdf-scroll-host"
+          className="relative min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain"
+          style={{ touchAction: "pan-x pan-y" }}
         >
           <div
             data-testid="pdf-page-stage"
-            className="flex min-h-full w-full items-start justify-center p-1 md:p-1.5"
+            className={`flex min-h-full w-full p-1 ${
+              pageGeometry && pageGeometry.height * zoomScale > Math.max(0, viewportBox.height - FIT_PAGE_PADDING)
+                ? "items-start"
+                : "items-center"
+            } ${
+              pageGeometry && pageGeometry.width * zoomScale > Math.max(0, viewportBox.width - FIT_WIDTH_PADDING)
+                ? "justify-start"
+                : "justify-center"
+            }`}
           >
             {!activePdfBytes ? (
               <p className="text-sm text-muted" data-testid="pdf-empty-state">

@@ -48,6 +48,7 @@ export function PdfPageCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [renderSize, setRenderSize] = useState<PageGeometry>({ width: 0, height: 0 });
+  const [baseSize, setBaseSize] = useState<PageGeometry>({ width: 0, height: 0 });
   const [renderStatus, setRenderStatus] = useState<"rendering" | "ready" | "fallback">(
     "rendering"
   );
@@ -59,13 +60,6 @@ export function PdfPageCanvas({
     async function renderPdfPage() {
       if (!canvasEl || !pdfBytes) return;
       setRenderStatus("rendering");
-      const estimated = {
-        width: Math.round(612 * zoomScale),
-        height: Math.round(792 * zoomScale),
-      };
-      canvasEl.width = estimated.width;
-      canvasEl.height = estimated.height;
-      setRenderSize(estimated);
       try {
         await withTimeout(ensurePdfWorkerConfigured(), 2500, "pdf worker");
         const pdfjs = await withTimeout(import("pdfjs-dist"), 2500, "pdfjs import");
@@ -82,18 +76,21 @@ export function PdfPageCanvas({
         );
         const base = page.getViewport({ scale: 1 });
         const viewport = page.getViewport({ scale: zoomScale });
-        canvasEl.width = Math.floor(viewport.width);
-        canvasEl.height = Math.floor(viewport.height);
+        const pixelRatio = Math.min(2.5, Math.max(1, window.devicePixelRatio || 1));
+        canvasEl.width = Math.max(1, Math.floor(viewport.width * pixelRatio));
+        canvasEl.height = Math.max(1, Math.floor(viewport.height * pixelRatio));
         const ctx = canvasEl.getContext("2d");
         if (ctx) {
           await page.render({
             canvasContext: ctx,
             canvas: canvasEl,
             viewport,
+            transform: pixelRatio === 1 ? undefined : [pixelRatio, 0, 0, pixelRatio, 0, 0],
           }).promise;
         }
         if (!cancelled) {
           const geometry = { width: base.width, height: base.height };
+          setBaseSize(geometry);
           setRenderSize({ width: viewport.width, height: viewport.height });
           onPageGeometry(pageNumber, geometry);
           setRenderStatus("ready");
@@ -135,6 +132,7 @@ export function PdfPageCanvas({
           }
         }
         const geometry = { width: 612, height: 792 };
+        setBaseSize(geometry);
         setRenderSize({ width, height });
         onPageGeometry(pageNumber, geometry);
         setRenderStatus("fallback");
@@ -144,10 +142,6 @@ export function PdfPageCanvas({
     void renderPdfPage();
     return () => {
       cancelled = true;
-      if (canvasEl) {
-        canvasEl.width = 0;
-        canvasEl.height = 0;
-      }
     };
   }, [pageNumber, zoomScale, pdfBytes, pageChunks, onPageGeometry]);
 
@@ -158,7 +152,7 @@ export function PdfPageCanvas({
       data-render={renderStatus}
       data-page-width={renderSize.width || undefined}
       data-page-height={renderSize.height || undefined}
-      className="relative inline-block max-w-none"
+      className="relative inline-block max-w-none shrink-0"
       onClick={(event) => {
         if (!isActivePage || pageChunks.length === 0) return;
         const selection = window.getSelection();
@@ -186,11 +180,18 @@ export function PdfPageCanvas({
           height: renderSize.height || undefined,
         }}
       />
-      {renderSize.width > 0 && pageChunks[0] ? (
+      {renderSize.width > 0 && baseSize.width > 0 && pageChunks[0] ? (
         <div
-          className="absolute inset-0 overflow-hidden px-[8%] py-[10%]"
+          className="absolute left-0 top-0 overflow-hidden"
           data-testid="pdf-text-layer"
+          style={{
+            width: baseSize.width,
+            height: baseSize.height,
+            transform: `scale(${renderSize.width / baseSize.width})`,
+            transformOrigin: "top left",
+          }}
         >
+          <div className="h-full w-full px-[8%] py-[10%]">
           <PassageText
             chunkId={pageChunks[0].chunk_id}
             text={pageChunks.map((chunk) => chunk.text).join(" ")}
@@ -216,6 +217,7 @@ export function PdfPageCanvas({
               )
             }
           />
+          </div>
         </div>
       ) : null}
       <span className="sr-only" style={{ color: theme.textSecondaryHex }}>

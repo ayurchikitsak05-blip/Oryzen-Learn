@@ -13,6 +13,7 @@ import type { HighlightLensType } from "@/lib/prakriti/config";
 import type { AskBookThreadTurn } from "@/lib/ai/ask-my-book";
 import { AskMyBookPanel } from "@/components/reader/AskMyBookPanel";
 import { StudyLensOutput } from "@/components/reader/StudyLensOutput";
+import { ReadingSizeControl } from "@/components/reading/ReadingSizeControl";
 
 export type ReaderStudyLens = HighlightLensType | "ask_my_book";
 
@@ -84,6 +85,7 @@ export function StudyWorkspace({
             <span className="truncate">{lens === "ask_my_book" ? "Ask My Book" : title}</span>
           </h3>
           {pageRef ? <p className="mt-1 text-xs text-muted">{pageRef}</p> : null}
+          <ReadingSizeControl className="mt-2" />
         </div>
         <button
           type="button"

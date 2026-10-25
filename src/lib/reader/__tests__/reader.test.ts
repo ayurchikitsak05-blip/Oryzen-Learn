@@ -85,6 +85,45 @@ describe("Layer 2: Tablet-First PDF Engine & Local-First Storage Pipeline", () =
       expect(fitWidth).toBeGreaterThan(0.2);
     });
 
+    it("fits a short viewport and a landscape page without raising the scale above the pane", async () => {
+      const { computeFitPageScale, computeFitWidthScale, visibleViewerBox, scrollForFocalZoom, nextPinchZoom } =
+        await import("../fit");
+      const portrait = { width: 612, height: 792 };
+      const short = { width: 320, height: 180 };
+      const fitPage = computeFitPageScale(portrait, short, 8);
+      expect(portrait.width * fitPage).toBeLessThanOrEqual(short.width - 8 + 0.01);
+      expect(portrait.height * fitPage).toBeLessThanOrEqual(short.height - 8 + 0.01);
+
+      const landscape = { width: 792, height: 612 };
+      const tablet = { width: 800, height: 500 };
+      const landscapeFit = computeFitPageScale(landscape, tablet, 8);
+      expect(landscape.width * landscapeFit).toBeLessThanOrEqual(tablet.width - 8 + 0.01);
+      expect(landscape.height * landscapeFit).toBeLessThanOrEqual(tablet.height - 8 + 0.01);
+      expect(computeFitWidthScale(landscape, tablet, 8)).toBeGreaterThan(landscapeFit);
+
+      const a4 = { width: 595.28, height: 841.89 };
+      const letter = { width: 612, height: 792 };
+      const desk = { width: 1024, height: 700 };
+      expect(computeFitPageScale(a4, desk)).not.toBe(computeFitPageScale(letter, desk));
+
+      const visible = visibleViewerBox(
+        { left: 0, top: 80, width: 900, height: 2000 },
+        { left: 0, top: 0, width: 900, height: 700 }
+      );
+      expect(visible).toEqual({ width: 900, height: 620 });
+
+      expect(nextPinchZoom(1, 100, 180)).toBeGreaterThan(1);
+      expect(nextPinchZoom(1, 100, 40)).toBeLessThan(1);
+      expect(scrollForFocalZoom({
+        focalContentX: 100,
+        focalContentY: 80,
+        startZoom: 1,
+        nextZoom: 2,
+        pointerX: 50,
+        pointerY: 40,
+      })).toEqual({ left: 150, top: 120 });
+    });
+
     it("uses tight padding so Fit Width fills a laptop pane", async () => {
       const { computeFitPageScale, computeFitWidthScale, DEFAULT_FIT_MODE } =
         await import("../fit");

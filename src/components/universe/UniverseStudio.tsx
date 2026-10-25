@@ -59,6 +59,7 @@ export function UniverseStudio({
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [companion, setCompanion] = useState<CompanionStore>(() => readCompanionStore(null));
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const recommendedId = useMemo(() => recommendedProfileForStudent(userId), [userId]);
   const showOffer =
@@ -120,84 +121,16 @@ export function UniverseStudio({
 
   return (
     <div data-testid="universe-dashboard" className="space-y-6">
-      <div>
-        <p className={ui.eyebrow}>My Study Universe</p>
-        <h1 className={`${ui.heading} mt-2 text-3xl md:text-4xl`}>{preset.modernName}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">{preset.tagline}</p>
-      </div>
-      <p className={ui.notice}>{UNIVERSE_DISCLAIMER}</p>
-
-      <section className={`${ui.cardPad} space-y-3`} data-testid="universe-preview">
-        <p className={ui.eyebrow}>{preset.prakritiLabel}</p>
-        <ul className="grid gap-2 text-sm text-ink md:grid-cols-2">
-          <li>Theme: {preset.modernName}</li>
-          <li>
-            {prefs.sessionMinutes}-minute focus · {prefs.breakMinutes}-minute breaks
-          </li>
-          <li>
-            Reminders: {prefs.reminderTone}, {prefs.reminderFrequency}
-          </li>
-          <li>Explanations: {prefs.explanationFormat}</li>
-          <li>Notes: {NOTE_LABELS[prefs.noteStyle]}</li>
-          <li>Companion: {companion.prefs.name || preset.companionName}</li>
-        </ul>
-      </section>
-
-      <div className="flex flex-wrap gap-2">
-        {!prefs.activated ? (
-          <button type="button" data-testid="universe-activate" className={ui.primary} onClick={create}>
-            Activate this universe
-          </button>
-        ) : null}
-        <button
-          type="button"
-          data-testid="universe-toggle-customize"
-          className={ui.secondary}
-          onClick={() => setCustomizeOpen((open) => !open)}
-        >
-          {customizeOpen ? "Hide settings" : "Customize My Universe"}
-        </button>
-        <button
-          type="button"
-          data-testid="universe-reset"
-          className={ui.ghost}
-          onClick={() => refresh(resetUniversePreset(userId))}
-        >
-          Reset to recommended
-        </button>
-        <button
-          type="button"
-          data-testid="universe-plain-reader"
-          className={ui.ghost}
-          onClick={openReader}
-        >
-          Return to a plain reader
-        </button>
-      </div>
-
-      {customizeOpen ? (
-        <UniverseCustomize
-          prefs={prefs}
-          onChange={(next) => refresh(customizeUniverse(next, userId))}
-          onSelectPreset={(profileId) =>
-            refresh(
-              applyUniversePreset(profileId, userId, {
-                dailyGoalMinutes: prefs.dailyGoalMinutes,
-                customized: true,
-              }).prefs
-            )
-          }
-        />
-      ) : null}
-
-      <section className={`${ui.card} space-y-3`} data-testid="universe-plan">
+      <section className={`${ui.cardPad} space-y-4`} data-testid="universe-start">
+        <div>
+          <p className={ui.eyebrow}>Recommended for you</p>
+          <h1 className={`${ui.heading} mt-1 text-3xl`}>{preset.modernName}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">{preset.tagline}</p>
+        </div>
+        <p className={ui.notice}>{UNIVERSE_DISCLAIMER}</p>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className={ui.eyebrow}>Today&apos;s plan</p>
-            <h2 className={`${ui.heading} mt-1 text-lg`}>Automatic StudySprint schedule</h2>
-          </div>
-          <label className="text-sm text-muted">
-            Daily goal
+          <label className="text-sm text-heading">
+            Daily study goal
             <input
               data-testid="universe-daily-goal"
               type="number"
@@ -210,8 +143,24 @@ export function UniverseStudio({
                 refresh(customizeUniverse({ dailyGoalMinutes: Number(event.target.value) }, userId))
               }
             />
+            <span className="ml-2 text-muted">minutes</span>
           </label>
+          <p className="text-sm text-muted">
+            {prefs.sessionMinutes}-minute focus, then a {prefs.breakMinutes}-minute break.
+          </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/sprint" data-testid="universe-start-sprint" className={ui.primary}>
+            Start studying
+          </Link>
+          <Link href="/reader" data-testid="universe-open-reader" className={ui.secondary}>
+            Open my book
+          </Link>
+        </div>
+      </section>
+
+      <section className={`${ui.card} space-y-3`} data-testid="universe-plan">
+        <p className={ui.eyebrow}>Today&apos;s plan</p>
         <ol className="space-y-2">
           {(plan?.blocks ?? []).map((block) => (
             <li
@@ -225,81 +174,133 @@ export function UniverseStudio({
           ))}
         </ol>
         <p className="text-sm text-muted">{plan?.nextSuggestedSession}</p>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/sprint" data-testid="universe-start-sprint" className={ui.primary}>
-            Start a StudySprint
-          </Link>
-          <Link href="/reader" data-testid="universe-open-reader" className={ui.secondary}>
-            Open the PDF reader
-          </Link>
-          <button
-            type="button"
-            data-testid="universe-reschedule"
-            className={ui.ghost}
-            onClick={() => {
-              rebuildUniversePlan(userId, { missed: true });
-              refresh();
-            }}
-          >
-            Reschedule missed session
-          </button>
-        </div>
-      </section>
-
-      <section className={`${ui.card} space-y-3`} data-testid="universe-companions">
-        <p className={ui.eyebrow}>Study companions</p>
-        <h2 className={`${ui.heading} text-lg`}>Switch between text-only companions</h2>
-        <p className="text-sm text-muted">
-          Each one is a writing style with a simple illustration. None of them is a person.
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {companion.collection.map((member) => (
-            <button
-              key={member.id}
-              type="button"
-              data-testid={`universe-companion-${member.id}`}
-              className={choiceClass(member.id === companion.activeId)}
-              onClick={() => setCompanion(switchCompanion(member.id, userId))}
-            >
-              <span className="flex items-center gap-3">
-                <CompanionFigure character={member.character} className="h-14 w-14" />
-                <span>
-                  <strong className="block text-heading">{member.name}</strong>
-                  <span className="text-xs text-muted">{STYLE_COPY[member.style].label}</span>
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-        <AddCompanionForm
-          onAdd={(input) => setCompanion(createCompanionMember(input, userId))}
-        />
-        <Link href="/companion" className={ui.ghost}>
-          Open companion chat
-        </Link>
-      </section>
-
-      <FocusSoundPanel
-        prefs={prefs}
-        onChange={(patch) => refresh(customizeUniverse(patch, userId))}
-      />
-
-      <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          data-testid="universe-turn-off"
+          data-testid="universe-reschedule"
           className={ui.ghost}
           onClick={() => {
-            focusSounds.stop();
-            refresh(deactivateUniverse(userId));
+            rebuildUniversePlan(userId, { missed: true });
+            refresh();
           }}
         >
-          Turn off personalization
+          Reschedule missed session
         </button>
-        <Link href="/hub" className={ui.ghost}>
-          Back to Learning Space
-        </Link>
-      </div>
+      </section>
+
+      <button
+        type="button"
+        data-testid="universe-advanced-toggle"
+        className={ui.secondary}
+        aria-expanded={advancedOpen}
+        onClick={() => setAdvancedOpen((open) => !open)}
+      >
+        {advancedOpen ? "Hide extra settings" : "Adjust details"}
+      </button>
+
+      {advancedOpen ? (
+        <div data-testid="universe-advanced" className="space-y-6">
+          <div className="flex flex-wrap gap-2">
+            {!prefs.activated ? (
+              <button type="button" data-testid="universe-activate" className={ui.primary} onClick={create}>
+                Activate this universe
+              </button>
+            ) : null}
+            <button
+              type="button"
+              data-testid="universe-toggle-customize"
+              className={ui.secondary}
+              onClick={() => setCustomizeOpen((open) => !open)}
+            >
+              {customizeOpen ? "Hide settings" : "Customize My Universe"}
+            </button>
+            <button
+              type="button"
+              data-testid="universe-reset"
+              className={ui.ghost}
+              onClick={() => refresh(resetUniversePreset(userId))}
+            >
+              Reset to recommended
+            </button>
+            <button
+              type="button"
+              data-testid="universe-plain-reader"
+              className={ui.ghost}
+              onClick={openReader}
+            >
+              Return to a plain reader
+            </button>
+          </div>
+
+          {customizeOpen ? (
+            <UniverseCustomize
+              prefs={prefs}
+              onChange={(next) => refresh(customizeUniverse(next, userId))}
+              onSelectPreset={(profileId) =>
+                refresh(
+                  applyUniversePreset(profileId, userId, {
+                    dailyGoalMinutes: prefs.dailyGoalMinutes,
+                    customized: true,
+                  }).prefs
+                )
+              }
+            />
+          ) : null}
+
+          <section className={`${ui.card} space-y-3`} data-testid="universe-companions">
+            <p className={ui.eyebrow}>Study companions</p>
+            <h2 className={`${ui.heading} text-lg`}>Switch between text-only companions</h2>
+            <p className="text-sm text-muted">
+              Each one is a writing style with a simple illustration. None of them is a person.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {companion.collection.map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  data-testid={`universe-companion-${member.id}`}
+                  className={choiceClass(member.id === companion.activeId)}
+                  onClick={() => setCompanion(switchCompanion(member.id, userId))}
+                >
+                  <span className="flex items-center gap-3">
+                    <CompanionFigure character={member.character} className="h-14 w-14" />
+                    <span>
+                      <strong className="block text-heading">{member.name}</strong>
+                      <span className="text-xs text-muted">{STYLE_COPY[member.style].label}</span>
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <AddCompanionForm
+              onAdd={(input) => setCompanion(createCompanionMember(input, userId))}
+            />
+            <Link href="/companion" className={ui.ghost}>
+              Open companion chat
+            </Link>
+          </section>
+
+          <FocusSoundPanel
+            prefs={prefs}
+            onChange={(patch) => refresh(customizeUniverse(patch, userId))}
+          />
+
+          <button
+            type="button"
+            data-testid="universe-turn-off"
+            className={ui.ghost}
+            onClick={() => {
+              focusSounds.stop();
+              refresh(deactivateUniverse(userId));
+            }}
+          >
+            Turn off personalization
+          </button>
+        </div>
+      ) : null}
+
+      <Link href="/hub" className={ui.ghost}>
+        Back to Learning Space
+      </Link>
     </div>
   );
 }

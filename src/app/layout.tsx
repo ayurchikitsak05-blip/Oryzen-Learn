@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Inter, Literata, Playfair_Display } from "next/font/google";
 import StudyRhythmProvider from "@/components/rhythm/StudyRhythmProvider";
+import { READING_SIZE_BOOT_SCRIPT } from "@/lib/reading/prefs";
 import { RHYTHM_BOOT_SCRIPT } from "@/lib/rhythm/persist";
 import "./globals.css";
 
@@ -13,6 +14,12 @@ const inter = Inter({
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-display",
+  display: "swap",
+});
+
+const literata = Literata({
+  subsets: ["latin"],
+  variable: "--font-reading",
   display: "swap",
 });
 
@@ -32,7 +39,7 @@ export default function RootLayout({
       lang="en"
       data-theme="classic"
       suppressHydrationWarning
-      className={`${inter.variable} ${playfair.variable}`}
+      className={`${inter.variable} ${playfair.variable} ${literata.variable}`}
     >
       <body
         suppressHydrationWarning
@@ -41,6 +48,10 @@ export default function RootLayout({
         <script
           id="oryzen-rhythm-boot"
           dangerouslySetInnerHTML={{ __html: RHYTHM_BOOT_SCRIPT }}
+        />
+        <script
+          id="oryzen-reading-size-boot"
+          dangerouslySetInnerHTML={{ __html: READING_SIZE_BOOT_SCRIPT }}
         />
         <StudyRhythmProvider>{children}</StudyRhythmProvider>
       </body>

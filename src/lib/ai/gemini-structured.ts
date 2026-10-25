@@ -576,7 +576,13 @@ export async function generateStructuredGeminiLens(params: {
           },
         })
       );
-      const usage = response.usageMetadata;
+      const usage = response.usageMetadata as
+        | {
+            promptTokenCount?: number;
+            candidatesTokenCount?: number;
+            thoughtsTokenCount?: number;
+          }
+        | undefined;
       const text = response.text?.trim() ?? "";
       const parsed = text
         ? (JSON.parse(text) as unknown)
@@ -589,7 +595,10 @@ export async function generateStructuredGeminiLens(params: {
       return {
         payload: merged.payload,
         promptTokens: usage?.promptTokenCount,
-        completionTokens: usage?.candidatesTokenCount,
+        completionTokens:
+          typeof usage?.candidatesTokenCount === "number"
+            ? usage.candidatesTokenCount + (usage.thoughtsTokenCount ?? 0)
+            : undefined,
         errorClass: null,
       };
     } catch (error) {

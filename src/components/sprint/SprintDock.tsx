@@ -12,6 +12,7 @@ import {
   pauseSprint,
   quizHref,
   readSprintStore,
+  continueAfterBreak,
   resumeSprint,
   tickSprint,
   upsertSprintSession,
@@ -86,7 +87,20 @@ export function SprintDock({
           type="button"
           data-testid="sprint-dock-resume"
           className="btn-ghost px-2 text-[11px]"
-          onClick={() => setSession(upsertSprintSession(resumeSprint(session, Date.now()), userId).sessions.find((item) => item.id === session.id) ?? session)}
+          onClick={() => {
+            if (session.status === "break") {
+              const { finished, next } = continueAfterBreak(session, Date.now());
+              upsertSprintSession(finished, userId);
+              const stored = upsertSprintSession(next, userId);
+              setSession(stored.sessions.find((item) => item.id === next.id) ?? next);
+              return;
+            }
+            setSession(
+              upsertSprintSession(resumeSprint(session, Date.now()), userId).sessions.find(
+                (item) => item.id === session.id
+              ) ?? session
+            );
+          }}
         >
           Resume
         </button>

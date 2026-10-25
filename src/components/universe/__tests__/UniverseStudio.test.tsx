@@ -24,6 +24,7 @@ describe("UniverseStudio", () => {
     expect(view.getByTestId("universe-dashboard")).toBeTruthy();
     expect(view.getByTestId("universe-plan").textContent).toMatch(/Focus|Break|Quiz|Revision|Buffer/i);
     expect(readUniversePrefs("student-a").activated).toBe(true);
+    fireEvent.click(view.getByTestId("universe-advanced-toggle"));
     fireEvent.change(view.getByTestId("universe-companion-name"), { target: { value: "Luna" } });
     fireEvent.click(view.getByTestId("universe-companion-add"));
     expect(view.getByTestId("universe-companions").textContent).toMatch(/Luna/);

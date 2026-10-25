@@ -22,12 +22,14 @@ export default function OryzenLearnBrand({
           priority
         />
       </span>
-      <span className="min-w-0 text-left">
-        <span className="block truncate font-display text-sm tracking-tight text-heading">
+      <span className="text-left">
+        <span className="block whitespace-nowrap font-display text-sm tracking-tight text-heading">
           Oryzen Learn
         </span>
         {subtitle ? (
-          <span className="block truncate text-[11px] text-muted">{subtitle}</span>
+          <span className="hidden max-md:block whitespace-nowrap text-[11px] text-muted lg:block">
+            {subtitle}
+          </span>
         ) : null}
       </span>
     </>
@@ -36,7 +38,7 @@ export default function OryzenLearnBrand({
   return (
     <Link
       href={href}
-      className="inline-flex min-h-11 min-w-0 items-center gap-2.5 rounded-xl pr-2 transition-opacity hover:opacity-90"
+      className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl pr-1 transition-opacity hover:opacity-90 lg:gap-2.5 lg:pr-2"
     >
       {lockup}
     </Link>

@@ -173,7 +173,7 @@ export function CompanionChat({
           <li
             key={turn.id}
             data-testid={`companion-turn-${turn.role}`}
-            className={`rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+            className={`font-reading rounded-2xl px-3 py-2 ${
               turn.role === "student" ? "bg-beige-2 text-heading" : "border border-line text-ink"
             }`}
           >

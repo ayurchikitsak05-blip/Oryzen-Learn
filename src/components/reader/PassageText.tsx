@@ -277,10 +277,13 @@ export default function PassageText({
       <div
         ref={rootRef}
         onMouseUp={handleMouseUp}
-        onTouchEnd={handleMouseUp}
+        onTouchEnd={(event) => {
+          if (event.touches.length > 0 || event.changedTouches.length > 1) return;
+          handleMouseUp();
+        }}
         className={
           overlay
-            ? "h-full w-full text-[11px] leading-tight text-transparent selection:bg-selected selection:text-heading"
+            ? "font-reading-family h-full w-full text-[11px] leading-tight text-transparent selection:bg-selected selection:text-heading"
             : "text-sm leading-relaxed"
         }
       >

@@ -100,12 +100,45 @@ export function pauseSprint(session: SprintSession, now = Date.now()): SprintSes
 }
 
 export function resumeSprint(session: SprintSession, now = Date.now()): SprintSession {
-  if (session.status !== "paused" && session.status !== "break") return session;
+  if (session.status !== "paused") return session;
   return {
     ...session,
     status: "running",
     startedAt: new Date(now).toISOString(),
   };
+}
+
+/** A finished focus block stays completed so its minutes count. Resume starts the next block. */
+export function continueAfterBreak(
+  session: SprintSession,
+  now = Date.now()
+): { finished: SprintSession; next: SprintSession } {
+  const finished = completeSprint(
+    {
+      ...session,
+      elapsedMs: Math.max(session.elapsedMs, session.durationMinutes * 60_000),
+    },
+    now
+  );
+  const next = startSprint(
+    attachSprintMaterial(
+      createSprintSession({
+        goal: session.goal,
+        subject: session.subject,
+        topic: session.topic,
+        documentId: session.documentId,
+        documentTitle: session.documentTitle,
+        chapter: session.chapter,
+        durationMinutes: session.durationMinutes,
+        breakMinutes: session.breakMinutes,
+        dailyTargetMinutes: session.dailyTargetMinutes,
+        date: session.date,
+      }),
+      session
+    ),
+    now
+  );
+  return { finished, next };
 }
 
 export function completeSprint(session: SprintSession, now = Date.now()): SprintSession {

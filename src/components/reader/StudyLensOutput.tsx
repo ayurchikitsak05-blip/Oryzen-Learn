@@ -20,7 +20,7 @@ type RevisionTab =
   | "practice";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h4 className="font-display text-sm text-heading">{children}</h4>;
+  return <h4 className="font-reading text-heading">{children}</h4>;
 }
 
 function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
@@ -41,7 +41,7 @@ function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
         ? sections.deeperExplanation ?? sections.standardExplanation ?? sections.simpleExplanation
         : sections.standardExplanation ?? sections.simpleExplanation;
   return (
-    <div data-testid="explain-output" className="space-y-4">
+    <div data-testid="explain-output" className="font-reading space-y-4">
       <div className="flex flex-wrap gap-1">
         {(
           [
@@ -104,7 +104,7 @@ function StoryOutput({ result }: { result: AiGatewayExecutionResult }) {
     return <StudyMarkdown markdown={result.payload.markdown_body} />;
   }
   return (
-    <div data-testid="story-output" className="space-y-4">
+    <div data-testid="story-output" className="font-reading space-y-4">
       <section>
         <SectionTitle>Opening</SectionTitle>
         <p className="mt-2 text-sm leading-relaxed text-ink">{story.opening}</p>
@@ -129,7 +129,7 @@ function IllustrateOutput({ result }: { result: AiGatewayExecutionResult }) {
     return <StudyMarkdown markdown={result.payload.markdown_body} />;
   }
   return (
-    <div data-testid="illustrate-output" className="space-y-3">
+    <div data-testid="illustrate-output" className="font-reading space-y-3">
       <div className="flex flex-wrap gap-1">
         {(
           [
@@ -175,7 +175,7 @@ function ReviseOutput({ result }: { result: AiGatewayExecutionResult }) {
     return <StudyMarkdown markdown={result.payload.markdown_body} />;
   }
   return (
-    <div data-testid="revise-output" className="space-y-3">
+    <div data-testid="revise-output" className="font-reading space-y-3">
       <div className="flex flex-wrap gap-1">
         {(
           [
@@ -282,7 +282,7 @@ function TestMeOutput({
   }, [allAnswered, misses, result.payload.markdown_body, selectedText]);
 
   return (
-    <div data-testid="test-me-quiz" className="space-y-4">
+    <div data-testid="test-me-quiz" className="font-reading space-y-4">
       <p className="text-sm leading-relaxed text-ink">
         Answer all {mcqs.length || 10} questions from the selected passage only.
       </p>
@@ -418,7 +418,7 @@ export function StudyLensOutput({
   if (resolved === "ask_my_book") {
     const asked = result.payload.askMyBook;
     return (
-      <div data-testid="ask-my-book-output" className="space-y-3">
+      <div data-testid="ask-my-book-output" className="font-reading space-y-3">
         <p className="text-sm text-heading">{asked?.question ?? "Your question"}</p>
         <div className="text-sm leading-relaxed text-ink [&_p]:whitespace-pre-wrap [&_p]:break-words">
           <StudyMarkdown markdown={asked?.answer ?? result.payload.markdown_body} />

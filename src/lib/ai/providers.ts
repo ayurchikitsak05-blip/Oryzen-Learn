@@ -593,12 +593,19 @@ async function callGoogleStructured(params: {
   const first = candidates[0] as { content?: { parts?: Array<{ text?: string }> } } | undefined;
   const text = first?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
   const usage = json.usageMetadata as
-    | { promptTokenCount?: number; candidatesTokenCount?: number }
+    | {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        thoughtsTokenCount?: number;
+      }
     | undefined;
+  const candidateTokens = usage?.candidatesTokenCount;
+  const thoughtTokens = usage?.thoughtsTokenCount ?? 0;
   return {
     raw: parseJsonContent(text),
     promptTokens: usage?.promptTokenCount,
-    completionTokens: usage?.candidatesTokenCount,
+    completionTokens:
+      typeof candidateTokens === "number" ? candidateTokens + thoughtTokens : undefined,
   };
 }
 

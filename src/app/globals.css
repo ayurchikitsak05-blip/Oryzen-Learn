@@ -152,6 +152,24 @@ html[data-theme] {
     sans-serif;
   --font-display: var(--font-display), "Playfair Display", Georgia, "Times New Roman",
     serif;
+  --font-reading: var(--font-reading), Literata, Georgia, "Times New Roman", serif;
+  --reading-size: 1.0625rem;
+  --reading-leading: 1.7;
+}
+
+html[data-reading-size="compact"] {
+  --reading-size: 0.95rem;
+  --reading-leading: 1.62;
+}
+
+html[data-reading-size="comfortable"] {
+  --reading-size: 1.0625rem;
+  --reading-leading: 1.7;
+}
+
+html[data-reading-size="roomy"] {
+  --reading-size: 1.2rem;
+  --reading-leading: 1.8;
 }
 
 html {
@@ -192,8 +210,34 @@ h3,
   line-height: 1.25;
 }
 
+.font-reading {
+  font-family: var(--font-reading);
+  font-size: var(--reading-size);
+  line-height: var(--reading-leading);
+}
+
+.font-reading p + p {
+  margin-top: 0.9em;
+}
+
+.font-reading :where(p, li, h3, h4):not(.text-xs) {
+  font-family: var(--font-reading);
+  font-size: var(--reading-size);
+  line-height: var(--reading-leading);
+}
+
+.font-reading-family {
+  font-family: var(--font-reading);
+}
+
+.font-ui {
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+}
+
 .btn-primary {
   display: inline-flex;
+  white-space: nowrap;
   min-height: 44px;
   align-items: center;
   justify-content: center;
@@ -222,6 +266,7 @@ h3,
 
 .btn-secondary {
   display: inline-flex;
+  white-space: nowrap;
   min-height: 44px;
   align-items: center;
   justify-content: center;
@@ -246,6 +291,7 @@ h3,
 
 .btn-ghost {
   display: inline-flex;
+  white-space: nowrap;
   min-height: 44px;
   align-items: center;
   justify-content: center;
@@ -257,6 +303,14 @@ h3,
 
 .btn-ghost:hover {
   background: var(--beige-secondary);
+}
+
+@media (max-width: 1023px) {
+  header .btn-secondary,
+  header .btn-ghost {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
 }
 
 .field-input {

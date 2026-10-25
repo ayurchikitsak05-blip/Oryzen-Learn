@@ -15,6 +15,7 @@ import {
   listSprintNotes,
   nextRecommendedBlock,
   notesHref,
+  continueAfterBreak,
   pauseSprint,
   pendingSessions,
   quizHref,
@@ -196,7 +197,15 @@ export function SprintStudio({ userId }: { userId: string }) {
                 type="button"
                 data-testid="sprint-resume"
                 className={ui.primary}
-                onClick={() => saveSession(resumeSprint(live, Date.now()))}
+                onClick={() => {
+                  if (live.status === "break") {
+                    const { finished, next } = continueAfterBreak(live, Date.now());
+                    upsertSprintSession(finished, userId);
+                    setStore(upsertSprintSession(next, userId));
+                    return;
+                  }
+                  saveSession(resumeSprint(live, Date.now()));
+                }}
               >
                 Resume
               </button>

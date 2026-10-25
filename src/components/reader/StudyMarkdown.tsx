@@ -146,7 +146,7 @@ export function StudyMarkdown({
       nodes.push(
         <h3
           key={`h-${index}`}
-          className="font-display text-sm text-heading"
+          className="font-reading text-[1.15em] text-heading"
           dangerouslySetInnerHTML={{ __html: inlineMarkdown(text) }}
         />
       );
@@ -161,7 +161,7 @@ export function StudyMarkdown({
         index += 1;
       }
       nodes.push(
-        <ul key={`ul-${index}`} className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink">
+        <ul key={`ul-${index}`} className="list-disc space-y-1.5 pl-5 text-ink">
           {items.map((item, itemIndex) => (
             <li
               key={`${itemIndex}-${item.slice(0, 16)}`}
@@ -176,12 +176,12 @@ export function StudyMarkdown({
     nodes.push(
       <p
         key={`p-${index}`}
-        className="text-sm leading-relaxed text-ink"
+        className="text-ink"
         dangerouslySetInnerHTML={{ __html: inlineMarkdown(line) }}
       />
     );
     index += 1;
   }
 
-  return <div className="space-y-3">{nodes}</div>;
+  return <div className="font-reading space-y-4">{nodes}</div>;
 }

@@ -10,6 +10,7 @@ export {
   newSprintId,
   pauseSprint,
   remainingMs,
+  continueAfterBreak,
   resumeSprint,
   startSprint,
   statusLabel,

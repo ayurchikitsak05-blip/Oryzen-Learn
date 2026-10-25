@@ -331,7 +331,7 @@ export default function MyNotes() {
                           </button>
                         </div>
                         {open && (
-                          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                          <p className="font-reading mt-3 whitespace-pre-wrap text-ink">
                             {note.body || "This note has no written body yet."}
                           </p>
                         )}

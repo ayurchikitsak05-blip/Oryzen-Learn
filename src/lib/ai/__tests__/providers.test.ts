@@ -114,7 +114,11 @@ describe("provider-independent adapters", () => {
         candidates: [
           { content: { parts: [{ text: JSON.stringify(structuredBody()) }] } },
         ],
-        usageMetadata: { promptTokenCount: 80, candidatesTokenCount: 40 },
+        usageMetadata: {
+          promptTokenCount: 80,
+          candidatesTokenCount: 40,
+          thoughtsTokenCount: 10,
+        },
       });
     });
     const result = await callProviderStructuredLens({
@@ -129,6 +133,7 @@ describe("provider-independent adapters", () => {
     expect(result.payload.used_fallback).toBe(false);
     expect(result.payload.explain?.simpleExplanation).toMatch(/moving|force/i);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.completionTokens).toBe(50);
     expect(result.errorDetail).toBeNull();
   });
 

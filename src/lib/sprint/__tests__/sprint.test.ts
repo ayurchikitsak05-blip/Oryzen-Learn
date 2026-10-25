@@ -4,6 +4,7 @@ import {
   completeSprint,
   createSprintSession,
   liveElapsedMs,
+  continueAfterBreak,
   pauseSprint,
   remainingMs,
   resumeSprint,
@@ -53,6 +54,14 @@ describe("StudySprint planning", () => {
     const resumed = resumeSprint(paused, 80_000);
     expect(resumed.status).toBe("running");
     expect(remainingMs(resumed, 80_000)).toBe(24 * 60_000);
+    const onBreak = tickSprint(resumed, 80_000 + 24 * 60_000);
+    expect(onBreak.status).toBe("break");
+    const continued = continueAfterBreak(onBreak, 80_000 + 24 * 60_000 + 1_000);
+    expect(continued.finished.status).toBe("completed");
+    expect(continued.finished.elapsedMs).toBe(25 * 60_000);
+    expect(continued.next.status).toBe("running");
+    expect(remainingMs(continued.next, 80_000 + 24 * 60_000 + 1_000)).toBe(25 * 60_000);
+    expect(tickSprint(continued.next, 80_000 + 24 * 60_000 + 2_000).status).toBe("running");
     const done = completeSprint(resumed, 90_000);
     expect(done.status).toBe("completed");
     expect(done.completedAt).toBeTruthy();

@@ -1,7 +1,7 @@
 /**
  * Provider-independent model catalog for the ORYZEN Learn study gateway.
  *
- * Prices and IDs were verified against official pages on 23 Oct 2026.
+ * Prices and IDs were verified against official pages on 25 Oct 2026.
  * Do not invent model IDs. Server-only env names live here as documentation —
  * never prefix them with NEXT_PUBLIC_ and never hardcode keys.
  */
@@ -25,7 +25,7 @@ export type GatewayModelId =
   | "ministral-3b-2512"
   | "deterministic";
 
-export const PRICING_AS_OF = "2026-10-23";
+export const PRICING_AS_OF = "2026-10-25";
 
 /** Market close ~₹94.47/$ (Business Standard / News On AIR, 21 Oct 2026). Estimate. */
 export const USD_INR_RATE_ESTIMATE = 94.47;

@@ -42,16 +42,16 @@ export default function AppChrome({
     <div className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink ${showAppNav ? "pb-20 md:pb-0" : ""}`}>
       <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-canvas/92 backdrop-blur-md">
         <div
-          className={`mx-auto flex h-12 min-w-0 items-center justify-between gap-3 px-3 md:px-6 ${maxWidthClass}`}
+          className={`mx-auto flex h-12 min-w-0 items-center justify-between gap-1 px-3 md:px-4 lg:gap-2 lg:px-6 ${maxWidthClass}`}
         >
           <OryzenLearnBrand subtitle={subtitle} />
           {showAppNav ? (
-            <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
+            <nav className="hidden items-center md:flex" aria-label="Primary">
               {APP_LINKS.filter((link) => link.href !== "/auth?form=1").map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`inline-flex min-h-11 items-center rounded-xl px-3 text-sm ${
+                  className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-xl px-1 text-[13px] lg:px-3 lg:text-sm ${
                     isActive(pathname, link.href)
                       ? "bg-selected text-heading"
                       : "text-muted hover:bg-beige-2 hover:text-heading"
@@ -62,7 +62,7 @@ export default function AppChrome({
               ))}
             </nav>
           ) : null}
-          <div className="flex min-w-0 items-center gap-1">{actions}</div>
+          <div className="flex shrink-0 items-center gap-1">{actions}</div>
         </div>
       </header>
       {showAppNav ? <OwnerDemoBanner /> : null}
