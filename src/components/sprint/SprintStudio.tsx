@@ -67,7 +67,7 @@ export function SprintStudio({ userId }: { userId: string }) {
 
   useEffect(() => {
     if (!ready || seededRhythm.current || store.sessions.length > 0) return;
-    const body = readSavedBodyType(userId === "local-anonymous" ? null : userId);
+    const body = readSavedBodyType(userId);
     if (!body) return;
     if (
       store.rhythm !== "custom" ||
@@ -352,9 +352,7 @@ export function SprintStudio({ userId }: { userId: string }) {
                   data-testid={`sprint-rhythm-${id}`}
                   className={choiceClass(store.rhythm === id)}
                   onClick={() => {
-                    const body = readSavedBodyType(
-                      userId === "local-anonymous" ? null : userId
-                    );
+                    const body = readSavedBodyType(userId);
                     const suggested = suggestSprintDefaults(body?.primaryDosha ?? null);
                     if (id !== "custom" && suggested.rhythm === id) {
                       setStore(

@@ -4,6 +4,7 @@ import {
   type CalculatedPrakritiProfile,
   type DoshaScores,
 } from "@/lib/prakriti/config";
+import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import type {
   CognitiveDnaCardJson,
   ProfileRow,
@@ -12,6 +13,47 @@ import type {
 
 export const LOCAL_PRAKRITI_STORAGE_KEY =
   "prakriti_study_ai_onboarding_profile_v1";
+
+export type LocalPrakritiRecord = StoredPrakritiProfilePayload & {
+  userId?: string | null;
+  fullName?: string | null;
+  cognitiveDna?: CognitiveDnaCardJson;
+};
+
+export function localPrakritiStorageKey(userId?: string | null): string {
+  return scopedReaderStorageKey(LOCAL_PRAKRITI_STORAGE_KEY, userId);
+}
+
+export function unclaimedLegacyPrakritiExists(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean(window.localStorage.getItem(LOCAL_PRAKRITI_STORAGE_KEY));
+}
+
+export function readLocalPrakritiProfile(
+  userId?: string | null
+): LocalPrakritiRecord | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(localPrakritiStorageKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as LocalPrakritiRecord;
+    if (parsed.userId && userId && parsed.userId !== userId) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function writeLocalPrakritiProfile(
+  payload: LocalPrakritiRecord,
+  userId?: string | null
+): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    localPrakritiStorageKey(userId),
+    JSON.stringify(payload)
+  );
+}
 
 /**
  * Builds the initial 200-word-bounded Student Cognitive DNA Card from the calculated Prakriti profile

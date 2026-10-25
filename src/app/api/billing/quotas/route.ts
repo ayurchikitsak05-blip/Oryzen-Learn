@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveAuthorizedUserId } from "@/lib/auth/request-user";
 import { createClient } from "@/lib/supabase/server";
 import {
   applyExamBoosterPack,
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     }));
     sessionUserId = data?.user?.id ?? null;
   }
-  const userId = sessionUserId ?? requestedUserId ?? "local-student-scholar";
+  const userId = resolveAuthorizedUserId(sessionUserId, requestedUserId);
   const state = getOrInitUserQuotaState(userId);
   const ownUsage =
     !sessionUserId || sessionUserId === userId
@@ -45,7 +46,14 @@ export async function POST(request: NextRequest) {
     };
 
     const supabase = await createClient().catch(() => null);
-    const userId = body.userId ?? "local-student-scholar";
+    let sessionUserId: string | null = null;
+    if (supabase) {
+      const { data } = await supabase.auth.getUser().catch(() => ({
+        data: { user: null },
+      }));
+      sessionUserId = data?.user?.id ?? null;
+    }
+    const userId = resolveAuthorizedUserId(sessionUserId, body.userId);
 
     if (body.action === "upgrade_tier") {
       if (!body.newTier || !(body.newTier in PLAN_ENTITLEMENTS)) {

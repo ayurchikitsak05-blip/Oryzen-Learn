@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveAuthorizedUserId } from "@/lib/auth/request-user";
 import { createClient } from "@/lib/supabase/server";
 import {
   executeControlledAiGateway,
@@ -53,16 +54,14 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = await createClient().catch(() => null);
-    let resolvedUserId = body.userId ?? "local-student-scholar";
-
+    let sessionUserId: string | null = null;
     if (supabase) {
       const { data } = await supabase.auth
         .getUser()
         .catch(() => ({ data: { user: null } }));
-      if (data?.user?.id) {
-        resolvedUserId = data.user.id;
-      }
+      sessionUserId = data?.user?.id ?? null;
     }
+    const resolvedUserId = resolveAuthorizedUserId(sessionUserId, body.userId);
 
     const result = await executeControlledAiGateway({
       userId: resolvedUserId,

@@ -2,8 +2,7 @@ import {
   DOSHA_STUDY_PRESETS,
   type Dosha,
 } from "@/lib/prakriti/config";
-import { LOCAL_PRAKRITI_STORAGE_KEY } from "@/lib/supabase/profile-sync";
-import type { StoredPrakritiProfilePayload } from "@/lib/supabase/types";
+import { readLocalPrakritiProfile } from "@/lib/supabase/profile-sync";
 
 export interface SavedBodyType {
   displayProfileTitle: string;
@@ -22,12 +21,8 @@ function isDosha(value: unknown): value is Dosha {
 export function readSavedBodyType(userId: string | null): SavedBodyType | null {
   if (typeof window === "undefined" || !userId) return null;
   try {
-    const raw = window.localStorage.getItem(LOCAL_PRAKRITI_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredPrakritiProfilePayload & {
-      userId?: string;
-    };
-    if (parsed.userId !== userId) return null;
+    const parsed = readLocalPrakritiProfile(userId);
+    if (!parsed) return null;
     const calculated = parsed.calculated;
     if (!calculated || !isDosha(calculated.primaryDosha)) return null;
     const preset = DOSHA_STUDY_PRESETS[calculated.primaryDosha];

@@ -5,6 +5,7 @@ import { CheckCircle2, FileText, Sparkles, Video } from "lucide-react";
 import type { Dosha, PrakritiThemePalette } from "@/lib/prakriti/config";
 import { listSavedPassages } from "@/lib/ai/passage-store";
 import { getLocalCognitiveDnaState } from "@/lib/ai/adaptive-memory";
+import { fetchSignedInUser } from "@/lib/supabase/session";
 import {
   buildAvailableSources,
   DEFAULT_VIDEO_LECTURES,
@@ -31,12 +32,21 @@ export default function SynthesisStudio({
   >(() => buildAvailableSources([]));
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      setAvailableSources(
-        buildAvailableSources(listSavedPassages())
-      );
-    });
-    return () => window.cancelAnimationFrame(frame);
+    let active = true;
+    void fetchSignedInUser()
+      .then((user) => {
+        if (!active) return;
+        setAvailableSources(
+          buildAvailableSources(listSavedPassages(undefined, user?.userId ?? null))
+        );
+      })
+      .catch(() => {
+        if (!active) return;
+        setAvailableSources(buildAvailableSources(listSavedPassages(undefined, null)));
+      });
+    return () => {
+      active = false;
+    };
   }, []);
   const [availableVideoLectures] = useState<VideoLectureRecord[]>(
     () => DEFAULT_VIDEO_LECTURES

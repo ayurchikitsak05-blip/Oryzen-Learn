@@ -27,8 +27,8 @@ import {
 import {
   buildInitialCognitiveDnaSummary,
   buildStoredPrakritiPayload,
-  LOCAL_PRAKRITI_STORAGE_KEY,
   savePrakritiProfileToDatabase,
+  writeLocalPrakritiProfile,
 } from "@/lib/supabase/profile-sync";
 import { createClient } from "@/lib/supabase/client";
 import { modernProfileHeadline } from "@/lib/study/body-type";
@@ -186,14 +186,14 @@ export default function PrakritiOnboardingPage() {
       } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }));
 
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(
-          LOCAL_PRAKRITI_STORAGE_KEY,
-          JSON.stringify({
+        writeLocalPrakritiProfile(
+          {
             ...storedPayload,
             userId: user?.id ?? null,
             fullName: fullName.trim() || null,
             cognitiveDna,
-          })
+          },
+          user?.id ?? null
         );
       }
 

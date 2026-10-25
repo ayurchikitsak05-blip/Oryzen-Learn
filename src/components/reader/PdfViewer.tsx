@@ -90,7 +90,13 @@ import {
   type ReaderBookmark,
 } from "@/lib/reader/bookmarks";
 import { hydrateReaderAccountCopy, pushReaderAccountCopy } from "@/lib/reader/sync-client";
-import { ANONYMOUS_READER_SCOPE, scopedReaderStorageKey } from "@/lib/reader/local-scope";
+import { ANONYMOUS_READER_SCOPE } from "@/lib/reader/local-scope";
+import {
+  readMarginNotes,
+  readTextMarks,
+  writeMarginNotes,
+  writeTextMarks,
+} from "@/lib/reader/marks";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import {
   SAMPLE_CHAPTER_FILE,
@@ -142,9 +148,6 @@ export interface PdfViewerProps {
   initialLens?: string | null;
   sprintId?: string | null;
 }
-
-const READER_MARKS_STORAGE_KEY = "oryzen_reader_text_marks_v1";
-const READER_NOTES_STORAGE_KEY = "oryzen_reader_margin_notes_v1";
 
 const DEFAULT_THEME: PrakritiThemePalette = {
   cssVariable: "--theme-vata",
@@ -278,24 +281,8 @@ export default function PdfViewer({
     if (!scopeReady) return;
     const timer = window.setTimeout(() => {
       try {
-        const raw = window.localStorage.getItem(
-          scopedReaderStorageKey(READER_MARKS_STORAGE_KEY, readerUserId)
-        );
-        if (raw) {
-          const parsed = JSON.parse(raw) as ReaderTextMark[];
-          if (Array.isArray(parsed)) setTextMarks(parsed);
-        } else {
-          setTextMarks([]);
-        }
-        const notesRaw = window.localStorage.getItem(
-          scopedReaderStorageKey(READER_NOTES_STORAGE_KEY, readerUserId)
-        );
-        if (notesRaw) {
-          const parsedNotes = JSON.parse(notesRaw) as ReaderMarginNote[];
-          if (Array.isArray(parsedNotes)) setMarginNotes(parsedNotes);
-        } else {
-          setMarginNotes([]);
-        }
+        setTextMarks(readTextMarks(readerUserId));
+        setMarginNotes(readMarginNotes(readerUserId));
       } catch {
         // Ignore corrupt mark storage
       } finally {
@@ -329,14 +316,8 @@ export default function PdfViewer({
 
   useEffect(() => {
     if (!marksReady || !scopeReady) return;
-    window.localStorage.setItem(
-      scopedReaderStorageKey(READER_MARKS_STORAGE_KEY, readerUserId),
-      JSON.stringify(textMarks)
-    );
-    window.localStorage.setItem(
-      scopedReaderStorageKey(READER_NOTES_STORAGE_KEY, readerUserId),
-      JSON.stringify(marginNotes)
-    );
+    writeTextMarks(textMarks, readerUserId);
+    writeMarginNotes(marginNotes, readerUserId);
   }, [textMarks, marginNotes, marksReady, readerUserId, scopeReady]);
 
   useEffect(() => {
@@ -512,7 +493,7 @@ export default function PdfViewer({
       }
       const persisted = readPersistedReaderView(chosen.id, readerUserId);
       setActiveDoc(chosen);
-      setActivePage(persisted?.page || chosen.lastReadPage || 1);
+      setActivePage(persisted?.page || 1);
       if (persisted?.fitMode) setFitMode(persisted.fitMode);
       else setFitMode(DEFAULT_FIT_MODE);
       if (persisted?.zoom) setCustomZoom(persisted.zoom);
@@ -647,7 +628,7 @@ export default function PdfViewer({
       highlightedText: selected,
       aiSynthesisMarkdown: markdown,
       citations,
-    });
+    }, readerUserId);
     const noteTitle = `${doc.title} · p.${chunk.page_number}`;
     const noteBody = [
       chunk.section_heading,
@@ -1033,7 +1014,7 @@ export default function PdfViewer({
               void (async () => {
                 setActiveDoc(next);
                 const persisted = readPersistedReaderView(next.id, readerUserId);
-                setActivePage(persisted?.page || next.lastReadPage || 1);
+                setActivePage(persisted?.page || 1);
                 setFitMode(persisted?.fitMode ?? DEFAULT_FIT_MODE);
                 setSelectedChunk(null);
                 setAiResult(null);

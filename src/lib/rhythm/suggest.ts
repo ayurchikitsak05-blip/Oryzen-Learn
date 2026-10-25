@@ -1,6 +1,5 @@
 import type { CanonicalPrakritiKey } from "@/lib/prakriti/config";
-import { LOCAL_PRAKRITI_STORAGE_KEY } from "@/lib/supabase/profile-sync";
-import type { StoredPrakritiProfilePayload } from "@/lib/supabase/types";
+import { readLocalPrakritiProfile } from "@/lib/supabase/profile-sync";
 import type { CoachStyleId, ThemeId } from "./types";
 
 export interface RhythmSuggestion {
@@ -43,10 +42,8 @@ export function suggestionForCanonical(
 export function readCanonicalType(userId?: string | null): CanonicalPrakritiKey | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(LOCAL_PRAKRITI_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredPrakritiProfilePayload & { userId?: string };
-    if (userId && parsed.userId && parsed.userId !== userId) return null;
+    const parsed = readLocalPrakritiProfile(userId);
+    if (!parsed) return null;
     const canonical = parsed.calculated?.canonicalType;
     if (canonical && canonical in SUGGESTION_MAP) return canonical;
     return null;

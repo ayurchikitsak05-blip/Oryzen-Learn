@@ -9,8 +9,8 @@ import {
   calculatePrakritiProfile,
   type Dosha,
 } from "@/lib/prakriti/config";
-import { LOCAL_PRAKRITI_STORAGE_KEY } from "@/lib/supabase/profile-sync";
-import type { StoredPrakritiProfilePayload } from "@/lib/supabase/types";
+import { readLocalPrakritiProfile } from "@/lib/supabase/profile-sync";
+import { fetchSignedInUser } from "@/lib/supabase/session";
 
 const BODY_TYPE_OPTIONS: readonly { dosha: Dosha; label: string }[] = [
   { dosha: "Vata", label: "Spark & Sprint (Vata)" },
@@ -18,28 +18,12 @@ const BODY_TYPE_OPTIONS: readonly { dosha: Dosha; label: string }[] = [
   { dosha: "Kapha", label: "Anchor & Endurance (Kapha)" },
 ];
 
-function getInitialDoshaTheme(): Dosha {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = window.localStorage.getItem(LOCAL_PRAKRITI_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as StoredPrakritiProfilePayload & {
-          userId?: string;
-        };
-        if (!parsed.userId) return "Vata";
-        const resolved =
-          parsed.calculated?.secondaryDosha ?? parsed.calculated?.primaryDosha;
-        if (
-          resolved === "Vata" ||
-          resolved === "Pitta" ||
-          resolved === "Kapha"
-        ) {
-          return resolved;
-        }
-      }
-    } catch {
-      // Ignore corrupt local storage
-    }
+function doshaFromProfile(userId?: string | null): Dosha {
+  const parsed = readLocalPrakritiProfile(userId);
+  const resolved =
+    parsed?.calculated?.secondaryDosha ?? parsed?.calculated?.primaryDosha;
+  if (resolved === "Vata" || resolved === "Pitta" || resolved === "Kapha") {
+    return resolved;
   }
   return "Vata";
 }
@@ -63,10 +47,18 @@ function ReaderStudio() {
   const [activeDosha, setActiveDosha] = useState<Dosha>("Vata");
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      setActiveDosha(getInitialDoshaTheme());
-    });
-    return () => window.cancelAnimationFrame(frame);
+    let active = true;
+    void fetchSignedInUser()
+      .then((user) => {
+        if (!active) return;
+        setActiveDosha(doshaFromProfile(user?.userId ?? null));
+      })
+      .catch(() => {
+        if (active) setActiveDosha(doshaFromProfile(null));
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const scores = scoresFor(activeDosha);
