@@ -69,6 +69,32 @@ function styleBody(
     return `${name} here. One clear next step: open “${title}” and finish the current block.`;
   }
 
+  if (style === "guide") {
+    if (intent === "break") {
+      return `When you are ready — I'm ${name}, a calm study companion, not a person. Leave “${title}” for ${session?.breakMinutes ?? 5} minutes. There is no rush.`;
+    }
+    if (intent === "quiz") {
+      return `When you are ready — I'm ${name}, a calm study companion, not a person. Take Test Me on “${title}” when it feels right, then keep the misses. ${session ? `Open ${quizHref(session)}.` : ""}`;
+    }
+    if (intent === "plan") {
+      return session
+        ? `When you are ready — I'm ${name}, a calm study companion, not a person. Sit with “${session.goal}” for ${session.durationMinutes} minutes, then rest for ${session.breakMinutes}.`
+        : `When you are ready — I'm ${name}, a calm study companion, not a person. Open StudySprint and choose a length that feels sustainable.`;
+    }
+    if (intent === "resume") {
+      return session
+        ? `When you are ready — I'm ${name}, a calm study companion, not a person. Return to “${session.goal}” at your pace. Reader: ${readerHref(session)}.`
+        : `When you are ready — I'm ${name}, a calm study companion, not a person. If a StudySprint is waiting, open it when you want to continue.`;
+    }
+    if (intent === "explain") {
+      return `When you are ready — I'm ${name}, a calm study companion, not a person. Find the stuck sentence, tap Explain, and stay with that one line.`;
+    }
+    if (intent === "encourage") {
+      return `When you are ready — I'm ${name}, a calm study companion, not a person. One page on “${title}” is enough.`;
+    }
+    return `When you are ready — I'm ${name}, a calm study companion, not a person. Return to “${title}” without hurrying.`;
+  }
+
   if (intent === "break") {
     return `Hi — I'm ${name}, your study companion. A short break is part of the plan. Leave “${title}”, then come back when you are ready.`;
   }
@@ -144,5 +170,10 @@ export function repliesDifferByStyle(question: string, session?: SprintSession |
     prefs: { version: 1, name: "Ira", style: "teacher", character: "stone", onboarded: true },
     unfinished: session,
   }).text;
-  return buddy !== coach && coach !== teacher && buddy !== teacher;
+  const guide = companionReply({
+    question,
+    prefs: { version: 1, name: "Sora", style: "guide", character: "kite", onboarded: true },
+    unfinished: session,
+  }).text;
+  return buddy !== coach && coach !== teacher && buddy !== teacher && guide !== buddy && guide !== coach && guide !== teacher;
 }

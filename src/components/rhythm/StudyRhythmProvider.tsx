@@ -4,11 +4,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   applyThemeToDocument,
   readRhythmPrefs,
+  RHYTHM_CHANGED_EVENT,
   writeRhythmPrefs,
 } from "@/lib/rhythm/persist";
 import { suggestRhythm, type RhythmSuggestion } from "@/lib/rhythm/suggest";
 import { DEFAULT_RHYTHM_PREFS, type StudyRhythmPrefs } from "@/lib/rhythm/types";
 import { fetchSignedInUser } from "@/lib/supabase/session";
+import { readUniversePrefs } from "@/lib/universe";
 import { StudyRhythmContext, type StudyRhythmContextValue } from "./rhythm-context";
 import StudyRhythmSheet from "./StudyRhythmSheet";
 
@@ -36,18 +38,34 @@ export default function StudyRhythmProvider({ children }: { children: React.Reac
     applyThemeToDocument(next.themeId);
     const timer = window.setTimeout(() => {
       void fetchSignedInUser()
-        .then((user) => setSuggestion(suggestRhythm(user?.userId ?? null)))
+        .then((user) => {
+          const userId = user?.userId ?? null;
+          setSuggestion(suggestRhythm(userId));
+          const universe = readUniversePrefs(userId);
+          if (!universe.activated && !universe.skipped) return;
+          const themeId = universe.activated ? universe.themeId : "classic";
+          const next = writeRhythmPrefs({ ...readRhythmPrefs(), themeId });
+          setPrefs(next);
+          applyThemeToDocument(themeId);
+        })
         .catch(() => setSuggestion(suggestRhythm(null)));
     }, 0);
     window.__oryzenSetRhythmOpen = setSheetOpen;
     const onOpen = () => setSheetOpen(true);
     const onClose = () => setSheetOpen(false);
+    const onRhythmChanged = () => {
+      const stored = readRhythmPrefs();
+      setPrefs(stored);
+      applyThemeToDocument(stored.themeId);
+    };
     window.addEventListener("oryzen-open-rhythm", onOpen);
     window.addEventListener("oryzen-close-rhythm", onClose);
+    window.addEventListener(RHYTHM_CHANGED_EVENT, onRhythmChanged);
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("oryzen-open-rhythm", onOpen);
       window.removeEventListener("oryzen-close-rhythm", onClose);
+      window.removeEventListener(RHYTHM_CHANGED_EVENT, onRhythmChanged);
     };
   }, []);
 

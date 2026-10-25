@@ -12,6 +12,7 @@ import {
   Map,
   MessageCircle,
   PenLine,
+  Sparkles,
   Timer,
 } from "lucide-react";
 import AccountMenu from "@/components/auth/AccountMenu";
@@ -28,6 +29,13 @@ import {
 import { fetchSignedInUser } from "@/lib/supabase/session";
 
 const TOOLS = [
+  {
+    href: "/universe",
+    title: "My Study Universe",
+    description:
+      "Preview a coordinated theme, rhythm, companions, and today's plan — or keep a plain reader.",
+    icon: Sparkles,
+  },
   {
     href: "/sprint",
     title: "StudySprint",
@@ -172,7 +180,9 @@ export default function StudyHubPage() {
                       ? "hub-sprint-link"
                       : tool.href === "/companion"
                         ? "hub-companion-link"
-                        : undefined
+                        : tool.href === "/universe"
+                          ? "hub-universe-link"
+                          : undefined
                 }
                 className={`${ui.card} flex min-h-[180px] flex-col transition-colors hover:bg-beige-2`}
               >

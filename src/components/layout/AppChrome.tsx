@@ -3,15 +3,16 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Archive, BookOpen, House, PenLine, UserRound } from "lucide-react";
+import { Archive, BookOpen, House, PenLine, Sparkles, UserRound } from "lucide-react";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
 import OwnerDemoBanner from "@/components/demo/OwnerDemoBanner";
 
 const APP_LINKS = [
-  { href: "/hub", label: "Learning Space", icon: House },
+  { href: "/hub", label: "Learning Space", mobileLabel: "Home", icon: House },
+  { href: "/universe", label: "Universe", icon: Sparkles },
   { href: "/reader", label: "Read", icon: BookOpen },
   { href: "/vaults", label: "Library", icon: Archive },
-  { href: "/notes", label: "Notebook", icon: PenLine },
+  { href: "/notes", label: "Notebook", mobileLabel: "Notes", icon: PenLine },
   { href: "/auth?form=1", label: "Account", icon: UserRound, match: "/auth" },
 ] as const;
 
@@ -46,7 +47,7 @@ export default function AppChrome({
           <OryzenLearnBrand subtitle={subtitle} />
           {showAppNav ? (
             <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
-              {APP_LINKS.slice(0, 4).map((link) => (
+              {APP_LINKS.filter((link) => link.href !== "/auth?form=1").map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -71,20 +72,21 @@ export default function AppChrome({
           aria-label="Primary"
           className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur-md md:hidden pb-[env(safe-area-inset-bottom)]"
         >
-          <ul className="grid grid-cols-5">
+          <ul className="grid grid-cols-6">
             {APP_LINKS.map((link) => {
               const Icon = link.icon;
               const active = isActive(pathname, link.href, "match" in link ? link.match : undefined);
+              const mobileLabel = "mobileLabel" in link ? link.mobileLabel : link.label;
               return (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] ${
+                    className={`flex min-h-14 flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] leading-tight ${
                       active ? "text-heading" : "text-muted"
                     }`}
                   >
                     <Icon className="h-5 w-5" aria-hidden="true" />
-                    {link.label}
+                    {mobileLabel}
                   </Link>
                 </li>
               );

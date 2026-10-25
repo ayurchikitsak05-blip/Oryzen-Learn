@@ -46,10 +46,13 @@ export function readRhythmPrefs(): StudyRhythmPrefs {
   }
 }
 
+export const RHYTHM_CHANGED_EVENT = "oryzen-rhythm-changed";
+
 export function writeRhythmPrefs(prefs: StudyRhythmPrefs): StudyRhythmPrefs {
   const next = sanitizeRhythmPrefs(prefs);
   if (typeof window !== "undefined") {
     window.localStorage.setItem(RHYTHM_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new Event(RHYTHM_CHANGED_EVENT));
   }
   return next;
 }

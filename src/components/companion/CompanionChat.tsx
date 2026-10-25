@@ -10,8 +10,10 @@ import {
   DEFAULT_COMPANION_PREFS,
   appendCompanionTurn,
   companionReply,
+  createCompanionMember,
   openingCompanionTurn,
   readCompanionStore,
+  switchCompanion,
   writeCompanionPrefs,
   writeCompanionStore,
   type CompanionPrefs,
@@ -23,6 +25,8 @@ const EMPTY_COMPANION_STORE: CompanionStore = {
   version: 1,
   prefs: { ...DEFAULT_COMPANION_PREFS },
   turns: [],
+  collection: [],
+  activeId: "",
 };
 
 export function CompanionChat({
@@ -35,6 +39,7 @@ export function CompanionChat({
   const [store, setStore] = useState<CompanionStore>(EMPTY_COMPANION_STORE);
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(true);
+  const [adding, setAdding] = useState(false);
   const [noteStatus, setNoteStatus] = useState("");
   const unfinished = useMemo(
     () => activeSession(readSprintStore(userId).sessions),
@@ -50,6 +55,12 @@ export function CompanionChat({
   }, [userId]);
 
   const savePrefs = (prefs: CompanionPrefs) => {
+    if (adding) {
+      setStore(createCompanionMember(prefs, userId));
+      setAdding(false);
+      setEditing(false);
+      return;
+    }
     const previous = store.prefs;
     const voiceChanged =
       previous.onboarded &&
@@ -91,7 +102,11 @@ export function CompanionChat({
   if (editing) {
     return (
       <CompanionSetup
-        initial={store.prefs}
+        initial={
+          adding
+            ? { ...DEFAULT_COMPANION_PREFS, name: "", onboarded: true }
+            : store.prefs
+        }
         fromOnboarding={fromOnboarding}
         onSave={savePrefs}
       />
@@ -111,11 +126,40 @@ export function CompanionChat({
           type="button"
           data-testid="companion-edit"
           className={`${ui.ghost} ml-auto text-xs`}
-          onClick={() => setEditing(true)}
+          onClick={() => {
+            setAdding(false);
+            setEditing(true);
+          }}
         >
           Change
         </button>
+        <button
+          type="button"
+          data-testid="companion-add"
+          className={`${ui.ghost} text-xs`}
+          onClick={() => {
+            setAdding(true);
+            setEditing(true);
+          }}
+        >
+          Add another
+        </button>
       </div>
+      {store.collection.length > 1 ? (
+        <div data-testid="companion-collection" className="flex flex-wrap gap-2">
+          {store.collection.map((member) => (
+            <button
+              key={member.id}
+              type="button"
+              data-testid={`companion-switch-${member.id}`}
+              className={member.id === store.activeId ? ui.secondary : ui.ghost}
+              onClick={() => setStore(switchCompanion(member.id, userId))}
+            >
+              {member.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <p data-testid="companion-mock-notice" className={ui.notice}>
         {COMPANION_MOCK_NOTICE}
       </p>

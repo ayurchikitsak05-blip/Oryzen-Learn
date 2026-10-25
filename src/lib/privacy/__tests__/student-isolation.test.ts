@@ -21,6 +21,7 @@ import { DEFAULT_COMPANION_PREFS } from "@/lib/companion/types";
 import { writeQuizProgress, readQuizProgress } from "@/lib/reader/quiz-progress";
 import { readSprintStore, writeSprintStore } from "@/lib/sprint/persist";
 import { UNCLAIMED_STUDENT_DATA_KEYS } from "@/lib/reader/local-scope";
+import { applyUniversePreset, readUniversePrefs, universeStorageKey } from "@/lib/universe";
 
 const passage = {
   documentId: "doc-1",
@@ -111,6 +112,10 @@ describe("student data isolation", () => {
     expect(listSprintNotes("user-b")).toEqual([]);
     expect(readQuizProgress("doc-1", 2, "current", "user-b")).toBeNull();
     expect(savedPassagesStorageKey("user-a")).not.toBe(savedPassagesStorageKey("user-b"));
+    applyUniversePreset("vata", "user-a");
+    expect(readUniversePrefs("user-a").activated).toBe(true);
+    expect(readUniversePrefs("user-b").activated).toBe(false);
+    expect(universeStorageKey("user-a")).not.toBe(universeStorageKey("user-b"));
     expect(UNCLAIMED_STUDENT_DATA_KEYS).toContain(SAVED_PASSAGE_STORAGE_KEY);
     expect(UNCLAIMED_STUDENT_DATA_KEYS).toContain(LOCAL_PRAKRITI_STORAGE_KEY);
   });

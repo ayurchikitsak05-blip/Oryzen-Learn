@@ -1,5 +1,5 @@
 export const COMPANION_STORAGE_KEY = "oryzen_study_companion_v1";
-export const COMPANION_STYLES = ["buddy", "coach", "teacher"] as const;
+export const COMPANION_STYLES = ["buddy", "coach", "teacher", "guide"] as const;
 export const COMPANION_CHARACTERS = ["leaf", "lamp", "stone", "kite"] as const;
 
 export type CompanionStyle = (typeof COMPANION_STYLES)[number];
@@ -21,10 +21,19 @@ export interface CompanionTurn {
   createdAt: string;
 }
 
+export interface CompanionMember {
+  id: string;
+  name: string;
+  style: CompanionStyle;
+  character: CompanionCharacter;
+}
+
 export interface CompanionStore {
   version: 1;
   prefs: CompanionPrefs;
   turns: CompanionTurn[];
+  collection: CompanionMember[];
+  activeId: string;
 }
 
 export const DEFAULT_COMPANION_PREFS: CompanionPrefs = {
@@ -37,18 +46,29 @@ export const DEFAULT_COMPANION_PREFS: CompanionPrefs = {
 
 export const STYLE_COPY: Record<CompanionStyle, { label: string; hint: string }> = {
   buddy: {
-    label: "Buddy",
+    label: "Friendly Buddy",
     hint: "Warm, informal, and beside you while you work.",
   },
   coach: {
-    label: "Coach",
+    label: "Motivational Coach",
     hint: "Brief prompts, one next step, and a check on the clock.",
   },
   teacher: {
-    label: "Teacher",
+    label: "Structured Teacher",
     hint: "Clearer explanations, a question to check understanding, then the next task.",
   },
+  guide: {
+    label: "Calm Guide",
+    hint: "Unhurried, plain language, and space to pause.",
+  },
 };
+
+export const STARTER_COMPANIONS: CompanionMember[] = [
+  { id: "buddy", name: "Nia", style: "buddy", character: "leaf" },
+  { id: "teacher", name: "Ira", style: "teacher", character: "stone" },
+  { id: "coach", name: "Kai", style: "coach", character: "lamp" },
+  { id: "guide", name: "Sora", style: "guide", character: "kite" },
+];
 
 export const CHARACTER_COPY: Record<
   CompanionCharacter,

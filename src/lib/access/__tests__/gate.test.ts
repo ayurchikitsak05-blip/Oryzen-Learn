@@ -199,6 +199,14 @@ describe("access gate", () => {
     ).toBeNull();
     expect(
       decideAccessRedirect({
+        pathname: "/universe",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
         pathname: "/sprint",
         isAuthenticated: false,
         accessStatus: null,

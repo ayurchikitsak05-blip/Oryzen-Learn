@@ -225,7 +225,7 @@ export default function PrakritiOnboardingPage() {
       }
 
       setTimeout(() => {
-        router.push("/companion?from=onboarding");
+        router.push("/universe?from=onboarding");
       }, 600);
     } catch (err) {
       const msg =
@@ -312,7 +312,7 @@ export default function PrakritiOnboardingPage() {
             <Sliders className="h-4 w-4" />
             {inputMode === "questions" ? "Questions" : "Sliders"}
           </button>
-          <Link href="/companion?from=onboarding" className={ui.ghost}>
+          <Link href="/universe?from=onboarding" className={ui.ghost}>
             Skip personalization
           </Link>
           <Link href="/body-type" className={ui.ghost}>
@@ -333,7 +333,7 @@ export default function PrakritiOnboardingPage() {
             performance.
           </p>
           <p className="mt-3">
-            <Link href="/companion?from=onboarding" className={ui.secondary} data-testid="onboarding-skip">
+            <Link href="/universe?from=onboarding" className={ui.secondary} data-testid="onboarding-skip">
               Skip personalization
             </Link>
           </p>
@@ -666,7 +666,7 @@ export default function PrakritiOnboardingPage() {
                 className="btn-primary text-sm disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                {saving ? "Saving..." : "Continue"}
+                {saving ? "Saving..." : "Create My Study Universe"}
               </button>
             </div>
           </section>

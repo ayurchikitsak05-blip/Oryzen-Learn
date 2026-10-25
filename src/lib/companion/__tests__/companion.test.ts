@@ -3,6 +3,7 @@ import { createSprintSession } from "@/lib/sprint/engine";
 import { companionReply, COMPANION_MOCK_NOTICE, repliesDifferByStyle } from "../replies";
 import {
   companionStorageKey,
+  createCompanionMember,
   readCompanionStore,
   writeCompanionPrefs,
   writeCompanionStore,
@@ -43,6 +44,12 @@ describe("AI Study Companion", () => {
       unfinished,
     });
     expect(resume.text).toMatch(/Solve ax \+ b = 0|Resume/i);
+    const guide = companionReply({
+      question: "How do I explain this?",
+      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Sora", style: "guide", onboarded: true },
+      unfinished,
+    });
+    expect(guide.text).toMatch(/When you are ready|calm study companion/i);
     expect(repliesDifferByStyle("How do I explain this?", unfinished)).toBe(true);
     expect(teacher.text).toMatch(/in one sentence|First review/i);
     expect(coach.text).toMatch(/One clear next step/);
@@ -56,5 +63,10 @@ describe("AI Study Companion", () => {
     expect(readCompanionStore("user-b").prefs.style).toBe("teacher");
     expect(readCompanionStore("user-a").prefs.style).toBe("buddy");
     writeCompanionStore(readCompanionStore("user-a"), "user-a");
+    expect(readCompanionStore("user-a").collection.length).toBeGreaterThanOrEqual(1);
+    createCompanionMember({ name: "Luna", style: "guide", character: "kite" }, "user-a");
+    expect(readCompanionStore("user-a").prefs.name).toBe("Luna");
+    expect(readCompanionStore("user-a").collection.some((member) => member.name === "Luna")).toBe(true);
+    expect(readCompanionStore("user-b").collection.some((member) => member.name === "Luna")).toBe(false);
   });
 });
