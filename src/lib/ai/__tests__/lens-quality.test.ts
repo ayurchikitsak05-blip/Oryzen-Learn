@@ -130,10 +130,10 @@ describe("educational quality guards", () => {
           },
           mindMap: {
             nodes: [
-              { label: "Newton's first law" },
-              { label: "Constant velocity" },
+              { id: "law", label: "Newton's first law" },
+              { id: "motion", label: "An object keeps constant velocity" },
             ],
-            edges: [{ label: "states" }],
+            edges: [{ from: "law", to: "motion", label: "states" }],
           },
         },
       },
@@ -143,5 +143,101 @@ describe("educational quality guards", () => {
     expect(kept.illustrative?.mindMap?.nodes[0]?.label).toMatch(/first law/i);
     expect(kept.missingStructure).toContain("flowchart");
     expect(kept.missingStructure).not.toContain("illustrative");
+  });
+
+  it("rejects the live Newton arrows that invented a force or a diagram", () => {
+    const source =
+      "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law, and it is the reason a free-body diagram starts by asking what is actually pushing or pulling.";
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "velocity", label: "constant velocity" },
+            { id: "force", label: "net force" },
+            { id: "diagram", label: "free-body diagram" },
+          ],
+          edges: [
+            { from: "velocity", to: "force", label: "unless" },
+            { from: "force", to: "diagram", label: "becomes" },
+          ],
+        },
+        source
+      )
+    ).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "law", label: "Newton's first law" },
+            { id: "velocity", label: "constant velocity" },
+            { id: "force", label: "net force" },
+          ],
+          edges: [
+            { from: "law", to: "velocity", label: "equals" },
+            { from: "law", to: "force", label: "causes" },
+          ],
+        },
+        source
+      )
+    ).toBe(false);
+    const kept = retainGroundedDiagrams(
+      {
+        missingStructure: [],
+        illustrative: {
+          flowchart: {
+            nodes: [
+              { id: "velocity", label: "constant velocity" },
+              { id: "force", label: "net force" },
+              { id: "diagram", label: "free-body diagram" },
+            ],
+            edges: [
+              { from: "velocity", to: "force", label: "unless" },
+              { from: "force", to: "diagram", label: "becomes" },
+            ],
+          },
+          mindMap: {
+            nodes: [
+              { id: "law", label: "Newton's first law" },
+              { id: "velocity", label: "constant velocity" },
+            ],
+            edges: [{ from: "law", to: "velocity", label: "equals" }],
+          },
+        },
+      },
+      source
+    );
+    expect(kept.illustrative?.flowchart).toBeUndefined();
+    expect(kept.illustrative?.mindMap).toBeUndefined();
+    expect(kept.missingStructure).toContain("flowchart");
+    expect(kept.missingStructure).toContain("illustrative");
+  });
+
+  it("keeps a rectangle area identity and rejects an invented cause", () => {
+    const source =
+      "The area of a rectangle is length times width. If the length is 8 cm and the width is 5 cm, the area is 40 square centimetres.";
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "area", label: "Area of a rectangle" },
+            { id: "rule", label: "Length times width" },
+          ],
+          edges: [{ from: "area", to: "rule", label: "equals" }],
+        },
+        source
+      )
+    ).toBe(true);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "area", label: "Rectangle area" },
+            { id: "width", label: "Width of the rectangle" },
+          ],
+          edges: [{ from: "area", to: "width", label: "causes" }],
+        },
+        source
+      )
+    ).toBe(false);
   });
 });

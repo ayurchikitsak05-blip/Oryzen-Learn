@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   lookupDictionaryEntry,
   type DictionaryEntry,
   type DictionaryLookupStatus,
 } from "@/lib/reader/dictionary-lookup";
+import type { PdfTextRun } from "@/lib/reader/pdf-text-layer";
 
 export type ReaderMarkKind = "highlight" | "underline";
 
@@ -37,6 +38,7 @@ export interface PassageTextProps {
   text: string;
   marks: readonly ReaderTextMark[];
   overlay?: boolean;
+  placedLines?: readonly PdfTextRun[];
   onAddMark: (mark: Omit<ReaderTextMark, "id">) => void;
   onExplain: (selectedText: string) => void;
   onAddNote: (quote: string, note: string) => void;
@@ -198,6 +200,7 @@ export default function PassageText({
   text,
   marks,
   overlay = false,
+  placedLines,
   onAddMark,
   onExplain,
   onAddNote,
@@ -270,7 +273,80 @@ export default function PassageText({
     window.getSelection()?.removeAllRanges();
   };
 
-  const segments = buildSegments(text, chunkMarks);
+  const aligned = placedLines && placedLines.length > 0 ? placedLines : null;
+  const source = aligned ? aligned.map((line) => line.text).join(" ") : text;
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root || !aligned) return;
+    const nodes = root.querySelectorAll<HTMLElement>("[data-testid=pdf-text-run]");
+    nodes.forEach((node, index) => {
+      const run = aligned[index];
+      const measured = node.scrollWidth;
+      if (!run || measured <= 0 || run.width <= 0) return;
+      node.style.transform = `scaleX(${run.width / measured})`;
+      node.style.transformOrigin = "left top";
+    });
+  }, [aligned, source]);
+
+  const segments = buildSegments(source, chunkMarks);
+
+  const renderPieces = (segment: (typeof segments)[number]) => {
+    const wordPattern = /(\s+|\S+)/g;
+    const pieces = segment.text.match(wordPattern) ?? [segment.text];
+    let cursor = segment.start;
+    return pieces.map((piece) => {
+      const start = cursor;
+      cursor += piece.length;
+      if (/^\s+$/.test(piece)) {
+        return <span key={`${start}-space`}>{piece}</span>;
+      }
+      const lookupWord = piece.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "");
+      return (
+        <span
+          key={`${start}-${piece}`}
+          role="button"
+          tabIndex={0}
+          onClick={(event) => {
+            const current = window.getSelection();
+            if (current && !current.isCollapsed) return;
+            if (!lookupWord) return;
+            event.stopPropagation();
+            const rect = event.currentTarget.getBoundingClientRect();
+            setToolbar(null);
+            setLookup({
+              word: lookupWord,
+              top: rect.top,
+              left: rect.left,
+            });
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || !lookupWord) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            setLookup({
+              word: lookupWord,
+              top: rect.top,
+              left: rect.left,
+            });
+          }}
+          className="cursor-pointer rounded-sm hover:bg-beige-2"
+        >
+          {piece}
+        </span>
+      );
+    });
+  };
+
+  const renderSegment = (segment: (typeof segments)[number]) => (
+    <span
+      key={`${segment.start}-${segment.end}`}
+      className={`${segment.highlight ? "rounded-sm bg-selected text-heading" : ""} ${segment.underline ? "underline decoration-accent decoration-2 underline-offset-4" : ""}`}
+    >
+      {renderPieces(segment)}
+    </span>
+  );
+
+  let lineCursor = 0;
 
   return (
     <>
@@ -282,63 +358,58 @@ export default function PassageText({
           handleMouseUp();
         }}
         className={
-          overlay
-            ? "font-reading-family h-full w-full text-[11px] leading-tight text-transparent selection:bg-selected selection:text-heading"
-            : "text-sm leading-relaxed"
+          aligned
+            ? "relative h-full w-full font-sans text-transparent selection:bg-selected selection:text-heading"
+            : overlay
+              ? "font-reading-family h-full w-full text-[11px] leading-tight text-transparent selection:bg-selected selection:text-heading"
+              : "text-sm leading-relaxed"
         }
       >
-        {segments.map((segment) => {
-          const wordPattern = /(\s+|\S+)/g;
-          const pieces = segment.text.match(wordPattern) ?? [segment.text];
-          let cursor = segment.start;
-          return (
-            <span
-              key={`${segment.start}-${segment.end}`}
-              className={`${segment.highlight ? "rounded-sm bg-selected text-heading" : ""} ${segment.underline ? "underline decoration-accent decoration-2 underline-offset-4" : ""}`}
-            >
-              {pieces.map((piece) => {
-                const start = cursor;
-                cursor += piece.length;
-                if (/^\s+$/.test(piece)) {
-                  return <span key={`${start}-space`}>{piece}</span>;
-                }
-                const lookupWord = piece.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "");
-                return (
-                  <span
-                    key={`${start}-${piece}`}
-                    role="button"
-                    tabIndex={0}
-                    onClick={(event) => {
-                      const current = window.getSelection();
-                      if (current && !current.isCollapsed) return;
-                      if (!lookupWord) return;
-                      event.stopPropagation();
-                      const rect = event.currentTarget.getBoundingClientRect();
-                      setToolbar(null);
-                      setLookup({
-                        word: lookupWord,
-                        top: rect.top,
-                        left: rect.left,
-                      });
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" || !lookupWord) return;
-                      const rect = event.currentTarget.getBoundingClientRect();
-                      setLookup({
-                        word: lookupWord,
-                        top: rect.top,
-                        left: rect.left,
-                      });
-                    }}
-                    className="cursor-pointer rounded-sm hover:bg-beige-2"
-                  >
-                    {piece}
+        {aligned
+          ? aligned.map((line, index) => {
+              const lineStart = lineCursor;
+              lineCursor += line.text.length;
+              const lineEnd = lineCursor;
+              const lineSegments = segments.flatMap((segment) => {
+                const start = Math.max(segment.start, lineStart);
+                const end = Math.min(segment.end, lineEnd);
+                if (end <= start) return [];
+                return [
+                  {
+                    ...segment,
+                    start,
+                    end,
+                    text: source.slice(start, end),
+                  },
+                ];
+              });
+              const spacer =
+                index < aligned.length - 1 ? (
+                  <span key={`${line.left}-gap`} className="absolute overflow-hidden">
+                    {" "}
                   </span>
-                );
-              })}
-            </span>
-          );
-        })}
+                ) : null;
+              if (index < aligned.length - 1) lineCursor += 1;
+              return (
+                <React.Fragment key={`${line.left}-${line.top}-${index}`}>
+                  <span
+                    data-testid="pdf-text-run"
+                    className="absolute whitespace-pre"
+                    style={{
+                      left: line.left,
+                      top: line.top,
+                      fontSize: line.fontSize,
+                      lineHeight: 1,
+                      fontFamily: "Helvetica, Arial, sans-serif",
+                    }}
+                  >
+                    {lineSegments.map(renderSegment)}
+                  </span>
+                  {spacer}
+                </React.Fragment>
+              );
+            })
+          : segments.map(renderSegment)}
       </div>
 
       {toolbar && !overlay && (

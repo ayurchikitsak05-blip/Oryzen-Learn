@@ -751,6 +751,10 @@ export async function executeControlledAiGateway(
   });
 
   if (cached) {
+    const payload =
+      request.lensType === "illustrative"
+        ? retainGroundedDiagrams(cached.response_payload, request.selectedText)
+        : cached.response_payload;
     return finishGatewayResult({
       request,
       billingMonth,
@@ -785,7 +789,7 @@ export async function executeControlledAiGateway(
       providerErrorClass: cached.response_payload.used_fallback
         ? "missing_key"
         : null,
-      payload: cached.response_payload,
+      payload,
     });
   }
 
@@ -814,7 +818,7 @@ export async function executeControlledAiGateway(
       ? `Fill revision.quickSummary, revision.keyPoints, revision.revisionTable with at least two topic/remember rows, and revision.memoryAid. Each row must be a complete teaching point from the passage.`
       : "",
     request.lensType === "illustrative"
-      ? `Fill illustrative.flowchart, illustrative.mindMap, and illustrative.conceptDiagram with nodes and edges. A flowchart needs three to five phrase labels in cause or step order, and every edge needs a relationship such as causes, unless, equals, next, or becomes. A concept map needs one central phrase from the passage and at least two connected phrases. Do not return single keywords, an empty node list, or a paragraph in place of a diagram. Every label must restate a relationship that is actually in the excerpt. Put invented scenes only in illustrative.analogy, and call that analogy a teaching example rather than a fact from the textbook.`
+      ? `Fill illustrative.flowchart, illustrative.mindMap, and illustrative.conceptDiagram only with relationships the selected passage states. Each node is a short phrase of at least two words, not a single keyword. Use unless only for an exception the sentence states. Use equals only when the page states an identity or formula, such as area is length times width. Do not use becomes unless the passage says one thing turns into the other. A force does not become a diagram. A law does not cause or equal a force. If you cannot name a relationship the passage supports, return an empty edges array instead of inventing one. Put invented scenes only in illustrative.analogy, and call that analogy a teaching example rather than a fact from the textbook.`
       : "",
     `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
     `Return JSON matching the study lens schema. Diagrams must use nodes and edges, not mermaid or arrow prose.`,

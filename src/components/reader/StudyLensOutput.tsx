@@ -199,7 +199,7 @@ function IllustrateOutput({
     return (
       <div data-testid="ai-partial-structure" className="font-reading space-y-3">
         <p className="text-sm font-medium text-muted">
-          The model did not return a flowchart or concept map. Showing its written answer.
+          No trustworthy flowchart or concept map is available for this passage. The written explanation is below.
         </p>
         {bundle?.analogy ? (
           <div data-testid="study-analogy" className="space-y-2 text-sm leading-relaxed text-ink">
@@ -221,7 +221,7 @@ function IllustrateOutput({
       {!flowchart ? (
         <div className="space-y-2">
           <p data-testid="diagram-fallback-note" className="text-sm text-muted">
-            The model did not return a flowchart. Showing the diagram it did return.
+            No trustworthy flowchart is available. Showing the diagram that matches the passage.
           </p>
           <RetryStudyButton onRetry={retry} />
         </div>

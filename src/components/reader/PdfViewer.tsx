@@ -268,7 +268,11 @@ export default function PdfViewer({
             height: visual.height,
           }
         : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-      const next = visibleViewerBox(rect, frame);
+      const visible = visibleViewerBox(rect, frame);
+      const next = {
+        width: Math.min(visible.width, host.clientWidth || visible.width),
+        height: Math.min(visible.height, host.clientHeight || visible.height),
+      };
       setViewportBox((current) =>
         Math.abs(current.width - next.width) < 0.5 && Math.abs(current.height - next.height) < 0.5
           ? current
@@ -1357,12 +1361,14 @@ export default function PdfViewer({
         >
           <div
             data-testid="pdf-page-stage"
-            className={`flex min-h-full w-full p-1 ${
+            className={`flex min-h-full min-w-full w-max p-1 ${
               pageGeometry && pageGeometry.height * zoomScale > Math.max(0, viewportBox.height - FIT_PAGE_PADDING)
                 ? "items-start"
                 : "items-center"
             } ${
-              pageGeometry && pageGeometry.width * zoomScale > Math.max(0, viewportBox.width - FIT_WIDTH_PADDING)
+              fitMode === "width" ||
+              (pageGeometry &&
+                pageGeometry.width * zoomScale > Math.max(0, viewportBox.width - FIT_WIDTH_PADDING))
                 ? "justify-start"
                 : "justify-center"
             }`}

@@ -92,8 +92,8 @@ const SOURCE_STOP_WORDS = new Set([
 ]);
 
 type DiagramShape = {
-  nodes: ReadonlyArray<{ label: string }>;
-  edges: ReadonlyArray<{ label?: string }>;
+  nodes: ReadonlyArray<{ id?: string; label: string }>;
+  edges: ReadonlyArray<{ from?: string; to?: string; label?: string }>;
 };
 
 export function isMeaningfulStudyDiagram(diagram: DiagramShape): boolean {
@@ -116,22 +116,141 @@ function sourceContentWords(source: string): string[] {
   );
 }
 
-export function diagramExplainsSource(diagram: DiagramShape, source: string): boolean {
-  if (!isMeaningfulStudyDiagram(diagram)) return false;
-  const words = sourceContentWords(source);
-  if (words.length === 0) return false;
-  const labels = diagram.nodes.map((node) => node.label.toLowerCase()).join(" ");
-  for (let index = 0; index < words.length - 1; index += 1) {
-    const phrase = `${words[index]} ${words[index + 1]}`;
-    if (phrase.length >= 8 && labels.includes(phrase)) return true;
+type RelatedDiagram = DiagramShape & {
+  nodes: ReadonlyArray<{ id?: string; label: string }>;
+  edges: ReadonlyArray<{ from?: string; to?: string; label?: string }>;
+};
+
+function passageSentences(source: string): string[] {
+  const parts = source
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : [source.trim()];
+}
+
+function labelWords(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []).filter(
+    (word) => !SOURCE_STOP_WORDS.has(word)
+  );
+}
+
+function sentenceMentions(sentence: string, label: string): boolean {
+  const haystack = sentence.toLowerCase();
+  return labelWords(label).some((word) => haystack.includes(word));
+}
+
+function mentionsForce(label: string): boolean {
+  return /\bforces?\b/i.test(label);
+}
+
+function mentionsDiagram(label: string): boolean {
+  return /\bdiagram\b/i.test(label);
+}
+
+function mentionsLaw(label: string): boolean {
+  return /\blaws?\b/i.test(label);
+}
+
+function mentionsMotion(label: string): boolean {
+  return /\b(velocity|motion|speed)\b/i.test(label);
+}
+
+/**
+ * An arrow is kept only when one sentence in the passage supports that kind of
+ * relationship. This is a passage check, not a proof of scientific truth.
+ */
+export function edgeRelationIsSupported(
+  fromLabel: string,
+  toLabel: string,
+  edgeLabel: string,
+  source: string
+): boolean {
+  const relation = edgeLabel.trim().toLowerCase();
+  if (!fromLabel.trim() || !toLabel.trim() || relation.length < 2) return false;
+  const forceAndDiagram =
+    (mentionsForce(fromLabel) && mentionsDiagram(toLabel)) ||
+    (mentionsForce(toLabel) && mentionsDiagram(fromLabel));
+  const lawAndForce =
+    (mentionsLaw(fromLabel) && mentionsForce(toLabel)) ||
+    (mentionsLaw(toLabel) && mentionsForce(fromLabel));
+  const lawAndMotion =
+    (mentionsLaw(fromLabel) && mentionsMotion(toLabel)) ||
+    (mentionsLaw(toLabel) && mentionsMotion(fromLabel));
+  const sentences = passageSentences(source);
+  const linked = (pattern: RegExp) =>
+    sentences.some(
+      (sentence) =>
+        pattern.test(sentence) &&
+        sentenceMentions(sentence, fromLabel) &&
+        sentenceMentions(sentence, toLabel)
+    );
+
+  if (/^(becomes|become|turns into|transforms into)$/.test(relation)) {
+    if (forceAndDiagram) return false;
+    return linked(/\b(becomes|become|turns into|changes into)\b/i);
   }
-  const hits = new Set(words.filter((word) => labels.includes(word)));
-  return hits.size >= 2;
+  if (/^(equals|equal|equal to|=)$/.test(relation)) {
+    if (lawAndForce || lawAndMotion) return false;
+    return linked(/(\bequals\b|\bis\b|\bare\b|=)/i);
+  }
+  if (/^(causes|cause|creates|produces)$/.test(relation)) {
+    if (lawAndForce) return false;
+    return linked(/\b(causes|cause|creates|produces|leads to|results in)\b/i);
+  }
+  if (relation === "unless") return linked(/\bunless\b/i);
+  if (/^(next|then)$/.test(relation)) return linked(/\b(next|then)\b/i);
+  if (/^(states|means|describes|includes)$/.test(relation)) {
+    if (toLabel.trim().split(/\s+/).length < 4) return false;
+    const haystack = source.toLowerCase();
+    return (
+      labelWords(fromLabel).some((word) => haystack.includes(word)) &&
+      labelWords(toLabel).some((word) => haystack.includes(word))
+    );
+  }
+  const relationWords = labelWords(relation);
+  if (relationWords.length === 0) return false;
+  return sentences.some((sentence) => {
+    const haystack = sentence.toLowerCase();
+    return (
+      relationWords.every((word) => haystack.includes(word)) &&
+      sentenceMentions(sentence, fromLabel) &&
+      sentenceMentions(sentence, toLabel)
+    );
+  });
+}
+
+export function diagramRelationsAreSupported(diagram: RelatedDiagram, source: string): boolean {
+  if (!isMeaningfulStudyDiagram(diagram) || !source.trim()) return false;
+  const byId = new Map(diagram.nodes.map((node) => [node.id ?? "", node.label]));
+  const haystack = source.toLowerCase();
+  for (const node of diagram.nodes) {
+    const words = node.label.trim().split(/\s+/).filter(Boolean);
+    if (words.length < 2 && !/\d/.test(node.label)) return false;
+    if (!labelWords(node.label).some((word) => haystack.includes(word))) return false;
+  }
+  return diagram.edges.every((edge, index) => {
+    const from =
+      (edge.from ? byId.get(edge.from) : undefined) ??
+      diagram.nodes[index]?.label ??
+      diagram.nodes[0]?.label ??
+      "";
+    const to =
+      (edge.to ? byId.get(edge.to) : undefined) ??
+      diagram.nodes[index + 1]?.label ??
+      diagram.nodes[1]?.label ??
+      "";
+    return edgeRelationIsSupported(from, to, edge.label ?? "", source);
+  });
+}
+
+export function diagramExplainsSource(diagram: DiagramShape, source: string): boolean {
+  return diagramRelationsAreSupported(diagram, source);
 }
 
 type GroundedDiagram = {
-  nodes: Array<{ label: string }>;
-  edges: Array<{ label?: string }>;
+  nodes: Array<{ id?: string; label: string }>;
+  edges: Array<{ from?: string; to?: string; label?: string }>;
 };
 
 export function retainGroundedDiagrams<

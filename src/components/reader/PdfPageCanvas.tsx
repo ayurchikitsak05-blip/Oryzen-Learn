@@ -3,6 +3,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ensurePdfWorkerConfigured } from "@/lib/reader/pdf-worker";
 import { withTimeout, type PageGeometry } from "@/lib/reader/fit";
+import {
+  runsForPassage,
+  runsFromTextItems,
+  type PdfTextRun,
+  type RawPdfTextItem,
+} from "@/lib/reader/pdf-text-layer";
 import type { CitationReadyChunk } from "@/lib/reader/extractor";
 import type { PrakritiThemePalette } from "@/lib/prakriti/config";
 import PassageText, {
@@ -52,6 +58,10 @@ export function PdfPageCanvas({
   const [renderStatus, setRenderStatus] = useState<"rendering" | "ready" | "fallback">(
     "rendering"
   );
+  const [textRuns, setTextRuns] = useState<PdfTextRun[]>([]);
+  const pageChunksRef = useRef(pageChunks);
+  pageChunksRef.current = pageChunks;
+  const passageKey = pageChunks.map((chunk) => chunk.text).join("\n");
 
   useEffect(() => {
     let cancelled = false;
@@ -90,8 +100,27 @@ export function PdfPageCanvas({
         }
         if (!cancelled) {
           const geometry = { width: base.width, height: base.height };
+          let runs: PdfTextRun[] = [];
+          try {
+            const textContent = await page.getTextContent();
+            const items: RawPdfTextItem[] = [];
+            for (const item of textContent.items) {
+              if (!("str" in item) || !item.str?.trim()) continue;
+              items.push({
+                str: item.str,
+                width: item.width,
+                height: item.height,
+                transform: item.transform,
+              });
+            }
+            const passage = pageChunksRef.current.map((chunk) => chunk.text).join(" ");
+            runs = runsForPassage(runsFromTextItems(items, base.transform), passage);
+          } catch {
+            runs = [];
+          }
           setBaseSize(geometry);
           setRenderSize({ width: viewport.width, height: viewport.height });
+          setTextRuns(runs);
           onPageGeometry(pageNumber, geometry);
           setRenderStatus("ready");
         }
@@ -108,12 +137,12 @@ export function PdfPageCanvas({
           ctx.fillRect(0, 0, width, height);
           ctx.fillStyle = "#20242b";
           ctx.font = `500 ${Math.round(16 * zoomScale)}px Inter, sans-serif`;
-          const heading = pageChunks[0]?.section_heading ?? `Page ${pageNumber}`;
+          const heading = pageChunksRef.current[0]?.section_heading ?? `Page ${pageNumber}`;
           ctx.fillText(heading.slice(0, 48), 32, Math.round(52 * zoomScale));
           ctx.fillStyle = "#303640";
           ctx.font = `${Math.round(13 * zoomScale)}px Inter, sans-serif`;
           let cursorY = Math.round(90 * zoomScale);
-          for (const chunk of pageChunks) {
+          for (const chunk of pageChunksRef.current) {
             const words = chunk.text.split(/\s+/);
             let line = "";
             for (const word of words) {
@@ -134,6 +163,7 @@ export function PdfPageCanvas({
         const geometry = { width: 612, height: 792 };
         setBaseSize(geometry);
         setRenderSize({ width, height });
+        setTextRuns([]);
         onPageGeometry(pageNumber, geometry);
         setRenderStatus("fallback");
       }
@@ -143,7 +173,7 @@ export function PdfPageCanvas({
     return () => {
       cancelled = true;
     };
-  }, [pageNumber, zoomScale, pdfBytes, pageChunks, onPageGeometry]);
+  }, [pageNumber, zoomScale, pdfBytes, passageKey, onPageGeometry]);
 
   return (
     <div
@@ -184,6 +214,7 @@ export function PdfPageCanvas({
         <div
           className="absolute left-0 top-0 overflow-hidden"
           data-testid="pdf-text-layer"
+          data-align={textRuns.length > 0 ? "glyphs" : "flow"}
           style={{
             width: baseSize.width,
             height: baseSize.height,
@@ -191,12 +222,13 @@ export function PdfPageCanvas({
             transformOrigin: "top left",
           }}
         >
-          <div className="h-full w-full px-[8%] py-[10%]">
+          <div className={textRuns.length > 0 ? "h-full w-full" : "h-full w-full px-[8%] py-[10%]"}>
           <PassageText
             chunkId={pageChunks[0].chunk_id}
             text={pageChunks.map((chunk) => chunk.text).join(" ")}
             marks={marks}
             overlay
+            placedLines={textRuns}
             onAddMark={onAddMark}
             onExplain={(selectedText) =>
               onSelection(resolveChunk(pageChunks, selectedText), {

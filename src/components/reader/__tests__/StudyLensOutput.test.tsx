@@ -92,7 +92,7 @@ describe("student study screens", () => {
         })}
       />
     );
-    expect(view.getByTestId("ai-partial-structure").textContent).toMatch(/did not return a flowchart/i);
+    expect(view.getByTestId("ai-partial-structure").textContent).toMatch(/no trustworthy flowchart/i);
     expect(view.getByTestId("ai-partial-structure").textContent).toMatch(/hockey puck/i);
     expect(view.getByTestId("ai-partial-structure").textContent).not.toMatch(
       /keeps going the same way/i
@@ -205,7 +205,7 @@ describe("student study screens", () => {
     expect(view.getByTestId("study-mind-map").textContent).toMatch(/40 square centimetres/);
     expect(view.getByTestId("study-mind-map").textContent).toMatch(/defined as/);
     expect(view.queryByTestId("study-flowchart")).toBeNull();
-    expect(view.getByTestId("diagram-fallback-note").textContent).toMatch(/did not return a flowchart/i);
+    expect(view.getByTestId("diagram-fallback-note").textContent).toMatch(/no trustworthy flowchart/i);
     fireEvent.click(view.getByTestId("diagram-retry"));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
