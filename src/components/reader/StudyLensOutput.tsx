@@ -23,17 +23,35 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h4 className="font-reading text-heading">{children}</h4>;
 }
 
+function RetryStudyButton({ onRetry }: { onRetry?: () => void }) {
+  if (!onRetry) return null;
+  return (
+    <button
+      type="button"
+      data-testid="diagram-retry"
+      onClick={onRetry}
+      className="btn-primary text-xs"
+    >
+      Try again
+    </button>
+  );
+}
+
 function PartialModelAnswer({
   result,
   message,
+  onRetry,
 }: {
   result: AiGatewayExecutionResult;
   message: string;
+  onRetry?: () => void;
 }) {
+  const retry = result.usedDeterministicFallback ? undefined : onRetry;
   return (
     <div data-testid="ai-partial-structure" className="font-reading space-y-3">
-      <p className="text-xs font-medium text-muted">{message}</p>
+      <p className="text-sm font-medium text-muted">{message}</p>
       <StudyMarkdown markdown={result.payload.markdown_body} />
+      <RetryStudyButton onRetry={retry} />
     </div>
   );
 }
@@ -125,6 +143,10 @@ function StoryOutput({ result }: { result: AiGatewayExecutionResult }) {
   }
   return (
     <div data-testid="story-output" className="font-reading space-y-4">
+      <p data-testid="story-teaching-note" className="text-sm leading-relaxed text-muted">
+        Teaching example. The people and events below are invented to explain the page.
+        They are not facts from the textbook.
+      </p>
       <section>
         <SectionTitle>Opening</SectionTitle>
         <p className="mt-2 text-sm leading-relaxed text-ink">{story.opening}</p>
@@ -141,21 +163,69 @@ function StoryOutput({ result }: { result: AiGatewayExecutionResult }) {
   );
 }
 
-function IllustrateOutput({ result }: { result: AiGatewayExecutionResult }) {
+function preferredDiagramTab(
+  flowchart: boolean,
+  mindMap: boolean,
+  conceptDiagram: boolean,
+  analogy: boolean
+): IllustrativeTab {
+  if (flowchart) return "flowchart";
+  if (mindMap) return "mind_map";
+  if (conceptDiagram) return "concept_diagram";
+  if (analogy) return "analogy";
+  return "flowchart";
+}
+
+function IllustrateOutput({
+  result,
+  onRetry,
+}: {
+  result: AiGatewayExecutionResult;
+  onRetry?: () => void;
+}) {
   const bundle = result.payload.illustrative;
-  const [tab, setTab] = useState<IllustrativeTab>("flowchart");
   const flowchart = bundle?.flowchart ?? result.payload.diagram;
   const hasDiagram = Boolean(flowchart || bundle?.mindMap || bundle?.conceptDiagram);
+  const preferred = preferredDiagramTab(
+    Boolean(flowchart),
+    Boolean(bundle?.mindMap),
+    Boolean(bundle?.conceptDiagram),
+    Boolean(bundle?.analogy)
+  );
+  const [chosen, setChosen] = useState<IllustrativeTab | null>(null);
+  const tab = chosen ?? preferred;
+  const retry = result.usedDeterministicFallback ? undefined : onRetry;
   if (!hasDiagram) {
     return (
-      <PartialModelAnswer
-        result={result}
-        message="The model did not return a flowchart or concept map. Showing its written answer."
-      />
+      <div data-testid="ai-partial-structure" className="font-reading space-y-3">
+        <p className="text-sm font-medium text-muted">
+          The model did not return a flowchart or concept map. Showing its written answer.
+        </p>
+        {bundle?.analogy ? (
+          <div data-testid="study-analogy" className="space-y-2 text-sm leading-relaxed text-ink">
+            <p className="text-muted">
+              Teaching analogy. This scene is not a quotation from the page.
+            </p>
+            <p>{bundle.analogy.setup}</p>
+            <p>{bundle.analogy.mapping}</p>
+            <p>{bundle.analogy.takeaway}</p>
+          </div>
+        ) : null}
+        <StudyMarkdown markdown={result.payload.markdown_body} />
+        <RetryStudyButton onRetry={retry} />
+      </div>
     );
   }
   return (
     <div data-testid="illustrate-output" className="font-reading space-y-3">
+      {!flowchart ? (
+        <div className="space-y-2">
+          <p data-testid="diagram-fallback-note" className="text-sm text-muted">
+            The model did not return a flowchart. Showing the diagram it did return.
+          </p>
+          <RetryStudyButton onRetry={retry} />
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-1">
         {(
           [
@@ -169,7 +239,7 @@ function IllustrateOutput({ result }: { result: AiGatewayExecutionResult }) {
             key={id}
             type="button"
             data-testid={`illustrate-tab-${id}`}
-            onClick={() => setTab(id)}
+            onClick={() => setChosen(id)}
             className={`inline-flex min-h-10 items-center rounded-xl px-3 text-xs font-medium ${
               tab === id ? "bg-selected text-heading" : "text-muted hover:bg-beige-2"
             }`}
@@ -200,6 +270,9 @@ function IllustrateOutput({ result }: { result: AiGatewayExecutionResult }) {
       ) : null}
       {tab === "analogy" && bundle?.analogy ? (
         <div data-testid="study-analogy" className="space-y-2 text-sm leading-relaxed text-ink">
+          <p className="text-muted">
+            Teaching analogy. This scene is not a quotation from the page.
+          </p>
           <p>{bundle.analogy.setup}</p>
           <p>{bundle.analogy.mapping}</p>
           <p>{bundle.analogy.takeaway}</p>
@@ -469,12 +542,14 @@ export function StudyLensOutput({
   selectedMcqOptions,
   selectedText,
   onPickMcq,
+  onRetry,
 }: {
   result: AiGatewayExecutionResult;
   lens: HighlightLensType | "ask_my_book" | null;
   selectedMcqOptions: Record<number, number>;
   selectedText?: string;
   onPickMcq: (questionIndex: number, optionIndex: number) => void;
+  onRetry?: () => void;
 }) {
   const resolved = lens ?? (result.payload.lens_type === "deep_integrative_synthesis"
     ? "explain"
@@ -499,7 +574,7 @@ export function StudyLensOutput({
   }
   if (resolved === "explain") return <ExplainOutput result={result} />;
   if (resolved === "story") return <StoryOutput result={result} />;
-  if (resolved === "illustrative") return <IllustrateOutput result={result} />;
+  if (resolved === "illustrative") return <IllustrateOutput result={result} onRetry={onRetry} />;
   if (resolved === "high_yield_revision") return <ReviseOutput result={result} />;
   if (resolved === "test_me") {
     return (

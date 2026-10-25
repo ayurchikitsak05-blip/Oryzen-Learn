@@ -43,16 +43,14 @@ function buildPdf(pages) {
     const [headingPart, bodyPart] = rawText.split("|").map((part) => part.trim());
     const safeHeading = (headingPart || `PAGE ${idx + 1}`).replace(/[()\\]/g, "");
     const safeBody = (bodyPart || "Study text.").replace(/[()\\]/g, "");
-    const bodyCommands = wrapLine(safeBody, 78)
-      .map((line) => `0 -16 Td (${line}) Tj`)
+    const bodyCommands = wrapLine(safeBody, 72)
+      .map((line, lineIndex) => `${lineIndex === 0 ? "0 -40" : "0 -18"} Td (${line}) Tj`)
       .join("\n");
     const streamContent = [
       "BT",
-      "/F1 14 Tf",
-      `48 742 Td (${safeHeading}) Tj`,
-      "/F1 9 Tf",
-      `0 -14 Td (Page ${idx + 1} of ${pages.length}  |  ORYZEN Learn sample chapter) Tj`,
-      "/F1 11 Tf",
+      "/F1 16 Tf",
+      `48 720 Td (${safeHeading}) Tj`,
+      "/F1 12 Tf",
       bodyCommands,
       "ET",
     ].join("\n");

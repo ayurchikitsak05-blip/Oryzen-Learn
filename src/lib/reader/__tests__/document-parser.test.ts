@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildEmbeddedAyurvedaSamplePdf } from "../storage";
+import { buildRectangleAreaSamplePdf } from "../sample-chapter";
 import {
   extractedTextSwappedSample,
   parseAndIndexUploadedPdf,
@@ -67,5 +68,19 @@ describe("reader document parser", () => {
     expect(parsed.chunks).toEqual([]);
     expect(parsed.parseError).toMatch(/original file is still open/i);
     expect(parsed.chunks.join("")).not.toContain(PARSER_SAMPLE_SWAP_MARKER);
+  });
+
+  it("keeps the Newton sample title and body apart, without a storage path", () => {
+    const bytes = buildEmbeddedAyurvedaSamplePdf(SCIENCE_LINES);
+    const text = new TextDecoder().decode(bytes);
+    expect(text).toMatch(/NEWTON'S FIRST LAW/);
+    expect(text).toMatch(/constant velocity/);
+    expect(text).not.toMatch(/IndexedDB|Study Buffer|OPFS/);
+    expect(text).toContain("0 -40 Td");
+    expect(text).not.toContain("0 -12 Td");
+    const rectangle = new TextDecoder().decode(buildRectangleAreaSamplePdf());
+    expect(rectangle).toMatch(/AREA OF A RECTANGLE/);
+    expect(rectangle).toMatch(/length times width/);
+    expect(rectangle).not.toMatch(/ORYZEN Learn sample chapter/);
   });
 });

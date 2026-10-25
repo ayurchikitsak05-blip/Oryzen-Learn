@@ -34,11 +34,10 @@ function wrapLine(text: string, width: number): string[] {
 }
 
 /**
- * Builds a multi-page, selectable-text PDF for the sample textbook chapter.
+ * Builds a selectable-text PDF. The heading and body have a clear gap.
+ * Sample pages do not print storage paths or other file metadata.
  */
-export function buildSampleTextbookChapterPdf(
-  pages: string[] = SAMPLE_CHAPTER_PAGES
-): Uint8Array {
+export function buildSelectableStudyPdf(pages: string[]): Uint8Array {
   const objects: string[] = [];
   objects.push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
   const pageObjNumbers = pages.map((_, idx) => 4 + idx * 2);
@@ -55,22 +54,17 @@ export function buildSampleTextbookChapterPdf(
     const pageObjNum = 4 + idx * 2;
     const contentObjNum = pageObjNum + 1;
     const [headingPart, bodyPart] = rawText.split("|").map((part) => part.trim());
-    const safeHeading = (headingPart || `CHAPTER PAGE ${idx + 1}`).replace(
-      /[()\\]/g,
-      ""
-    );
+    const safeHeading = (headingPart || `Page ${idx + 1}`).replace(/[()\\]/g, "");
     const safeBody = (bodyPart || "Study text.").replace(/[()\\]/g, "");
-    const bodyLines = wrapLine(safeBody, 78);
+    const bodyLines = wrapLine(safeBody, 72);
     const bodyCommands = bodyLines
-      .map((line) => `0 -16 Td (${line}) Tj`)
+      .map((line, lineIndex) => `${lineIndex === 0 ? "0 -40" : "0 -18"} Td (${line}) Tj`)
       .join("\n");
     const streamContent = [
       "BT",
-      "/F1 14 Tf",
-      `48 742 Td (${safeHeading}) Tj`,
-      "/F1 9 Tf",
-      `0 -14 Td (Page ${idx + 1} of ${pages.length}  |  ORYZEN Learn sample chapter) Tj`,
-      "/F1 11 Tf",
+      "/F1 16 Tf",
+      `48 720 Td (${safeHeading}) Tj`,
+      "/F1 12 Tf",
       bodyCommands,
       "ET",
     ].join("\n");
@@ -97,6 +91,15 @@ export function buildSampleTextbookChapterPdf(
   }
   pdfText += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
   return new TextEncoder().encode(pdfText);
+}
+
+/**
+ * Builds a multi-page, selectable-text PDF for the sample textbook chapter.
+ */
+export function buildSampleTextbookChapterPdf(
+  pages: string[] = SAMPLE_CHAPTER_PAGES
+): Uint8Array {
+  return buildSelectableStudyPdf(pages);
 }
 
 export function buildRectangleAreaSamplePdf(): Uint8Array {

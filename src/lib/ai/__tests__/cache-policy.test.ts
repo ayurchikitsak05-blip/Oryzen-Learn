@@ -89,6 +89,15 @@ describe("institute-authorized app cache policy", () => {
     });
     expect(privateA.shareable).toBe(false);
     expect(privateA.cacheKey).not.toBe(privateB.cacheKey);
+    const illustrate = await buildIsolatedAppCacheKey({
+      auth: authorizedSyllabus({ documentClass: "private_upload" }),
+      userId: "student-a",
+      documentHash: "doc-1",
+      pageNumber: 2,
+      selectionHash: "sel-1",
+      lensType: "illustrative",
+    });
+    expect(illustrate.cacheKey).not.toBe(privateA.cacheKey);
 
     const revoked = await buildIsolatedAppCacheKey({
       auth: authorizedSyllabus({ revocationEpoch: "2026-10-21" }),

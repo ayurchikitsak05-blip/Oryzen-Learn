@@ -71,308 +71,146 @@ export function RectangleGeometrySvg({
   );
 }
 
-function wrapLabel(label: string, maxChars = 18, maxLines = 3): string[] {
-  const words = label.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (next.length <= maxChars) {
-      current = next;
-      continue;
-    }
-    if (current) lines.push(current);
-    if (lines.length >= maxLines) return lines;
-    current = word.length > maxChars ? `${word.slice(0, maxChars - 1)}…` : word;
-  }
-  if (current && lines.length < maxLines) lines.push(current);
-  return lines;
+function DiagramFrame({
+  testId,
+  title,
+  children,
+}: {
+  testId: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      role="group"
+      aria-label={title}
+      className="space-y-3 rounded-2xl border border-line bg-surface p-3"
+    >
+      <p className="text-sm font-medium text-heading">{title}</p>
+      {children}
+    </div>
+  );
 }
 
-function ArrowMarker({ id }: { id: string }) {
+function PhraseCard({ label }: { label: string }) {
   return (
-    <marker
-      id={id}
-      markerWidth="8"
-      markerHeight="8"
-      refX="6"
-      refY="4"
-      orient="auto"
-    >
-      <path d="M0,0 L8,4 L0,8 Z" fill="var(--accent)" />
-    </marker>
+    <p className="rounded-2xl border border-line bg-beige-2 px-3 py-3 text-sm leading-snug text-heading">
+      {label}
+    </p>
   );
+}
+
+function RelationArrow({ label }: { label?: string }) {
+  return (
+    <p className="flex items-center gap-2 px-1 text-sm leading-snug text-ink">
+      <span aria-hidden="true" className="text-base text-accent">
+        ↓
+      </span>
+      {label ? <span>{label}</span> : null}
+    </p>
+  );
+}
+
+function orderedSteps(diagram: StudyDiagram) {
+  const byId = new Map(diagram.nodes.map((item) => [item.id, item]));
+  const incoming = new Set(diagram.edges.map((edge) => edge.to));
+  const used = new Set<string>();
+  const steps: Array<{ id: string; label: string; nextLabel?: string }> = [];
+  let cursorId: string | undefined = (
+    diagram.nodes.find((item) => !incoming.has(item.id)) ?? diagram.nodes[0]
+  )?.id;
+  while (cursorId && !used.has(cursorId)) {
+    const item = byId.get(cursorId);
+    if (!item) break;
+    used.add(item.id);
+    const link = diagram.edges.find((edge) => edge.from === item.id && !used.has(edge.to));
+    steps.push({ id: item.id, label: item.label, nextLabel: link?.label });
+    cursorId = link?.to;
+  }
+  return {
+    steps,
+    rest: diagram.nodes.filter((item) => !used.has(item.id)),
+  };
 }
 
 export function FlowchartSvg({ diagram }: { diagram: StudyDiagram }) {
   const nodes = diagram.nodes.slice(0, 6);
-  if (nodes.length === 0 && !diagram.geometry) return null;
   const geometry =
     diagram.geometry?.kind === "rectangle" ? diagram.geometry : undefined;
-  const width = Math.max(320, nodes.length * 168);
-  const height = 210;
-  const boxWidth = 150;
-  const boxHeight = 84;
-  const startX = 16;
-  const y = 56;
+  if (nodes.length === 0 && !geometry) return null;
+  const { steps, rest } = orderedSteps({ ...diagram, nodes });
 
   return (
-    <div
-      data-testid="study-flowchart"
-      className="space-y-2 overflow-x-auto rounded-2xl border border-line bg-surface p-3"
-      role="img"
-      aria-label={diagram.title}
-    >
+    <DiagramFrame testId="study-flowchart" title={diagram.title}>
       {geometry ? <RectangleGeometrySvg geometry={geometry} /> : null}
-      {nodes.length > 0 ? (
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full min-w-[18rem]">
-        <defs>
-          <ArrowMarker id="flow-arrow" />
-        </defs>
-        {nodes.map((node, index) => {
-          const x = startX + index * 168;
-          const next = nodes[index + 1];
-          const lines = wrapLabel(node.label);
-          const edge = diagram.edges.find(
-            (item) => item.from === node.id && item.to === next?.id
-          ) ?? diagram.edges[index];
-          return (
-            <g key={node.id}>
-              <rect
-                x={x}
-                y={y}
-                width={boxWidth}
-                height={boxHeight}
-                rx={14}
-                fill="var(--beige-secondary)"
-                stroke="var(--beige-primary)"
-              />
-              {lines.map((line, lineIndex) => (
-                <text
-                  key={`${node.id}-${line}`}
-                  x={x + boxWidth / 2}
-                  y={y + 26 + lineIndex * 16}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill="var(--heading)"
-                >
-                  {line}
-                </text>
-              ))}
-              {next ? (
-                <>
-                  <line
-                    x1={x + boxWidth}
-                    y1={y + boxHeight / 2}
-                    x2={x + 168}
-                    y2={y + boxHeight / 2}
-                    stroke="var(--accent)"
-                    strokeWidth="2"
-                    markerEnd="url(#flow-arrow)"
-                  />
-                  {edge?.label ? (
-                    <text
-                      x={x + boxWidth + 8}
-                      y={y + 16}
-                      fontSize="9"
-                      fill="var(--text-secondary)"
-                    >
-                      {edge.label}
-                    </text>
-                  ) : null}
-                </>
-              ) : null}
-            </g>
-          );
-        })}
-      </svg>
-      ) : null}
-    </div>
+      <ol className="space-y-2">
+        {steps.map((step, index) => (
+          <li key={step.id}>
+            <PhraseCard label={step.label} />
+            {index < steps.length - 1 ? <RelationArrow label={step.nextLabel} /> : null}
+          </li>
+        ))}
+        {rest.map((node) => (
+          <li key={node.id}>
+            <PhraseCard label={node.label} />
+          </li>
+        ))}
+      </ol>
+    </DiagramFrame>
   );
 }
 
 export function MindMapSvg({ diagram }: { diagram: StudyDiagram }) {
   const hub = diagram.nodes[0];
-  const branches = diagram.nodes.slice(1, 5);
+  const branches = diagram.nodes.slice(1, 6);
   if (!hub) return null;
-  const width = 520;
-  const height = 280;
-  const cx = 260;
-  const cy = 140;
-  const radius = 96;
-  const positions = branches.map((_, index) => {
-    const angle = (-Math.PI / 2) + ((index + 0.5) * (Math.PI * 2)) / Math.max(branches.length, 1);
-    return {
-      x: cx + Math.cos(angle) * radius,
-      y: cy + Math.sin(angle) * 78,
-    };
-  });
 
   return (
-    <div
-      data-testid="study-mind-map"
-      className="overflow-x-auto rounded-2xl border border-line bg-surface p-3"
-      role="img"
-      aria-label={diagram.title}
-    >
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-64 w-full min-w-[20rem]">
-        <defs>
-          <ArrowMarker id="mind-arrow" />
-        </defs>
-        {branches.map((node, index) => {
-          const pos = positions[index];
+    <DiagramFrame testId="study-mind-map" title={diagram.title}>
+      <PhraseCard label={hub.label} />
+      <ul className="space-y-3">
+        {branches.map((node) => {
+          const edge =
+            diagram.edges.find((item) => item.from === hub.id && item.to === node.id) ??
+            diagram.edges.find((item) => item.to === node.id || item.from === node.id);
           return (
-            <line
-              key={`edge-${node.id}`}
-              x1={cx}
-              y1={cy}
-              x2={pos.x}
-              y2={pos.y}
-              stroke="var(--accent)"
-              strokeWidth="2"
-            />
+            <li key={node.id}>
+              <RelationArrow label={edge?.label} />
+              <PhraseCard label={node.label} />
+            </li>
           );
         })}
-        <circle cx={cx} cy={cy} r={46} fill="var(--selected)" stroke="var(--beige-primary)" />
-        {wrapLabel(hub.label, 12).map((line, lineIndex) => (
-          <text
-            key={`hub-${line}`}
-            x={cx}
-            y={cy - 6 + lineIndex * 14}
-            textAnchor="middle"
-            fontSize="11"
-            fill="var(--heading)"
-          >
-            {line}
-          </text>
-        ))}
-        {branches.map((node, index) => {
-          const pos = positions[index];
-          const lines = wrapLabel(node.label, 14);
-          return (
-            <g key={node.id}>
-              <rect
-                x={pos.x - 62}
-                y={pos.y - 24}
-                width={124}
-                height={48}
-                rx={12}
-                fill="var(--beige-secondary)"
-                stroke="var(--beige-primary)"
-              />
-              {lines.map((line, lineIndex) => (
-                <text
-                  key={`${node.id}-${line}`}
-                  x={pos.x}
-                  y={pos.y - 4 + lineIndex * 14}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fill="var(--heading)"
-                >
-                  {line}
-                </text>
-              ))}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
+      </ul>
+    </DiagramFrame>
   );
 }
 
 export function ConceptDiagramSvg({ diagram }: { diagram: StudyDiagram }) {
-  const nodes = diagram.nodes.slice(0, 4);
+  const nodes = diagram.nodes.slice(0, 6);
   const geometry =
     diagram.geometry?.kind === "rectangle" ? diagram.geometry : undefined;
   if (nodes.length === 0 && !geometry) return null;
-  const width = 480;
-  const height = 260;
-  const slots = [
-    { x: 40, y: 28 },
-    { x: 280, y: 28 },
-    { x: 40, y: 150 },
-    { x: 280, y: 150 },
-  ];
-  const boxW = 160;
-  const boxH = 70;
-  const byId = new Map(nodes.map((node, index) => [node.id, slots[index]]));
+  const byId = new Map(nodes.map((node) => [node.id, node.label]));
 
   return (
-    <div
-      data-testid="study-concept-diagram"
-      className="space-y-2 overflow-x-auto rounded-2xl border border-line bg-surface p-3"
-      role="img"
-      aria-label={diagram.title}
-    >
+    <DiagramFrame testId="study-concept-diagram" title={diagram.title}>
       {geometry ? <RectangleGeometrySvg geometry={geometry} /> : null}
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-60 w-full min-w-[18rem]">
-        <defs>
-          <ArrowMarker id="concept-arrow" />
-        </defs>
+      <ul className="space-y-3">
         {diagram.edges.map((edge, index) => {
           const from = byId.get(edge.from);
           const to = byId.get(edge.to);
           if (!from || !to) return null;
-          const x1 = from.x + boxW / 2;
-          const y1 = from.y + boxH / 2;
-          const x2 = to.x + boxW / 2;
-          const y2 = to.y + boxH / 2;
           return (
-            <g key={`${edge.from}-${edge.to}-${index}`}>
-              <line
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke="var(--accent)"
-                strokeWidth="2"
-                markerEnd="url(#concept-arrow)"
-              />
-              {edge.label ? (
-                <text
-                  x={(x1 + x2) / 2}
-                  y={(y1 + y2) / 2 - 6}
-                  textAnchor="middle"
-                  fontSize="9"
-                  fill="var(--text-secondary)"
-                >
-                  {edge.label}
-                </text>
-              ) : null}
-            </g>
+            <li key={`${edge.from}-${edge.to}-${index}`} className="space-y-2">
+              <PhraseCard label={from} />
+              <RelationArrow label={edge.label} />
+              <PhraseCard label={to} />
+            </li>
           );
         })}
-        {nodes.map((node, index) => {
-          const slot = slots[index];
-          const lines = wrapLabel(node.label, 16);
-          return (
-            <g key={node.id}>
-              <rect
-                x={slot.x}
-                y={slot.y}
-                width={boxW}
-                height={boxH}
-                rx={14}
-                fill="var(--beige-secondary)"
-                stroke="var(--beige-primary)"
-              />
-              {lines.map((line, lineIndex) => (
-                <text
-                  key={`${node.id}-${line}`}
-                  x={slot.x + boxW / 2}
-                  y={slot.y + 30 + lineIndex * 16}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fill="var(--heading)"
-                >
-                  {line}
-                </text>
-              ))}
-            </g>
-          );
-        })}
-      </svg>
-    </div>
+      </ul>
+    </DiagramFrame>
   );
 }
 

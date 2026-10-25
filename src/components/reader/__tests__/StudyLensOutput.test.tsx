@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { StudyLensOutput } from "../StudyLensOutput";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 
@@ -168,5 +168,67 @@ describe("student study screens", () => {
     );
     expect(quiz.getByTestId("test-me-quiz").textContent).toMatch(/What stays the same/);
     expect(quiz.getByTestId("test-me-quiz").textContent).toMatch(/Answer the question from the selected passage only/);
+  });
+
+  it("opens a concept map when the flowchart is missing and offers another try", () => {
+    const onRetry = vi.fn();
+    const view = render(
+      <StudyLensOutput
+        lens="illustrative"
+        selectedMcqOptions={{}}
+        onPickMcq={() => undefined}
+        onRetry={onRetry}
+        result={result({
+          ...base,
+          lens_type: "illustrative",
+          markdown_body: "Area is length times width.",
+          missingStructure: ["flowchart"],
+          illustrative: {
+            mindMap: {
+              title: "Rectangle area",
+              kind: "mind_map",
+              nodes: [
+                { id: "hub", label: "Rectangle area" },
+                { id: "rule", label: "Length times width" },
+                { id: "example", label: "8 cm by 5 cm equals 40 square centimetres" },
+              ],
+              edges: [
+                { from: "hub", to: "rule", label: "defined as" },
+                { from: "hub", to: "example", label: "example" },
+              ],
+            },
+          },
+        })}
+      />
+    );
+    expect(view.getByTestId("study-mind-map").textContent).toMatch(/Length times width/);
+    expect(view.getByTestId("study-mind-map").textContent).toMatch(/40 square centimetres/);
+    expect(view.getByTestId("study-mind-map").textContent).toMatch(/defined as/);
+    expect(view.queryByTestId("study-flowchart")).toBeNull();
+    expect(view.getByTestId("diagram-fallback-note").textContent).toMatch(/did not return a flowchart/i);
+    fireEvent.click(view.getByTestId("diagram-retry"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("labels a story as a teaching example", () => {
+    const view = render(
+      <StudyLensOutput
+        lens="story"
+        selectedMcqOptions={{}}
+        onPickMcq={() => undefined}
+        result={result({
+          ...base,
+          lens_type: "story",
+          markdown_body: "A teaching scene about constant velocity.",
+          story: {
+            opening: "An ice hockey puck glides across a frictionless sheet of ice.",
+            turningPoint: "A gust of wind pushes the puck.",
+            close: "The push changes the velocity, which is what a net force does.",
+          },
+        })}
+      />
+    );
+    expect(view.getByTestId("story-teaching-note").textContent).toMatch(/not facts from the textbook/i);
+    expect(view.getByTestId("story-output").textContent).toMatch(/ice hockey puck/i);
   });
 });

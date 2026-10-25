@@ -7,6 +7,7 @@
 
 import { computeSha256Hex, findDuplicateDocumentByHash } from "./hashing";
 import type { CitationReadyChunk } from "./extractor";
+import { buildSelectableStudyPdf } from "./sample-chapter";
 
 export const LOCAL_READER_DB_NAME = "prakriti_reader_local_db_v1";
 export const LOCAL_READER_DB_VERSION = 1;
@@ -357,6 +358,38 @@ export async function updateLocalPdfMetadata(
   return updated;
 }
 
+export async function removeLocalPdfDocument(documentId: string): Promise<void> {
+  const existing = memoryDocumentStore.get(documentId);
+  memoryDocumentStore.delete(documentId);
+  memoryBinaryStore.delete(documentId);
+  const opfsName = existing?.opfsPath?.replace("opfs://", "") || `${documentId}.pdf`;
+  try {
+    if (await isOpfsSupported()) {
+      const root = await navigator.storage.getDirectory();
+      await root.removeEntry(opfsName);
+    }
+  } catch {
+    // The indexed record is the copy the reader opens.
+  }
+  if (!isIndexedDbSupported()) return;
+  try {
+    const db = await openReaderIndexedDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(
+        [DOCUMENTS_STORE_NAME, BINARIES_STORE_NAME],
+        "readwrite"
+      );
+      tx.objectStore(DOCUMENTS_STORE_NAME).delete(documentId);
+      tx.objectStore(BINARIES_STORE_NAME).delete(documentId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // Memory copy is already gone.
+  }
+}
+
 /**
  * Clears all local PDF records (used by unit tests to ensure clean state).
  */
@@ -402,89 +435,5 @@ export function buildEmbeddedAyurvedaSamplePdf(pageTexts?: string[]): Uint8Array
           "CHAPTER 5: HIGH-YIELD REVISION | Spaced recall, comparison tables, and short quizzes lock calculus, literature, economics, and laboratory sequences alike.",
         ];
 
-  const objects: string[] = [];
-  // Obj 1: Catalog
-  objects.push("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-
-  // Obj 2: Pages root (kids will be 4, 6, 8, ... and Font is 3)
-  const pageObjNumbers = pages.map((_, idx) => 4 + idx * 2);
-  const kidsArray = pageObjNumbers.map((n) => `${n} 0 R`).join(" ");
-  objects.push(
-    `2 0 obj\n<< /Type /Pages /Kids [ ${kidsArray} ] /Count ${pages.length} >>\nendobj\n`
-  );
-
-  // Obj 3: Helvetica Font
-  objects.push(
-    "3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
-  );
-
-  pages.forEach((rawText, idx) => {
-    const pageObjNum = 4 + idx * 2;
-    const contentObjNum = pageObjNum + 1;
-    const [headingPart, bodyPart] = rawText.split("|").map((s) => s.trim());
-    const safeHeading = (headingPart || `CHAPTER ${idx + 1}`).replace(
-      /[()\\]/g,
-      ""
-    );
-    const safeBody = (
-      bodyPart ||
-      "Study text rendered inside the 3-page virtualized RAM window."
-    ).replace(/[()\\]/g, "");
-
-    // Split body into ~65 char lines for clean layout on 612x792 page
-    const words = safeBody.split(/\s+/);
-    const wrappedLines: string[] = [];
-    let currentLine = "";
-    for (const w of words) {
-      if ((currentLine + " " + w).trim().length > 62) {
-        wrappedLines.push(currentLine.trim());
-        currentLine = w;
-      } else {
-        currentLine = (currentLine + " " + w).trim();
-      }
-    }
-    if (currentLine.trim()) {
-      wrappedLines.push(currentLine.trim());
-    }
-
-    const bodyCommands = wrappedLines
-      .map((line) => `0 -24 Td (${line}) Tj`)
-      .join("\n");
-
-    const streamContent = [
-      "BT",
-      "/F1 16 Tf",
-      `48 710 Td (${safeHeading}) Tj`,
-      "/F1 12 Tf",
-      `0 -12 Td (Page ${idx + 1} of ${pages.length} - Local-First OPFS/IndexedDB Study Buffer) Tj`,
-      bodyCommands,
-      "ET",
-    ].join("\n");
-
-    objects.push(
-      `${pageObjNum} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjNum} 0 R >>\nendobj\n`
-    );
-    objects.push(
-      `${contentObjNum} 0 obj\n<< /Length ${streamContent.length} >>\nstream\n${streamContent}\nendstream\nendobj\n`
-    );
-  });
-
-  let pdfText = "%PDF-1.4\n";
-  const offsets: number[] = [0];
-
-  for (const obj of objects) {
-    offsets.push(pdfText.length);
-    pdfText += obj;
-  }
-
-  const xrefOffset = pdfText.length;
-  pdfText += `xref\n0 ${objects.length + 1}\n`;
-  pdfText += "0000000000 65535 f \n";
-  for (let i = 1; i <= objects.length; i++) {
-    pdfText += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
-  }
-
-  pdfText += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-
-  return new TextEncoder().encode(pdfText);
+  return buildSelectableStudyPdf(pages);
 }

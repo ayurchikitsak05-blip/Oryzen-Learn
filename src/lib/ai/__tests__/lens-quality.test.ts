@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  diagramExplainsSource,
   filterRevisionTable,
   isEducationallyEmptyLabel,
   isGenericExplainTemplate,
@@ -8,6 +9,7 @@ import {
   isQualityMcq,
   placeCorrectOption,
   preferValidatedMcqs,
+  retainGroundedDiagrams,
 } from "../lens-quality";
 
 const LINEAR =
@@ -91,5 +93,55 @@ describe("educational quality guards", () => {
     expect(slots.map((item) => item.correctIndex)).toEqual([0, 1, 2, 3]);
     expect(new Set(slots.map((item) => item.correctIndex)).size).toBe(4);
     expect(slots.every((item) => item.options[item.correctIndex] === "right")).toBe(true);
+  });
+
+  it("accepts a passage relationship and rejects an invented scene", () => {
+    const source =
+      "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law.";
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { label: "Object keeps constant velocity" },
+            { label: "A net force acts" },
+          ],
+          edges: [{ label: "unless" }],
+        },
+        source
+      )
+    ).toBe(true);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [{ label: "Hockey puck on ice" }, { label: "Gust of wind" }],
+          edges: [{ label: "then" }],
+        },
+        source
+      )
+    ).toBe(false);
+    const kept = retainGroundedDiagrams(
+      {
+        diagram: undefined,
+        missingStructure: [],
+        illustrative: {
+          flowchart: {
+            nodes: [{ label: "Hockey puck on ice" }, { label: "Gust of wind" }],
+            edges: [{ label: "then" }],
+          },
+          mindMap: {
+            nodes: [
+              { label: "Newton's first law" },
+              { label: "Constant velocity" },
+            ],
+            edges: [{ label: "states" }],
+          },
+        },
+      },
+      source
+    );
+    expect(kept.illustrative?.flowchart).toBeUndefined();
+    expect(kept.illustrative?.mindMap?.nodes[0]?.label).toMatch(/first law/i);
+    expect(kept.missingStructure).toContain("flowchart");
+    expect(kept.missingStructure).not.toContain("illustrative");
   });
 });

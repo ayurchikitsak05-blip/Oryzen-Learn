@@ -196,7 +196,10 @@ export async function buildIsolatedAppCacheKey(params: {
     `p:${params.pageNumber}`,
     `sel:${params.selectionHash}`,
     `lens:${params.lensType}`,
-  ].join("|");
+    params.lensType === "illustrative" ? "diagram:phrases-v1" : "",
+  ]
+    .filter(Boolean)
+    .join("|");
   return {
     cacheKey: await computeSha256Hex(raw),
     scope,

@@ -105,8 +105,8 @@ describe("captured Gemini responses stay out of the local draft", () => {
               { id: "net", label: "Unless a net force" },
             ],
             edges: [
-              { from: "law", to: "velocity" },
-              { from: "law", to: "net" },
+              { from: "law", to: "velocity", label: "includes" },
+              { from: "law", to: "net", label: "unless" },
             ],
           },
         },
@@ -166,6 +166,15 @@ describe("captured Gemini responses stay out of the local draft", () => {
       "explain",
     ]);
     expect(geminiRestSchemaForLens("illustrative").required).toContain("illustrative");
+    const illustrative = geminiRestSchemaForLens("illustrative").properties as {
+      illustrative: {
+        properties: {
+          flowchart: { properties: { nodes: { minItems: number }; edges: { minItems: number } } };
+        };
+      };
+    };
+    expect(illustrative.illustrative.properties.flowchart.properties.nodes.minItems).toBe(2);
+    expect(illustrative.illustrative.properties.flowchart.properties.edges.minItems).toBe(1);
     expect(geminiRestSchemaForLens("story").required).toContain("story");
     expect(geminiRestSchemaForLens("high_yield_revision").required).toContain("revision");
     expect(geminiRestSchemaForLens("test_me").required).toContain("mcqs");

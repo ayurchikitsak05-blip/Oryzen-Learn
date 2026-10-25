@@ -38,7 +38,7 @@ import {
   type StorySections,
   type StudyDiagram,
 } from "./lens-compose";
-import { isQualityMcq } from "./lens-quality";
+import { isQualityMcq, retainGroundedDiagrams } from "./lens-quality";
 import { mergeStructuredLensPayload, type GeminiErrorClass } from "./gemini-structured";
 import {
   APP_CACHE_KEY_VERSION,
@@ -808,13 +808,13 @@ export async function executeControlledAiGateway(
       ? `Fill mcqs with real questions grounded in the excerpt. Each question needs four different options, a correctIndex from 0 to 3, and a short explanation. Spread the correct answers across A–D. Do not write placeholder options or a question that only asks the student to quote the page.`
       : "",
     request.lensType === "story"
-      ? `Fill story.opening, story.turningPoint, and story.close. Tell one short scene that teaches the selected concept. Do not write a story about copying or summarizing the page.`
+      ? `Fill story.opening, story.turningPoint, and story.close. Tell one short fictional scene that teaches the selected concept, and make clear it is a teaching example. The scientific or mathematical claim must match the passage. Do not say the textbook, the page, or the author includes people, objects, or events that are not written in the selection. Do not write a story about copying or summarizing the page.`
       : "",
     request.lensType === "high_yield_revision"
       ? `Fill revision.quickSummary, revision.keyPoints, revision.revisionTable with at least two topic/remember rows, and revision.memoryAid. Each row must be a complete teaching point from the passage.`
       : "",
     request.lensType === "illustrative"
-      ? `Fill illustrative.flowchart, illustrative.mindMap, and illustrative.conceptDiagram. Each diagram needs at least two phrase labels and edges that show a real relationship from the excerpt, such as cause, condition, or next step. Do not return a prose paragraph in place of nodes and edges.`
+      ? `Fill illustrative.flowchart, illustrative.mindMap, and illustrative.conceptDiagram with nodes and edges. A flowchart needs three to five phrase labels in cause or step order, and every edge needs a relationship such as causes, unless, equals, next, or becomes. A concept map needs one central phrase from the passage and at least two connected phrases. Do not return single keywords, an empty node list, or a paragraph in place of a diagram. Every label must restate a relationship that is actually in the excerpt. Put invented scenes only in illustrative.analogy, and call that analogy a teaching example rather than a fact from the textbook.`
       : "",
     `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
     `Return JSON matching the study lens schema. Diagrams must use nodes and edges, not mermaid or arrow prose.`,
@@ -1048,6 +1048,10 @@ export async function executeControlledAiGateway(
         markdown_body: `### Question\n${asked.question}\n\n### Answer\n${asked.answer}`,
       };
     }
+  }
+
+  if (!usedDeterministicFallback && request.lensType === "illustrative") {
+    generatedPayload = retainGroundedDiagrams(generatedPayload, request.selectedText);
   }
 
   if (!usedDeterministicFallback && generatedPayload.mcqs?.length) {

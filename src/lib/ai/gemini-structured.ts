@@ -13,7 +13,6 @@ import type {
   ShortAnswerItem,
   StorySections,
   StudyDiagram,
-  StudyDiagramEdge,
   StudyDiagramKind,
   StudyDiagramNode,
 } from "./lens-compose";
@@ -25,6 +24,7 @@ import {
   isEducationallyEmptyLabel,
   isGenericExplainTemplate,
   isGenericStudyStory,
+  isMeaningfulStudyDiagram,
 } from "./lens-quality";
 
 export const GEMINI_CALL_TIMEOUT_MS = 20_000;
@@ -74,13 +74,18 @@ const stringArraySchema = {
 
 const diagramSchema = {
   type: Type.OBJECT,
+  description:
+    "A diagram of the selected concept. Use phrase labels and a relationship on every edge. Do not return an empty diagram or a paragraph.",
   properties: {
     title: stringSchema,
     kind: stringSchema,
     nodes: {
       type: Type.ARRAY,
+      minItems: 2,
+      maxItems: 6,
       items: {
         type: Type.OBJECT,
+        description: "A short phrase from the passage, at least two words.",
         properties: {
           id: stringSchema,
           label: stringSchema,
@@ -90,14 +95,17 @@ const diagramSchema = {
     },
     edges: {
       type: Type.ARRAY,
+      minItems: 1,
+      maxItems: 8,
       items: {
         type: Type.OBJECT,
+        description: "Name the relationship, such as causes, unless, equals, or next.",
         properties: {
           from: stringSchema,
           to: stringSchema,
           label: stringSchema,
         },
-        required: ["from", "to"],
+        required: ["from", "to", "label"],
       },
     },
   },
@@ -275,29 +283,29 @@ function asDiagram(value: unknown, fallbackKind: StudyDiagramKind): StudyDiagram
     : [];
   if (nodes.length < 2) return null;
   const ids = new Set(nodes.map((node) => node.id));
-  const edges: StudyDiagramEdge[] = Array.isArray(raw.edges)
-    ? raw.edges
-        .map((edge) => {
-          if (!edge || typeof edge !== "object") return null;
-          const item = edge as Record<string, unknown>;
-          const from = asCleanString(item.from, 32);
-          const to = asCleanString(item.to, 32);
-          if (!from || !to || !ids.has(from) || !ids.has(to) || from === to) {
-            return null;
-          }
-          const label = asCleanString(item.label, 24) ?? undefined;
-          return { from, to, ...(label ? { label } : {}) };
-        })
-        .filter((edge): edge is StudyDiagramEdge => Boolean(edge))
-        .slice(0, 8)
-    : [];
-  if (edges.length < 1) return null;
-  return {
+  const edges = (Array.isArray(raw.edges) ? raw.edges : [])
+    .map((edge) => {
+      if (!edge || typeof edge !== "object") return null;
+      const item = edge as Record<string, unknown>;
+      const from = asCleanString(item.from, 32);
+      const to = asCleanString(item.to, 32);
+      if (!from || !to || !ids.has(from) || !ids.has(to) || from === to) {
+        return null;
+      }
+      const label = asCleanString(item.label, 40);
+      if (!label) return null;
+      return { from, to, label };
+    })
+    .filter((edge): edge is { from: string; to: string; label: string } => Boolean(edge))
+    .slice(0, 8);
+  const diagram = {
     title: asCleanString(raw.title, 80) ?? "Passage diagram",
     kind: asDiagramKind(raw.kind, fallbackKind),
     nodes,
     edges,
   };
+  if (!isMeaningfulStudyDiagram(diagram)) return null;
+  return diagram;
 }
 
 function asExplain(value: unknown): ExplainSections | null {
@@ -548,6 +556,9 @@ export function mergeStructuredLensPayload(
   const missingStructure = modeNeeds(lensType).filter(
     (field) => !present[field as keyof typeof present]
   );
+  if (lensType === "illustrative" && !illustrative?.flowchart && !diagram) {
+    missingStructure.push("flowchart");
+  }
   const hasModelTeaching = Boolean(
     markdown || explain || story || revision || illustrative || diagram || askMyBook || mcqs.length > 0
   );

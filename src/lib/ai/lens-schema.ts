@@ -3,26 +3,40 @@ import type { GatewayTaskType } from "./gateway";
 const STRING = { type: "STRING" as const };
 const STRING_ARRAY = { type: "ARRAY" as const, items: STRING };
 
+const diagramNode = {
+  type: "OBJECT" as const,
+  properties: { id: STRING, label: STRING },
+  required: ["id", "label"],
+  description:
+    "A short phrase from the passage, at least two words. Do not use a single extracted keyword.",
+};
+
+const diagramEdge = {
+  type: "OBJECT" as const,
+  properties: { from: STRING, to: STRING, label: STRING },
+  required: ["from", "to", "label"],
+  description:
+    "A real relationship from the passage, such as causes, unless, equals, next, or becomes.",
+};
+
 const diagramRest = {
   type: "OBJECT" as const,
+  description:
+    "A diagram of the selected concept. Nodes are phrases. Every edge names the relationship. Do not leave the arrays empty and do not put the diagram in prose.",
   properties: {
     title: STRING,
     kind: STRING,
     nodes: {
       type: "ARRAY" as const,
-      items: {
-        type: "OBJECT" as const,
-        properties: { id: STRING, label: STRING },
-        required: ["id", "label"],
-      },
+      minItems: 2,
+      maxItems: 6,
+      items: diagramNode,
     },
     edges: {
       type: "ARRAY" as const,
-      items: {
-        type: "OBJECT" as const,
-        properties: { from: STRING, to: STRING, label: STRING },
-        required: ["from", "to"],
-      },
+      minItems: 1,
+      maxItems: 8,
+      items: diagramEdge,
     },
   },
   required: ["title", "nodes", "edges"],
@@ -165,11 +179,15 @@ function jsonDiagram() {
   return {
     type: "object",
     additionalProperties: false,
+    description:
+      "Nodes are phrases from the passage. Every edge has a relationship label. Do not return an empty diagram.",
     properties: {
       title: jsonString(),
       kind: jsonString(),
       nodes: {
         type: "array",
+        minItems: 2,
+        maxItems: 6,
         items: {
           type: "object",
           additionalProperties: false,
@@ -179,11 +197,13 @@ function jsonDiagram() {
       },
       edges: {
         type: "array",
+        minItems: 1,
+        maxItems: 8,
         items: {
           type: "object",
           additionalProperties: false,
           properties: { from: jsonString(), to: jsonString(), label: jsonString() },
-          required: ["from", "to"],
+          required: ["from", "to", "label"],
         },
       },
     },

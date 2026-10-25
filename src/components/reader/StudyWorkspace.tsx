@@ -181,6 +181,7 @@ export function StudyWorkspace({
               selectedMcqOptions={selectedMcqOptions}
               selectedText={selectedText}
               onPickMcq={onPickMcq}
+              onRetry={onRetry}
             />
             {lens && lens !== "save_passage" ? (
               <StudyFeedbackChips

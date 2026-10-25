@@ -24,6 +24,7 @@ import {
   buildEmbeddedAyurvedaSamplePdf,
   getLocalPdfBinary,
   listLocalPdfDocuments,
+  removeLocalPdfDocument,
   saveLocalPdfDocument,
   updateLocalPdfMetadata,
   type LocalPdfDocumentRecord,
@@ -518,6 +519,23 @@ export default function PdfViewer({
     if (!scopeReady) return;
     let active = true;
     async function bootstrapLocalLibrary() {
+      const staleMarkers = ["IndexedDB Study Buffer", "ORYZEN Learn sample chapter"];
+      const builtInFiles = new Set([
+        "energy-constitution-sample.pdf",
+        "newton-first-law.pdf",
+        "marketing-blueprint.pdf",
+        "mathematics-rectangle-area.pdf",
+        "science-work-energy-chapter.pdf",
+      ]);
+      const stored = await listLocalPdfDocuments();
+      for (const doc of stored) {
+        if (!builtInFiles.has(doc.fileName)) continue;
+        const bytes = await getLocalPdfBinary(doc.id);
+        const text = bytes ? new TextDecoder().decode(bytes) : "";
+        if (staleMarkers.some((marker) => text.includes(marker))) {
+          await removeLocalPdfDocument(doc.id);
+        }
+      }
       const existing = await listLocalPdfDocuments();
       const titles = new Set(existing.map((doc) => doc.title.toLowerCase()));
 

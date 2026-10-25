@@ -143,4 +143,46 @@ describe("structured Gemini helpers", () => {
     expect(merged.payload.askMyBook?.answer).toMatch(/x = -b \/ a/);
     expect(merged.payload.askMyBook?.answer).toMatch(/\n/);
   });
+
+  it("drops a keyword diagram and keeps a grounded concept map when the flowchart is missing", () => {
+    const merged = mergeStructuredLensPayload(
+      fallback,
+      {
+        title: "Rectangle area",
+        markdown_body:
+          "The area of a rectangle is length times width. A length of 8 cm and a width of 5 cm give 40 square centimetres.",
+        key_points: ["length times width"],
+        illustrative: {
+          flowchart: {
+            title: "Keywords",
+            nodes: [
+              { id: "a", label: "area" },
+              { id: "b", label: "length" },
+            ],
+            edges: [{ from: "a", to: "b", label: "and" }],
+          },
+          mindMap: {
+            title: "Rectangle area",
+            kind: "mind_map",
+            nodes: [
+              { id: "hub", label: "Rectangle area" },
+              { id: "rule", label: "Length times width" },
+              { id: "example", label: "8 cm by 5 cm equals 40 square centimetres" },
+            ],
+            edges: [
+              { from: "hub", to: "rule", label: "defined as" },
+              { from: "hub", to: "example", label: "example" },
+            ],
+          },
+        },
+      },
+      "illustrative"
+    );
+    expect(merged.usable).toBe(true);
+    expect(merged.payload.illustrative?.flowchart).toBeUndefined();
+    expect(merged.payload.illustrative?.mindMap?.nodes).toHaveLength(3);
+    expect(merged.missingStructure).toContain("flowchart");
+    expect(merged.missingStructure).not.toContain("illustrative");
+    expect(merged.payload.markdown_body).not.toMatch(/Fallback draft/i);
+  });
 });
