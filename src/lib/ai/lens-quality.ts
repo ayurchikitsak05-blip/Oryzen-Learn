@@ -129,15 +129,74 @@ function passageSentences(source: string): string[] {
   return parts.length > 0 ? parts : [source.trim()];
 }
 
-function labelWords(text: string): string[] {
+function contentWordsInOrder(text: string): string[] {
   return (text.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []).filter(
     (word) => !SOURCE_STOP_WORDS.has(word)
   );
 }
 
-function sentenceMentions(sentence: string, label: string): boolean {
-  const haystack = sentence.toLowerCase();
-  return labelWords(label).some((word) => haystack.includes(word));
+function labelWords(text: string): string[] {
+  return contentWordsInOrder(text);
+}
+
+function clauseBefore(sentence: string, index: number): string {
+  const raw = sentence.slice(0, index);
+  const separators = [...raw.matchAll(/,|;|:|\b(?:and|or|unless|then|but)\b/gi)];
+  const last = separators.at(-1);
+  const start = last?.index === undefined ? 0 : last.index + last[0].length;
+  return raw.slice(start).trim();
+}
+
+function clauseAfter(sentence: string, index: number): string {
+  const raw = sentence.slice(index);
+  const separator = raw.search(/,|;|:|\b(?:and|or|unless|then|but)\b/i);
+  return (separator >= 0 ? raw.slice(0, separator) : raw).trim();
+}
+
+function nearestContentWord(clause: string, side: "before" | "after"): string | null {
+  const words = contentWordsInOrder(clause);
+  if (words.length === 0) return null;
+  return side === "before" ? words[words.length - 1] : words[0];
+}
+
+function labelHasWord(label: string, word: string | null): boolean {
+  return Boolean(word && labelWords(label).includes(word));
+}
+
+function clauseHasLabelWord(clause: string, label: string): boolean {
+  const words = new Set(contentWordsInOrder(clause));
+  return labelWords(label).some((word) => words.has(word));
+}
+
+function targetMatchesClause(clause: string, label: string): boolean {
+  if (labelHasWord(label, nearestContentWord(clause, "after"))) return true;
+  const digits = clause.match(/\d+(?:\.\d+)?/g) ?? [];
+  return digits.some((digit) => label.includes(digit));
+}
+
+/**
+ * The source must play the role before the relation, and the target the role
+ * after it. Sharing the relation's words with both labels is not enough.
+ */
+function directedRelation(
+  sentence: string,
+  marker: RegExp,
+  fromLabel: string,
+  toLabel: string,
+  mode: "nearest" | "subject"
+): boolean {
+  const flags = marker.flags.includes("g") ? marker.flags : `${marker.flags}g`;
+  const pattern = new RegExp(marker.source, flags);
+  for (const match of sentence.matchAll(pattern)) {
+    const before = clauseBefore(sentence, match.index ?? 0);
+    const after = clauseAfter(sentence, (match.index ?? 0) + match[0].length);
+    const sourceMatches =
+      mode === "nearest"
+        ? labelHasWord(fromLabel, nearestContentWord(before, "before"))
+        : clauseHasLabelWord(before, fromLabel);
+    if (sourceMatches && targetMatchesClause(after, toLabel)) return true;
+  }
+  return false;
 }
 
 function mentionsForce(label: string): boolean {
@@ -157,8 +216,9 @@ function mentionsMotion(label: string): boolean {
 }
 
 /**
- * An arrow is kept only when one sentence in the passage supports that kind of
- * relationship. This is a passage check, not a proof of scientific truth.
+ * An arrow is kept only when one sentence gives the source and the target
+ * those roles. This is a passage check, not a proof that every accepted
+ * diagram is scientifically correct.
  */
 export function edgeRelationIsSupported(
   fromLabel: string,
@@ -178,28 +238,30 @@ export function edgeRelationIsSupported(
     (mentionsLaw(fromLabel) && mentionsMotion(toLabel)) ||
     (mentionsLaw(toLabel) && mentionsMotion(fromLabel));
   const sentences = passageSentences(source);
-  const linked = (pattern: RegExp) =>
-    sentences.some(
-      (sentence) =>
-        pattern.test(sentence) &&
-        sentenceMentions(sentence, fromLabel) &&
-        sentenceMentions(sentence, toLabel)
-    );
+  const directed = (marker: RegExp, mode: "nearest" | "subject") =>
+    sentences.some((sentence) => directedRelation(sentence, marker, fromLabel, toLabel, mode));
 
   if (/^(becomes|become|turns into|transforms into)$/.test(relation)) {
     if (forceAndDiagram) return false;
-    return linked(/\b(becomes|become|turns into|changes into)\b/i);
+    return directed(/\b(becomes|become|turns into|changes into)\b/i, "nearest");
   }
   if (/^(equals|equal|equal to|=)$/.test(relation)) {
     if (lawAndForce || lawAndMotion) return false;
-    return linked(/(\bequals\b|\bis\b|\bare\b|=)/i);
+    return directed(/\bequals\b|\bequal to\b|\bis\b|\bare\b|=/i, "subject");
   }
-  if (/^(causes|cause|creates|produces)$/.test(relation)) {
+  if (/^(causes|cause|creates|produces|leads to|results in)$/.test(relation)) {
     if (lawAndForce) return false;
-    return linked(/\b(causes|cause|creates|produces|leads to|results in)\b/i);
+    return directed(/\b(causes|cause|creates|produces|leads to|results in)\b/i, "nearest");
   }
-  if (relation === "unless") return linked(/\bunless\b/i);
-  if (/^(next|then)$/.test(relation)) return linked(/\b(next|then)\b/i);
+  if (relation === "unless") return directed(/\bunless\b/i, "nearest");
+  if (/^(next|then)$/.test(relation)) return directed(/\b(next|then)\b/i, "nearest");
+  if (/^(times|multiplied by|multiplies|multiply)$/.test(relation)) {
+    return directed(/\btimes\b|\bmultiplied by\b|×/i, "nearest");
+  }
+  if (/^(acts on|act on|acts upon|acting on)$/.test(relation)) {
+    if (mentionsMotion(fromLabel) || mentionsMotion(toLabel)) return false;
+    return directed(/\bacts on\b|\bacts upon\b|\bacting on\b/i, "nearest");
+  }
   if (/^(states|means|describes|includes)$/.test(relation)) {
     if (toLabel.trim().split(/\s+/).length < 4) return false;
     const haystack = source.toLowerCase();
@@ -208,16 +270,9 @@ export function edgeRelationIsSupported(
       labelWords(toLabel).some((word) => haystack.includes(word))
     );
   }
-  const relationWords = labelWords(relation);
-  if (relationWords.length === 0) return false;
-  return sentences.some((sentence) => {
-    const haystack = sentence.toLowerCase();
-    return (
-      relationWords.every((word) => haystack.includes(word)) &&
-      sentenceMentions(sentence, fromLabel) &&
-      sentenceMentions(sentence, toLabel)
-    );
-  });
+  if (labelWords(relation).length === 0 && !relation.includes(" ")) return false;
+  const phrase = relation.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  return directed(new RegExp(`\\b${phrase}\\b`, "i"), "nearest");
 }
 
 export function diagramRelationsAreSupported(diagram: RelatedDiagram, source: string): boolean {
@@ -227,7 +282,11 @@ export function diagramRelationsAreSupported(diagram: RelatedDiagram, source: st
   for (const node of diagram.nodes) {
     const words = node.label.trim().split(/\s+/).filter(Boolean);
     if (words.length < 2 && !/\d/.test(node.label)) return false;
-    if (!labelWords(node.label).some((word) => haystack.includes(word))) return false;
+    const sharesWord = labelWords(node.label).some((word) => haystack.includes(word));
+    const sharesDigit = (node.label.match(/\d+(?:\.\d+)?/g) ?? []).some((digit) =>
+      source.includes(digit)
+    );
+    if (!sharesWord && !sharesDigit) return false;
   }
   return diagram.edges.every((edge, index) => {
     const from =

@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { StudyLensOutput } from "../StudyLensOutput";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
@@ -139,6 +139,33 @@ describe("student study screens", () => {
     expect(diagram.getByTestId("study-mind-map").textContent).toMatch(/first law/);
     expect(diagram.getByTestId("study-mind-map").textContent).toMatch(/net/);
     expect(diagram.getByTestId("study-mind-map").textContent).toMatch(/force/);
+
+    const reversed = render(
+      <StudyLensOutput
+        lens="illustrative"
+        selectedMcqOptions={{}}
+        onPickMcq={() => undefined}
+        result={result({
+          ...base,
+          lens_type: "illustrative",
+          markdown_body: "Velocity stays constant unless a net force acts.",
+          illustrative: {
+            mindMap: {
+              title: "First law",
+              kind: "mind_map",
+              nodes: [
+                { id: "force", label: "net force" },
+                { id: "velocity", label: "constant velocity" },
+              ],
+              edges: [{ from: "velocity", to: "force", label: "unless" }],
+            },
+          },
+        })}
+      />
+    );
+    const readingOrder = within(reversed.container).getByTestId("study-mind-map").textContent ?? "";
+    expect(readingOrder.indexOf("constant velocity")).toBeLessThan(readingOrder.indexOf("unless"));
+    expect(readingOrder.indexOf("unless")).toBeLessThan(readingOrder.indexOf("net force"));
 
     const quiz = render(
       <StudyLensOutput

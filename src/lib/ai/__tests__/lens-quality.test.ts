@@ -240,4 +240,286 @@ describe("educational quality guards", () => {
       )
     ).toBe(false);
   });
+
+  it("rejects the recorded Newton concept map and keeps the unless flowchart", () => {
+    const source =
+      "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law, and it is the reason a free-body diagram starts by asking what is actually pushing or pulling.";
+    const recordedFlowchart = {
+      nodes: [
+        { id: "node1", label: "constant velocity" },
+        { id: "node2", label: "net force" },
+      ],
+      edges: [{ from: "node1", to: "node2", label: "unless" }],
+    };
+    const recordedMindMap = {
+      nodes: [
+        { id: "node1", label: "constant velocity" },
+        { id: "node2", label: "net force" },
+      ],
+      edges: [{ from: "node2", to: "node1", label: "acts on" }],
+    };
+    expect(diagramExplainsSource(recordedFlowchart, source)).toBe(true);
+    expect(diagramExplainsSource(recordedMindMap, source)).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: recordedMindMap.nodes,
+          edges: [{ from: "node1", to: "node2", label: "acts on" }],
+        },
+        source
+      )
+    ).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "velocity", label: "constant velocity" },
+            { id: "force", label: "net force" },
+          ],
+          edges: [{ from: "velocity", to: "force", label: "acts on" }],
+        },
+        "Constant velocity acts on a net force."
+      )
+    ).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: recordedFlowchart.nodes,
+          edges: [{ from: "node2", to: "node1", label: "unless" }],
+        },
+        source
+      )
+    ).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "force", label: "net force" },
+            { id: "object", label: "the object" },
+          ],
+          edges: [{ from: "force", to: "object", label: "acts on" }],
+        },
+        source
+      )
+    ).toBe(false);
+    const kept = retainGroundedDiagrams(
+      {
+        missingStructure: [],
+        illustrative: {
+          flowchart: recordedFlowchart,
+          mindMap: recordedMindMap,
+          analogy: {
+            setup: "Teaching example: a puck on ice.",
+            mapping: "The glide stands for constant velocity.",
+            takeaway: "A force is a push or a pull on the object.",
+          },
+        },
+      },
+      source
+    );
+    expect(kept.illustrative?.flowchart?.edges[0]?.label).toBe("unless");
+    expect(kept.illustrative?.mindMap).toBeUndefined();
+    expect(kept.illustrative?.analogy).toBeDefined();
+    expect(kept.missingStructure).not.toContain("flowchart");
+    expect(kept.missingStructure).not.toContain("illustrative");
+  });
+
+  it("checks subject and object roles instead of shared words", () => {
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "force", label: "net force" },
+            { id: "object", label: "the object" },
+          ],
+          edges: [{ from: "force", to: "object", label: "acts on" }],
+        },
+        "A net force acts on the object."
+      )
+    ).toBe(true);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "object", label: "the object" },
+            { id: "force", label: "net force" },
+          ],
+          edges: [{ from: "object", to: "force", label: "acts on" }],
+        },
+        "A net force acts on the object."
+      )
+    ).toBe(false);
+    const newton =
+      "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law.";
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "velocity", label: "constant velocity" },
+            { id: "force", label: "net force" },
+          ],
+          edges: [{ from: "velocity", to: "force", label: "keeps" }],
+        },
+        newton
+      )
+    ).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "force", label: "net force" },
+            { id: "velocity", label: "constant velocity" },
+          ],
+          edges: [{ from: "force", to: "velocity", label: "leads to" }],
+        },
+        newton
+      )
+    ).toBe(false);
+  });
+
+  it("keeps rectangle identities and multiplication, and rejects the reversed arrows", () => {
+    const source =
+      "The area of a rectangle is length times width. If the length is 8 cm and the width is 5 cm, the area is 40 square centimetres.";
+    const recordedConcept = {
+      nodes: [
+        { id: "node1", label: "area formula" },
+        { id: "node2", label: "length times width" },
+      ],
+      edges: [{ from: "node1", to: "node2", label: "equals" }],
+    };
+    expect(diagramExplainsSource(recordedConcept, source)).toBe(true);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: recordedConcept.nodes,
+          edges: [{ from: "node2", to: "node1", label: "equals" }],
+        },
+        source
+      )
+    ).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "area", label: "Area of a rectangle" },
+            { id: "rule", label: "Length times width" },
+            { id: "length", label: "Length of the rectangle" },
+            { id: "width", label: "Width of the rectangle" },
+          ],
+          edges: [
+            { from: "area", to: "rule", label: "equals" },
+            { from: "length", to: "width", label: "multiplied by" },
+          ],
+        },
+        source
+      )
+    ).toBe(true);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "width", label: "Width of the rectangle" },
+            { id: "length", label: "Length of the rectangle" },
+          ],
+          edges: [{ from: "width", to: "length", label: "times" }],
+        },
+        source
+      )
+    ).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "area", label: "Area of a rectangle" },
+            { id: "width", label: "Width of the rectangle" },
+          ],
+          edges: [{ from: "area", to: "width", label: "times" }],
+        },
+        source
+      )
+    ).toBe(false);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "length", label: "the length" },
+            { id: "eight", label: "8 cm" },
+          ],
+          edges: [{ from: "length", to: "eight", label: "equals" }],
+        },
+        source
+      )
+    ).toBe(true);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "length", label: "the length" },
+            { id: "five", label: "5 cm" },
+          ],
+          edges: [{ from: "length", to: "five", label: "equals" }],
+        },
+        source
+      )
+    ).toBe(false);
+    const kept = retainGroundedDiagrams(
+      {
+        missingStructure: ["flowchart"],
+        illustrative: { conceptDiagram: recordedConcept },
+      },
+      source
+    );
+    expect(kept.illustrative?.conceptDiagram?.edges[0]?.label).toBe("equals");
+    expect(kept.missingStructure).toContain("flowchart");
+    expect(kept.missingStructure).not.toContain("illustrative");
+  });
+
+  it("keeps an explicit cause in the stated direction and drops a diagram with no supported arrow", () => {
+    const source = "Friction causes the puck to slow down.";
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "friction", label: "Friction on the ice" },
+            { id: "puck", label: "the puck slows" },
+          ],
+          edges: [{ from: "friction", to: "puck", label: "causes" }],
+        },
+        source
+      )
+    ).toBe(true);
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "puck", label: "the puck slows" },
+            { id: "friction", label: "Friction on the ice" },
+          ],
+          edges: [{ from: "puck", to: "friction", label: "causes" }],
+        },
+        source
+      )
+    ).toBe(false);
+    const rejected = retainGroundedDiagrams(
+      {
+        diagram: undefined,
+        missingStructure: [],
+        markdown_body: "An object keeps a constant velocity unless a net force acts on it.",
+        illustrative: {
+          mindMap: {
+            nodes: [
+              { id: "node1", label: "constant velocity" },
+              { id: "node2", label: "net force" },
+            ],
+            edges: [{ from: "node2", to: "node1", label: "acts on" }],
+          },
+        },
+      },
+      "An object keeps a constant velocity unless a net force acts on it."
+    );
+    expect(rejected.illustrative?.mindMap).toBeUndefined();
+    expect(rejected.diagram).toBeUndefined();
+    expect(rejected.missingStructure).toContain("flowchart");
+    expect(rejected.missingStructure).toContain("illustrative");
+  });
 });

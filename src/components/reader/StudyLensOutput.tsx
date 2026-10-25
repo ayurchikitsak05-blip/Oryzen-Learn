@@ -257,7 +257,7 @@ function IllustrateOutput({
       {tab === "mind_map" && bundle?.mindMap ? <MindMapSvg diagram={bundle.mindMap} /> : null}
       {tab === "mind_map" && !bundle?.mindMap ? (
         <p data-testid="diagram-missing" className="text-sm text-muted">
-          The model did not return a concept map.
+          No trustworthy concept map is available for this passage.
         </p>
       ) : null}
       {tab === "concept_diagram" && bundle?.conceptDiagram ? (

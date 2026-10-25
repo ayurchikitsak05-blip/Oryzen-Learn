@@ -165,23 +165,45 @@ export function MindMapSvg({ diagram }: { diagram: StudyDiagram }) {
   const hub = diagram.nodes[0];
   const branches = diagram.nodes.slice(1, 6);
   if (!hub) return null;
+  const links = branches.map((node) => {
+    const outgoing = diagram.edges.find((item) => item.from === hub.id && item.to === node.id);
+    const incoming = diagram.edges.find((item) => item.from === node.id && item.to === hub.id);
+    const related =
+      outgoing ??
+      incoming ??
+      diagram.edges.find((item) => item.to === node.id || item.from === node.id);
+    return { node, outgoing, incoming, label: related?.label };
+  });
+  const hubIsSource = links.every((link) => !link.incoming);
 
   return (
     <DiagramFrame testId="study-mind-map" title={diagram.title}>
-      <PhraseCard label={hub.label} />
-      <ul className="space-y-3">
-        {branches.map((node) => {
-          const edge =
-            diagram.edges.find((item) => item.from === hub.id && item.to === node.id) ??
-            diagram.edges.find((item) => item.to === node.id || item.from === node.id);
-          return (
-            <li key={node.id}>
-              <RelationArrow label={edge?.label} />
-              <PhraseCard label={node.label} />
-            </li>
-          );
-        })}
-      </ul>
+      {hubIsSource ? (
+        <>
+          <PhraseCard label={hub.label} />
+          <ul className="space-y-3">
+            {links.map((link) => (
+              <li key={link.node.id}>
+                <RelationArrow label={link.label} />
+                <PhraseCard label={link.node.label} />
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <ul className="space-y-3">
+          {links.map((link) => {
+            const sourceFirst = Boolean(link.incoming && !link.outgoing);
+            return (
+              <li key={link.node.id} className="space-y-2">
+                <PhraseCard label={sourceFirst ? link.node.label : hub.label} />
+                <RelationArrow label={link.label} />
+                <PhraseCard label={sourceFirst ? hub.label : link.node.label} />
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </DiagramFrame>
   );
 }
