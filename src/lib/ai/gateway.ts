@@ -736,6 +736,7 @@ export async function executeControlledAiGateway(
   const isolated = await buildIsolatedAppCacheKey({
     auth: cacheAuth,
     userId: request.userId,
+    documentId: request.documentId,
     documentHash: request.documentHash,
     pageNumber: request.pageNumber,
     selectionHash: normalizedSelectionHash,

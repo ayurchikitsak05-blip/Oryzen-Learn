@@ -68,7 +68,11 @@ export function PdfPageCanvas({
     const canvasEl = canvasRef.current;
 
     async function renderPdfPage() {
-      if (!canvasEl || !pdfBytes) return;
+      if (!canvasEl || !pdfBytes) {
+        setTextRuns([]);
+        setRenderStatus("rendering");
+        return;
+      }
       setRenderStatus("rendering");
       try {
         await withTimeout(ensurePdfWorkerConfigured(), 2500, "pdf worker");

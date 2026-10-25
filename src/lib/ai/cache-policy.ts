@@ -169,6 +169,7 @@ export function callerMayReadCachedEntry(params: {
 export async function buildIsolatedAppCacheKey(params: {
   auth: AppCacheAuthorization;
   userId: string;
+  documentId: string;
   documentHash: string;
   pageNumber: number;
   selectionHash: string;
@@ -193,6 +194,7 @@ export async function buildIsolatedAppCacheKey(params: {
     ownerPart,
     `rev:${params.auth.revocationEpoch}`,
     `syl:${syllabusPart}`,
+    `doc:${params.documentId.trim().toLowerCase()}`,
     `p:${params.pageNumber}`,
     `sel:${params.selectionHash}`,
     `lens:${params.lensType}`,

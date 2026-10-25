@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 import type { LocalPdfDocumentRecord } from "@/lib/reader/storage";
@@ -33,6 +33,16 @@ export default function TransformDialog({
   const [edition, setEdition] = useState<TransformChapterEdition | null>(null);
   const [done, setDone] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [boundDocumentId, setBoundDocumentId] = useState(pdfDocument?.id ?? "");
+  const liveDocumentId = useRef(pdfDocument?.id ?? null);
+  liveDocumentId.current = pdfDocument?.id ?? null;
+  if ((pdfDocument?.id ?? "") !== boundDocumentId) {
+    setBoundDocumentId(pdfDocument?.id ?? "");
+    setSelectedTitle(null);
+    setEdition(null);
+    setDone(0);
+    setBusy(false);
+  }
 
   const selected = chapters.find((chapter) => chapter.title === selectedTitle) ?? null;
 
@@ -74,6 +84,7 @@ export default function TransformDialog({
     });
 
     setBusy(true);
+    const requestedId = pdfDocument.id;
     try {
       const response = await fetch("/api/ai/lens", {
         method: "POST",
@@ -101,15 +112,17 @@ export default function TransformDialog({
             payload: data.payload,
           })
         : null;
+      if (liveDocumentId.current !== requestedId) return;
       const next = writeTransformEdition(fromServer ?? localFallback);
       setEdition(next);
       refreshCount();
     } catch {
+      if (liveDocumentId.current !== requestedId) return;
       const next = writeTransformEdition(localFallback);
       setEdition(next);
       refreshCount();
     } finally {
-      setBusy(false);
+      if (liveDocumentId.current === requestedId) setBusy(false);
     }
   };
 

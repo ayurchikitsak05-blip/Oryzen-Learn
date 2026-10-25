@@ -85,6 +85,14 @@ export function StudyWorkspace({
             <span className="truncate">{lens === "ask_my_book" ? "Ask My Book" : title}</span>
           </h3>
           {pageRef ? <p className="mt-1 text-xs text-muted">{pageRef}</p> : null}
+          {selectedText?.trim() ? (
+            <p
+              data-testid="study-source-passage"
+              className="mt-1 line-clamp-3 text-xs text-ink"
+            >
+              {selectedText.trim()}
+            </p>
+          ) : null}
           <ReadingSizeControl className="mt-2" />
         </div>
         <button

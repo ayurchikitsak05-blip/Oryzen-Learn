@@ -21,6 +21,12 @@ import {
 } from "@/lib/reader/extractor";
 import { parseAndIndexUploadedPdf } from "@/lib/reader/document-parser";
 import {
+  acceptSelectionText,
+  resolveStudySnapshot,
+  studySnapshotIsCurrent,
+  type LiveStudyContext,
+} from "@/lib/reader/study-context";
+import {
   buildEmbeddedAyurvedaSamplePdf,
   getLocalPdfBinary,
   listLocalPdfDocuments,
@@ -199,6 +205,7 @@ export default function PdfViewer({
   const [notebookStatus, setNotebookStatus] = useState<string | null>(null);
   const [selectedMcqOptions, setSelectedMcqOptions] = useState<Record<number, number>>({});
   const [lensText, setLensText] = useState<string | null>(null);
+  const [studySource, setStudySource] = useState<string | null>(null);
   const [selectionUi, setSelectionUi] = useState<SelectionToolbarState | null>(null);
   const [textMarks, setTextMarks] = useState<ReaderTextMark[]>([]);
   const [marginNotes, setMarginNotes] = useState<ReaderMarginNote[]>([]);
@@ -232,6 +239,12 @@ export default function PdfViewer({
   } | null>(null);
   const lensRequestIdRef = useRef(0);
   const lensAbortRef = useRef<AbortController | null>(null);
+  const studyLiveRef = useRef<LiveStudyContext>({
+    documentId: "",
+    pageNumber: 0,
+    lens: "",
+    selectedText: "",
+  });
   const askLastQuestionRef = useRef("");
   const autoQuizFiredRef = useRef(false);
 
@@ -655,6 +668,9 @@ export default function PdfViewer({
         }
       }
       const persisted = readPersistedReaderView(chosen.id, readerUserId);
+      if (!active) return;
+      if (pickedDocIdRef.current && pickedDocIdRef.current !== chosen.id) return;
+      pickedDocIdRef.current = chosen.id;
       setActiveDoc(chosen);
       setActivePage(persisted?.page || 1);
       if (persisted?.fitMode) setFitMode(persisted.fitMode);
@@ -681,6 +697,11 @@ export default function PdfViewer({
     () => computeThreePageWindow(activePage, totalPages),
     [activePage, totalPages]
   );
+  const visibleMarks = useMemo(() => {
+    if (!activeDoc) return [];
+    const ids = new Set(activeDoc.chunks.map((chunk) => chunk.chunk_id));
+    return textMarks.filter((mark) => ids.has(mark.chunkId));
+  }, [activeDoc, textMarks]);
 
   useEffect(() => {
     if (!activeDoc) return;
@@ -696,15 +717,55 @@ export default function PdfViewer({
     );
   }, [activeDoc, activePage, customZoom, fitMode, totalPages, readerUserId]);
 
+  const dropInFlightStudy = (next?: Partial<LiveStudyContext>) => {
+    lensAbortRef.current?.abort();
+    lensAbortRef.current = null;
+    lensRequestIdRef.current += 1;
+    studyLiveRef.current = {
+      documentId: next?.documentId ?? studyLiveRef.current.documentId,
+      pageNumber: next?.pageNumber ?? studyLiveRef.current.pageNumber,
+      lens: "",
+      selectedText: "",
+    };
+    setSelectedChunk(null);
+    setLensText(null);
+    setStudySource(null);
+    setSelectionUi(null);
+    setAiResult(null);
+    setAiError(null);
+    setAiLoading(false);
+    setAskTurns([]);
+    setAskDraft("");
+    setAskEmptyHint(null);
+    setWorkspaceOpen(false);
+    setActiveLens(null);
+    setTransformOpen(false);
+    setNotebookStatus(null);
+    setSelectedMcqOptions({});
+  };
+
   const handleGoToPage = async (nextPage: number) => {
     const clamped = Math.min(Math.max(1, nextPage), totalPages);
+    if (clamped === activePage) return;
+    dropInFlightStudy({ pageNumber: clamped });
     setActivePage(clamped);
-    setSelectedChunk(null);
-    setSelectionUi(null);
-    setLensText(null);
     if (activeDoc) {
       await updateLocalPdfMetadata(activeDoc.id, { lastReadPage: clamped });
     }
+  };
+
+  const switchDocument = async (next: LocalPdfDocumentRecord) => {
+    const persisted = readPersistedReaderView(next.id, readerUserId);
+    const page = persisted?.page || 1;
+    pickedDocIdRef.current = next.id;
+    dropInFlightStudy({ documentId: next.id, pageNumber: page });
+    setActivePdfBytes(null);
+    setActiveDoc(next);
+    setActivePage(page);
+    if (persisted?.fitMode) setFitMode(persisted.fitMode);
+    const bytes = await getLocalPdfBinary(next.id);
+    if (pickedDocIdRef.current !== next.id) return;
+    if (bytes) setActivePdfBytes(bytes);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -731,10 +792,10 @@ export default function PdfViewer({
       const refreshed = await listLocalPdfDocuments();
       setDocuments(refreshed);
       pickedDocIdRef.current = result.document.id;
+      dropInFlightStudy({ documentId: result.document.id, pageNumber: 1 });
       setActiveDoc(result.document);
       setActivePdfBytes(bytes);
       setActivePage(1);
-      setSelectedChunk(null);
       setFitMode(DEFAULT_FIT_MODE);
       if (indexed.parseError) {
         setUploadStatus(indexed.parseError);
@@ -845,18 +906,48 @@ export default function PdfViewer({
     });
   };
 
+  const resolveOpenPassage = (
+    lens: string,
+    chunk: CitationReadyChunk | null | undefined = selectedChunk,
+    selectedOverride?: string | null
+  ) => {
+    if (!activeDoc) return null;
+    const pageNumber =
+      chunk && chunk.document_id === activeDoc.id ? chunk.page_number : activePage;
+    const resolved = resolveStudySnapshot({
+      documentId: activeDoc.id,
+      documentHash: activeDoc.fileHash,
+      pageNumber,
+      chunks: activeDoc.chunks,
+      chunk: chunk ?? null,
+      overrideText: selectedOverride,
+      lens,
+    });
+    if (!resolved.ok) return null;
+    const matched =
+      activeDoc.chunks.find((item) => item.chunk_id === resolved.snapshot.chunkId) ?? null;
+    if (!matched) return null;
+    return { snapshot: resolved.snapshot, chunk: matched };
+  };
+
+  const publishStudyLive = (snapshot: {
+    documentId: string;
+    pageNumber: number;
+    lens: string;
+    selectedText: string;
+  }) => {
+    studyLiveRef.current = {
+      documentId: snapshot.documentId,
+      pageNumber: snapshot.pageNumber,
+      lens: snapshot.lens,
+      selectedText: snapshot.selectedText,
+    };
+  };
+
   const resolveAskPassage = (chunk = selectedChunk, selectedOverride?: string) => {
-    const pageChunks =
-      activeDoc?.chunks.filter((item) => item.page_number === (chunk?.page_number ?? activePage)) ??
-      [];
-    const resolvedChunk = chunk ?? pageChunks[0] ?? null;
-    const text = (
-      selectedOverride ??
-      lensText ??
-      resolvedChunk?.text ??
-      pageChunks.map((item) => item.text).join("\n")
-    ).trim();
-    return { chunk: resolvedChunk, text };
+    const bound = resolveOpenPassage("ask_my_book", chunk, selectedOverride ?? lensText);
+    if (!bound) return { chunk: null, text: "" };
+    return { chunk: bound.chunk, text: bound.snapshot.selectedText, snapshot: bound.snapshot };
   };
 
   const openAskMyBook = (chunk = selectedChunk, selectedOverride?: string) => {
@@ -869,7 +960,10 @@ export default function PdfViewer({
     snapshotReading();
     const resolved = resolveAskPassage(chunk, selectedOverride);
     if (resolved.chunk) setSelectedChunk(resolved.chunk);
-    if (resolved.text) setLensText(resolved.text);
+    if (resolved.text) {
+      setLensText(resolved.text);
+      setStudySource(resolved.text);
+    }
     setActiveLens("ask_my_book");
     setAiResult(null);
     setAiError(null);
@@ -888,16 +982,18 @@ export default function PdfViewer({
       return;
     }
     const resolved = resolveAskPassage();
-    if (!resolved.chunk || !resolved.text) {
+    if (!resolved.chunk || !resolved.text || !resolved.snapshot) {
       setAskEmptyHint(null);
       setAiError("Select a passage, or open a page with text, before asking.");
       return;
     }
+    const snapshot = resolved.snapshot;
     snapshotReading();
     askLastQuestionRef.current = question;
     setAskEmptyHint(null);
     setSelectedChunk(resolved.chunk);
     setLensText(resolved.text);
+    setStudySource(resolved.text);
     setActiveLens("ask_my_book");
     setAiError(null);
     setNotebookStatus(null);
@@ -908,10 +1004,12 @@ export default function PdfViewer({
     lensAbortRef.current = controller;
     const requestId = lensRequestIdRef.current + 1;
     lensRequestIdRef.current = requestId;
+    publishStudyLive(snapshot);
+    const documentId = snapshot.documentId;
     try {
-      const nearbyChunks = isolateAskChunks(resolved.chunk.page_number);
+      const nearbyChunks = isolateAskChunks(snapshot.pageNumber);
       const activePageText = nearbyChunks
-        .filter((item) => item.page_number === resolved.chunk.page_number)
+        .filter((item) => item.page_number === snapshot.pageNumber)
         .map((item) => item.text)
         .join("\n");
       const res = await fetch("/api/ai/lens", {
@@ -920,11 +1018,11 @@ export default function PdfViewer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           buildAskMyBookLensBody({
-            documentId: activeDoc.id,
-            documentHash: activeDoc.fileHash,
-            pageNumber: resolved.chunk.page_number,
-            sectionHeading: resolved.chunk.section_heading,
-            selectedText: resolved.text,
+            documentId,
+            documentHash: snapshot.documentHash,
+            pageNumber: snapshot.pageNumber,
+            sectionHeading: snapshot.sectionHeading,
+            selectedText: snapshot.selectedText,
             selectionBoundingBox: resolved.chunk.bounding_box,
             studentQuestion: question,
             conversationHistory: askTurns,
@@ -935,8 +1033,10 @@ export default function PdfViewer({
         ),
         signal: controller.signal,
       });
-      if (requestId !== lensRequestIdRef.current) return;
       const data = (await res.json()) as AiGatewayExecutionResult & { error?: string };
+      if (requestId !== lensRequestIdRef.current || !studySnapshotIsCurrent(snapshot, studyLiveRef.current)) {
+        return;
+      }
       const asked = data.payload?.askMyBook;
       const usable = Boolean(asked?.answer?.trim() || data.payload?.markdown_body?.trim());
       if (!res.ok || !usable) {
@@ -960,7 +1060,12 @@ export default function PdfViewer({
       setAskDraft("");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      if (requestId !== lensRequestIdRef.current) return;
+      if (
+        requestId !== lensRequestIdRef.current ||
+        !studySnapshotIsCurrent(snapshot, studyLiveRef.current)
+      ) {
+        return;
+      }
       setAiError("We couldn't answer from this passage. Please try again.");
     } finally {
       if (requestId === lensRequestIdRef.current) setAiLoading(false);
@@ -969,11 +1074,7 @@ export default function PdfViewer({
 
   const isolateAskChunks = (pageNumber = selectedChunk?.page_number ?? activePage) => {
     if (!activeDoc) return [];
-    return activeDoc.chunks.filter(
-      (item) =>
-        item.document_id === activeDoc.id &&
-        Math.abs(item.page_number - pageNumber) <= 2
-    );
+    return activeDoc.chunks.filter((item) => Math.abs(item.page_number - pageNumber) <= 2);
   };
 
   const handleTriggerLens = async (
@@ -985,20 +1086,25 @@ export default function PdfViewer({
       openAskMyBook(chunk, selectedOverride);
       return;
     }
-    if (!chunk || !activeDoc || aiLoading) return;
-    const selected = (selectedOverride ?? lensText)?.trim() || chunk.text;
-    if (!selected.trim()) {
+    if (!activeDoc || aiLoading) return;
+    const bound = resolveOpenPassage(lens, chunk, selectedOverride ?? lensText);
+    if (!bound) {
       setAiError("Select a passage before exploring it.");
       return;
     }
+    const snapshot = bound.snapshot;
+    const studyChunk = bound.chunk;
+    const sourceDocument = activeDoc;
     snapshotReading();
     lensAbortRef.current?.abort();
     const controller = new AbortController();
     lensAbortRef.current = controller;
     const requestId = lensRequestIdRef.current + 1;
     lensRequestIdRef.current = requestId;
-    setSelectedChunk(chunk);
-    if (selectedOverride) setLensText(selectedOverride);
+    publishStudyLive(snapshot);
+    setSelectedChunk(studyChunk);
+    setLensText(snapshot.selectedText);
+    setStudySource(snapshot.selectedText);
     setActiveLens(lens);
     setSelectedMcqOptions({});
     setAiResult(null);
@@ -1009,11 +1115,11 @@ export default function PdfViewer({
     setSelectionUi(null);
 
     try {
-      const nearbyChunks = activeDoc.chunks.filter(
-        (item) => Math.abs(item.page_number - chunk.page_number) <= 2
+      const nearbyChunks = sourceDocument.chunks.filter(
+        (item) => Math.abs(item.page_number - snapshot.pageNumber) <= 2
       );
       const activePageText = nearbyChunks
-        .filter((item) => item.page_number === chunk.page_number)
+        .filter((item) => item.page_number === snapshot.pageNumber)
         .map((item) => item.text)
         .join("\n");
       const res = await fetch("/api/ai/lens", {
@@ -1021,12 +1127,12 @@ export default function PdfViewer({
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          documentId: activeDoc.id,
-          documentHash: activeDoc.fileHash,
-          pageNumber: chunk.page_number,
-          sectionHeading: chunk.section_heading,
-          selectedText: selected,
-          selectionBoundingBox: chunk.bounding_box,
+          documentId: snapshot.documentId,
+          documentHash: snapshot.documentHash,
+          pageNumber: snapshot.pageNumber,
+          sectionHeading: snapshot.sectionHeading,
+          selectedText: snapshot.selectedText,
+          selectionBoundingBox: studyChunk.bounding_box,
           lensType: lens,
           prakritiDosha: resolvedPrakritiDosha,
           activePageText,
@@ -1034,8 +1140,13 @@ export default function PdfViewer({
         }),
         signal: controller.signal,
       });
-      if (requestId !== lensRequestIdRef.current) return;
       const data = (await res.json()) as AiGatewayExecutionResult & { error?: string };
+      if (
+        requestId !== lensRequestIdRef.current ||
+        !studySnapshotIsCurrent(snapshot, studyLiveRef.current)
+      ) {
+        return;
+      }
       const payload = data.payload;
       const usable =
         Boolean(payload?.markdown_body?.trim()) ||
@@ -1054,9 +1165,9 @@ export default function PdfViewer({
       setAiResult(data);
       if (lens === "test_me") {
         const saved = readQuizProgress(
-          activeDoc.id,
-          chunk.page_number,
-          selected,
+          snapshot.documentId,
+          snapshot.pageNumber,
+          snapshot.selectedText,
           readerUserId
         );
         if (saved) setSelectedMcqOptions(saved.answers);
@@ -1064,12 +1175,18 @@ export default function PdfViewer({
       if (lens === "save_passage") {
         try {
           await persistSavedPassage(
-            activeDoc,
-            chunk,
-            selected,
+            sourceDocument,
+            studyChunk,
+            snapshot.selectedText,
             payload.markdown_body,
             payload.citations
           );
+          if (
+            requestId !== lensRequestIdRef.current ||
+            !studySnapshotIsCurrent(snapshot, studyLiveRef.current)
+          ) {
+            return;
+          }
         } catch (error) {
           setNotebookStatus(null);
           setAiError(
@@ -1081,7 +1198,12 @@ export default function PdfViewer({
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      if (requestId !== lensRequestIdRef.current) return;
+      if (
+        requestId !== lensRequestIdRef.current ||
+        !studySnapshotIsCurrent(snapshot, studyLiveRef.current)
+      ) {
+        return;
+      }
       setAiResult(null);
       setAiError("We couldn't explore this passage. Please try again.");
     } finally {
@@ -1171,21 +1293,8 @@ export default function PdfViewer({
             value={activeDoc?.id ?? ""}
             onChange={(event) => {
               const next = documents.find((doc) => doc.id === event.target.value);
-              if (!next) return;
-              void (async () => {
-                setActiveDoc(next);
-                const persisted = readPersistedReaderView(next.id, readerUserId);
-                setActivePage(persisted?.page || 1);
-                setFitMode(persisted?.fitMode ?? DEFAULT_FIT_MODE);
-                setSelectedChunk(null);
-                setAiResult(null);
-                setAskTurns([]);
-                setAskDraft("");
-                setAskEmptyHint(null);
-                setWorkspaceOpen(false);
-                const bytes = await getLocalPdfBinary(next.id);
-                if (bytes) setActivePdfBytes(bytes);
-              })();
+              if (!next || next.id === activeDoc?.id) return;
+              void switchDocument(next);
             }}
             className="field-input max-w-[11rem] cursor-pointer py-0.5 text-[11px]"
           >
@@ -1384,7 +1493,7 @@ export default function PdfViewer({
               if (pageNumber !== activePage) {
                 return (
                   <div
-                    key={`hidden-${pageNumber}`}
+                    key={`hidden-${activeDoc?.id ?? "none"}-${pageNumber}`}
                     data-testid={`pdf-mounted-page-${pageNumber}`}
                     className="hidden"
                   />
@@ -1392,20 +1501,50 @@ export default function PdfViewer({
               }
               return (
                 <PdfPageCanvas
-                  key={`mounted-${pageNumber}`}
+                  key={`${activeDoc?.id ?? "none"}-${pageNumber}`}
                   pageNumber={pageNumber}
                   isActivePage
                   zoomScale={zoomScale}
                   pdfBytes={activePdfBytes}
                   pageChunks={pageChunks}
                   theme={theme}
-                  marks={textMarks}
+                  marks={visibleMarks}
                   onPageGeometry={handlePageGeometry}
                   onAddMark={handleAddMark}
                   onAddNote={handleAddMarginNote}
                   onSelection={(chunk, selection) => {
-                    setSelectedChunk(chunk);
-                    setLensText(selection?.text ?? chunk.text);
+                    if (!activeDoc) return;
+                    const page = chunk.page_number || activePage;
+                    const accepted = acceptSelectionText(
+                      selection?.text ?? "",
+                      chunk,
+                      activeDoc.chunks,
+                      activeDoc.id,
+                      page
+                    );
+                    if (!accepted) return;
+                    const owner =
+                      activeDoc.chunks.find(
+                        (item) =>
+                          item.page_number === page && item.text.includes(accepted.slice(0, 48))
+                      ) ?? chunk;
+                    if (!owner) return;
+                    if (aiLoading || lensAbortRef.current) {
+                      lensAbortRef.current?.abort();
+                      lensAbortRef.current = null;
+                      lensRequestIdRef.current += 1;
+                      studyLiveRef.current = {
+                        documentId: activeDoc.id,
+                        pageNumber: page,
+                        lens: "",
+                        selectedText: "",
+                      };
+                      setAiLoading(false);
+                      setAiResult(null);
+                    }
+                    setSelectedChunk(owner);
+                    setLensText(accepted);
+                    setStudySource(accepted);
                     setSelectionUi(selection);
                     setAiError(null);
                     setNotebookStatus(null);
@@ -1444,7 +1583,7 @@ export default function PdfViewer({
           result={aiResult}
           lens={activeLens}
           selectedMcqOptions={selectedMcqOptions}
-          selectedText={lensText?.trim() || selectedChunk?.text}
+          selectedText={studySource?.trim() || lensText?.trim() || selectedChunk?.text}
           askDraft={askDraft}
           askTurns={askTurns}
           askEmptyHint={askEmptyHint}
@@ -1594,7 +1733,7 @@ export default function PdfViewer({
           title={activeDoc?.title ?? "Reading annotations"}
           documentId={activeDoc?.id ?? null}
           chunks={activeDoc?.chunks ?? []}
-          marks={textMarks}
+          marks={visibleMarks}
           notes={marginNotes}
           onJump={handleGoToPage}
           onClose={() => setAnnotationsOpen(false)}

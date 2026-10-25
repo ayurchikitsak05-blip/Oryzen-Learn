@@ -53,6 +53,7 @@ describe("institute-authorized app cache policy", () => {
     const sharedA = await buildIsolatedAppCacheKey({
       auth: authorizedSyllabus(),
       userId: "student-a",
+      documentId: "doc-1",
       documentHash: "doc-1",
       pageNumber: 2,
       selectionHash: "sel-1",
@@ -61,6 +62,7 @@ describe("institute-authorized app cache policy", () => {
     const sharedB = await buildIsolatedAppCacheKey({
       auth: authorizedSyllabus(),
       userId: "student-b",
+      documentId: "doc-1",
       documentHash: "doc-1",
       pageNumber: 2,
       selectionHash: "sel-1",
@@ -74,6 +76,7 @@ describe("institute-authorized app cache policy", () => {
     const privateA = await buildIsolatedAppCacheKey({
       auth: authorizedSyllabus({ documentClass: "private_upload" }),
       userId: "student-a",
+      documentId: "doc-1",
       documentHash: "doc-1",
       pageNumber: 2,
       selectionHash: "sel-1",
@@ -82,6 +85,7 @@ describe("institute-authorized app cache policy", () => {
     const privateB = await buildIsolatedAppCacheKey({
       auth: authorizedSyllabus({ documentClass: "private_upload" }),
       userId: "student-b",
+      documentId: "doc-1",
       documentHash: "doc-1",
       pageNumber: 2,
       selectionHash: "sel-1",
@@ -92,6 +96,7 @@ describe("institute-authorized app cache policy", () => {
     const illustrate = await buildIsolatedAppCacheKey({
       auth: authorizedSyllabus({ documentClass: "private_upload" }),
       userId: "student-a",
+      documentId: "doc-1",
       documentHash: "doc-1",
       pageNumber: 2,
       selectionHash: "sel-1",
@@ -102,6 +107,7 @@ describe("institute-authorized app cache policy", () => {
     const revoked = await buildIsolatedAppCacheKey({
       auth: authorizedSyllabus({ revocationEpoch: "2026-10-21" }),
       userId: "student-a",
+      documentId: "doc-1",
       documentHash: "doc-1",
       pageNumber: 2,
       selectionHash: "sel-1",
