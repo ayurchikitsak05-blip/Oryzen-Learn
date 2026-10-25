@@ -71,22 +71,22 @@ export function RectangleGeometrySvg({
   );
 }
 
-function wrapLabel(label: string, maxChars = 16, maxLines = 2): string[] {
+function wrapLabel(label: string, maxChars = 18, maxLines = 3): string[] {
   const words = label.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
     const next = current ? `${current} ${word}` : word;
-    if (next.length > maxChars) {
-      if (current) lines.push(current);
-      current = word.length > maxChars ? `${word.slice(0, maxChars - 1)}…` : word;
-    } else {
+    if (next.length <= maxChars) {
       current = next;
+      continue;
     }
-    if (lines.length === maxLines) break;
+    if (current) lines.push(current);
+    if (lines.length >= maxLines) return lines;
+    current = word.length > maxChars ? `${word.slice(0, maxChars - 1)}…` : word;
   }
   if (current && lines.length < maxLines) lines.push(current);
-  return lines.slice(0, maxLines);
+  return lines;
 }
 
 function ArrowMarker({ id }: { id: string }) {
@@ -110,9 +110,9 @@ export function FlowchartSvg({ diagram }: { diagram: StudyDiagram }) {
   const geometry =
     diagram.geometry?.kind === "rectangle" ? diagram.geometry : undefined;
   const width = Math.max(320, nodes.length * 168);
-  const height = 188;
-  const boxWidth = 138;
-  const boxHeight = 64;
+  const height = 210;
+  const boxWidth = 150;
+  const boxHeight = 84;
   const startX = 16;
   const y = 56;
 

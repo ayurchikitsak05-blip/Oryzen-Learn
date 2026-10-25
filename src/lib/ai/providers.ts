@@ -1,5 +1,6 @@
-import type { AiLensResponsePayload } from "./gateway";
+import type { AiLensResponsePayload, GatewayTaskType } from "./gateway";
 import { mergeStructuredLensPayload } from "./gemini-structured";
+import { geminiRestSchemaForLens, jsonSchemaForLens } from "./lens-schema";
 import {
   CHEAPEST_PROVIDER_ORDER,
   CHEAP_EXTRACTIVE_FALLBACK_PROVIDER,
@@ -407,16 +408,8 @@ export const LENS_JSON_SCHEMA = {
   required: ["title", "markdown_body", "key_points"],
 } as const;
 
-function geminiRestSchema(): Record<string, unknown> {
-  return {
-    type: "OBJECT",
-    properties: {
-      title: { type: "STRING" },
-      markdown_body: { type: "STRING" },
-      key_points: { type: "ARRAY", items: { type: "STRING" } },
-    },
-    required: ["title", "markdown_body", "key_points"],
-  };
+function geminiRestSchema(lens: GatewayTaskType | "markdown" = "markdown"): Record<string, unknown> {
+  return geminiRestSchemaForLens(lens);
 }
 
 async function withTimeout<T>(
@@ -549,6 +542,7 @@ async function callGoogleStructured(params: {
   fetchImpl: FetchLike;
   signal: AbortSignal;
   maxOutputTokens?: number;
+  lensType?: GatewayTaskType;
 }): Promise<{ raw: unknown; promptTokens?: number; completionTokens?: number }> {
   const key = googleApiKey();
   const gatewayKey = aiGatewayApiKey();
@@ -564,6 +558,7 @@ async function callGoogleStructured(params: {
       prompt: params.prompt,
       fetchImpl: params.fetchImpl,
       signal: params.signal,
+      lensType: params.lensType,
     });
   }
 
@@ -580,7 +575,7 @@ async function callGoogleStructured(params: {
       generationConfig: {
         temperature: 0.2,
         responseMimeType: "application/json",
-        responseSchema: geminiRestSchema(),
+        responseSchema: geminiRestSchema(params.lensType ?? "markdown"),
         ...(params.maxOutputTokens
           ? { maxOutputTokens: params.maxOutputTokens }
           : {}),
@@ -616,6 +611,7 @@ async function callOpenAiCompatibleStructured(params: {
   prompt: string;
   fetchImpl: FetchLike;
   signal: AbortSignal;
+  lensType?: GatewayTaskType;
 }): Promise<{ raw: unknown; promptTokens?: number; completionTokens?: number }> {
   const response = await params.fetchImpl(params.url, {
     method: "POST",
@@ -638,7 +634,7 @@ async function callOpenAiCompatibleStructured(params: {
         type: "json_schema",
         json_schema: {
           name: "study_lens",
-          schema: LENS_JSON_SCHEMA,
+          schema: jsonSchemaForLens(params.lensType ?? "markdown"),
           strict: false,
         },
       },
@@ -663,6 +659,7 @@ async function callOpenAiStructured(params: {
   prompt: string;
   fetchImpl: FetchLike;
   signal: AbortSignal;
+  lensType?: GatewayTaskType;
 }) {
   const gatewayKey = aiGatewayApiKey();
   const key = openaiApiKey() || gatewayKey;
@@ -679,6 +676,7 @@ async function callOpenAiStructured(params: {
     prompt: params.prompt,
     fetchImpl: params.fetchImpl,
     signal: params.signal,
+    lensType: params.lensType,
   });
 }
 
@@ -687,6 +685,7 @@ async function callMistralStructured(params: {
   prompt: string;
   fetchImpl: FetchLike;
   signal: AbortSignal;
+  lensType?: GatewayTaskType;
 }) {
   const gatewayKey = aiGatewayApiKey();
   const key = mistralApiKey() || gatewayKey;
@@ -703,6 +702,7 @@ async function callMistralStructured(params: {
     prompt: params.prompt,
     fetchImpl: params.fetchImpl,
     signal: params.signal,
+    lensType: params.lensType,
   });
 }
 
@@ -714,6 +714,7 @@ export async function callProviderStructuredLens(params: {
   fetchImpl?: FetchLike;
   maxAttempts?: number;
   maxOutputTokens?: number;
+  lensType?: GatewayTaskType;
 }): Promise<ProviderCallResult> {
   const fetchImpl = params.fetchImpl ?? (fetch as FetchLike);
   let lastClass: ProviderErrorClass = "unknown";
@@ -730,6 +731,7 @@ export async function callProviderStructuredLens(params: {
             fetchImpl,
             signal,
             maxOutputTokens: params.maxOutputTokens,
+            lensType: params.lensType,
           });
         }
         if (params.provider === "openai") {
@@ -738,6 +740,7 @@ export async function callProviderStructuredLens(params: {
             prompt: params.prompt,
             fetchImpl,
             signal,
+            lensType: params.lensType,
           });
         }
         return callMistralStructured({
@@ -745,9 +748,14 @@ export async function callProviderStructuredLens(params: {
           prompt: params.prompt,
           fetchImpl,
           signal,
+          lensType: params.lensType,
         });
       });
-      const merged = mergeStructuredLensPayload(params.fallback, modeled.raw);
+      const merged = mergeStructuredLensPayload(
+        params.fallback,
+        modeled.raw,
+        params.lensType ?? params.fallback.lens_type
+      );
       if (!merged.usable) {
         lastClass = "unusable_output";
         continue;

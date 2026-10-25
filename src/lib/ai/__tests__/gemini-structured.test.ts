@@ -68,9 +68,9 @@ describe("structured Gemini helpers", () => {
         title: "Force line",
         kind: "flowchart",
         nodes: [
-          { id: "idea", label: "velocity" },
-          { id: "claim", label: "net force" },
-          { id: "check", label: "first law" },
+          { id: "idea", label: "constant velocity" },
+          { id: "claim", label: "a net force" },
+          { id: "check", label: "Newton's first law" },
         ],
         edges: [
           { from: "idea", to: "claim", label: "unless" },

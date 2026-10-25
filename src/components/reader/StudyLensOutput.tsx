@@ -23,14 +23,29 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h4 className="font-reading text-heading">{children}</h4>;
 }
 
+function PartialModelAnswer({
+  result,
+  message,
+}: {
+  result: AiGatewayExecutionResult;
+  message: string;
+}) {
+  return (
+    <div data-testid="ai-partial-structure" className="font-reading space-y-3">
+      <p className="text-xs font-medium text-muted">{message}</p>
+      <StudyMarkdown markdown={result.payload.markdown_body} />
+    </div>
+  );
+}
+
 function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
   const sections = result.payload.explain;
   const [depth, setDepth] = useState<"simple" | "standard" | "deeper">("standard");
   if (!sections) {
     return (
-      <StudyMarkdown
-        markdown={result.payload.markdown_body}
-        diagram={result.payload.diagram}
+      <PartialModelAnswer
+        result={result}
+        message="The model did not return separate Simple, Standard, and Deeper explanations. Showing its written answer."
       />
     );
   }
@@ -72,8 +87,8 @@ function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
               : "Standard explanation"}
         </SectionTitle>
         <p
+          data-testid="explain-body"
           className="mt-2 text-sm leading-relaxed text-ink"
-          data-testid={depth === "simple" ? "explain-class-band" : undefined}
         >
           {explanation}
         </p>
@@ -101,7 +116,12 @@ function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
 function StoryOutput({ result }: { result: AiGatewayExecutionResult }) {
   const story = result.payload.story;
   if (!story) {
-    return <StudyMarkdown markdown={result.payload.markdown_body} />;
+    return (
+      <PartialModelAnswer
+        result={result}
+        message="The model did not return a structured story. Showing its written answer."
+      />
+    );
   }
   return (
     <div data-testid="story-output" className="font-reading space-y-4">
@@ -125,8 +145,14 @@ function IllustrateOutput({ result }: { result: AiGatewayExecutionResult }) {
   const bundle = result.payload.illustrative;
   const [tab, setTab] = useState<IllustrativeTab>("flowchart");
   const flowchart = bundle?.flowchart ?? result.payload.diagram;
-  if (!bundle && !flowchart) {
-    return <StudyMarkdown markdown={result.payload.markdown_body} />;
+  const hasDiagram = Boolean(flowchart || bundle?.mindMap || bundle?.conceptDiagram);
+  if (!hasDiagram) {
+    return (
+      <PartialModelAnswer
+        result={result}
+        message="The model did not return a flowchart or concept map. Showing its written answer."
+      />
+    );
   }
   return (
     <div data-testid="illustrate-output" className="font-reading space-y-3">
@@ -153,16 +179,36 @@ function IllustrateOutput({ result }: { result: AiGatewayExecutionResult }) {
         ))}
       </div>
       {tab === "flowchart" && flowchart ? <FlowchartSvg diagram={flowchart} /> : null}
-      {tab === "mind_map" && bundle ? <MindMapSvg diagram={bundle.mindMap} /> : null}
-      {tab === "concept_diagram" && bundle ? (
+      {tab === "flowchart" && !flowchart ? (
+        <p data-testid="diagram-missing" className="text-sm text-muted">
+          The model did not return a flowchart.
+        </p>
+      ) : null}
+      {tab === "mind_map" && bundle?.mindMap ? <MindMapSvg diagram={bundle.mindMap} /> : null}
+      {tab === "mind_map" && !bundle?.mindMap ? (
+        <p data-testid="diagram-missing" className="text-sm text-muted">
+          The model did not return a concept map.
+        </p>
+      ) : null}
+      {tab === "concept_diagram" && bundle?.conceptDiagram ? (
         <ConceptDiagramSvg diagram={bundle.conceptDiagram} />
       ) : null}
-      {tab === "analogy" && bundle ? (
+      {tab === "concept_diagram" && !bundle?.conceptDiagram ? (
+        <p data-testid="diagram-missing" className="text-sm text-muted">
+          The model did not return a concept diagram.
+        </p>
+      ) : null}
+      {tab === "analogy" && bundle?.analogy ? (
         <div data-testid="study-analogy" className="space-y-2 text-sm leading-relaxed text-ink">
           <p>{bundle.analogy.setup}</p>
           <p>{bundle.analogy.mapping}</p>
           <p>{bundle.analogy.takeaway}</p>
         </div>
+      ) : null}
+      {tab === "analogy" && !bundle?.analogy ? (
+        <p data-testid="diagram-missing" className="text-sm text-muted">
+          The model did not return an analogy.
+        </p>
       ) : null}
     </div>
   );
@@ -172,7 +218,12 @@ function ReviseOutput({ result }: { result: AiGatewayExecutionResult }) {
   const revision = result.payload.revision;
   const [tab, setTab] = useState<RevisionTab>("table");
   if (!revision) {
-    return <StudyMarkdown markdown={result.payload.markdown_body} />;
+    return (
+      <PartialModelAnswer
+        result={result}
+        message="The model did not return a revision table. Showing its written answer."
+      />
+    );
   }
   return (
     <div data-testid="revise-output" className="font-reading space-y-3">
@@ -236,12 +287,15 @@ function ReviseOutput({ result }: { result: AiGatewayExecutionResult }) {
           </table>
         </div>
       ) : null}
-      {tab === "memory" ? (
+      {tab === "memory" && revision.memoryAid ? (
         <p data-testid="memory-aid" className="text-sm leading-relaxed text-ink">
           {revision.memoryAid}
         </p>
       ) : null}
-      {tab === "practice" ? (
+      {tab === "memory" && !revision.memoryAid ? (
+        <p className="text-sm text-muted">The model did not return a memory aid.</p>
+      ) : null}
+      {tab === "practice" && revision.examPractice.length > 0 ? (
         <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-relaxed text-ink">
           {revision.examPractice.map((item) => (
             <li key={item}>{item}</li>
@@ -280,11 +334,21 @@ function TestMeOutput({
       misses,
     });
   }, [allAnswered, misses, result.payload.markdown_body, selectedText]);
+  if (mcqs.length === 0) {
+    return (
+      <PartialModelAnswer
+        result={result}
+        message="The model did not return questions. Showing its written answer."
+      />
+    );
+  }
 
   return (
     <div data-testid="test-me-quiz" className="font-reading space-y-4">
       <p className="text-sm leading-relaxed text-ink">
-        Answer all {mcqs.length || 10} questions from the selected passage only.
+        {mcqs.length === 1
+          ? "Answer the question from the selected passage only."
+          : `Answer all ${mcqs.length} questions from the selected passage only.`}
       </p>
       <p data-testid="test-me-progress" className="text-xs text-muted">
         {answered} of {mcqs.length} answered
@@ -421,7 +485,14 @@ export function StudyLensOutput({
       <div data-testid="ask-my-book-output" className="font-reading space-y-3">
         <p className="text-sm text-heading">{asked?.question ?? "Your question"}</p>
         <div className="text-sm leading-relaxed text-ink [&_p]:whitespace-pre-wrap [&_p]:break-words">
-          <StudyMarkdown markdown={asked?.answer ?? result.payload.markdown_body} />
+          {asked?.answer ? (
+            <StudyMarkdown markdown={asked.answer} />
+          ) : (
+            <PartialModelAnswer
+              result={result}
+              message="The model did not return a source-grounded answer. Showing its written answer."
+            />
+          )}
         </div>
       </div>
     );

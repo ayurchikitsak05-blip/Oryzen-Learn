@@ -30,7 +30,6 @@ import {
 } from "./ask-my-book";
 import {
   composeDeterministicLensPayload,
-  preferValidatedMcqs,
   type AnalogySections,
   type ExplainSections,
   type IllustrativeBundle,
@@ -39,7 +38,8 @@ import {
   type StorySections,
   type StudyDiagram,
 } from "./lens-compose";
-import type { GeminiErrorClass } from "./gemini-structured";
+import { isQualityMcq } from "./lens-quality";
+import { mergeStructuredLensPayload, type GeminiErrorClass } from "./gemini-structured";
 import {
   APP_CACHE_KEY_VERSION,
   authorizeInstituteAppCache,
@@ -159,6 +159,8 @@ export interface AiLensResponsePayload {
     sufficientSource: boolean;
   };
   used_fallback?: boolean;
+  /** Mode fields the model did not return. Empty when the live payload is complete. */
+  missingStructure?: string[];
 }
 
 export interface AiGatewayExecutionResult {
@@ -799,20 +801,20 @@ export async function executeControlledAiGateway(
             : ""
         } If the source does not contain enough evidence, say so clearly. Do not reuse a general Explain template. Fill askMyBook.question, askMyBook.answer, and askMyBook.sufficientSource.`
       : `Teach only the selected passage. Do not invent facts, numbers, or worked solutions the selection does not support.`,
-    request.lensType === "explain"
-      ? `Write Simple, Standard, and Deeper explanations with genuinely different instructional depth. For linear equations, teach variables, coefficients, inverse operations, the given formula, and verification. Never write "this page is about" or "hold one clear claim".`
+    request.lensType === "explain" || request.lensType === "deep_integrative_synthesis"
+      ? `Fill explain.simpleExplanation, explain.standardExplanation, and explain.deeperExplanation with three visibly different depths. Simple uses everyday words and one concrete example from the passage. Standard teaches the idea at a Class 8–10 level, including the relationship the page states. Deeper adds the reason and a common misconception, still in school language, without university terms such as inertial frames, momentum, or vectors unless those words are in the passage. The three texts must not repeat each other.`
       : "",
     request.lensType === "test_me"
-      ? `Write only as many MCQs as you can ground in the excerpt. Test understanding, not quote-matching. Use plausible misconception distractors. Spread correctIndex across 0-3. Do not pad to a fixed count. Reject a question rather than inventing a dummy option.`
+      ? `Fill mcqs with real questions grounded in the excerpt. Each question needs four different options, a correctIndex from 0 to 3, and a short explanation. Spread the correct answers across A–D. Do not write placeholder options or a question that only asks the student to quote the page.`
       : "",
     request.lensType === "story"
-      ? `Tell a short narrative that teaches the selected concept. For algebra, a student should solve or interpret the given equation or graph. Never write a story about copying, summarizing, or retelling a page.`
+      ? `Fill story.opening, story.turningPoint, and story.close. Tell one short scene that teaches the selected concept. Do not write a story about copying or summarizing the page.`
       : "",
     request.lensType === "high_yield_revision"
-      ? `Revision rows must be complete teaching points, never a single leftover word.`
+      ? `Fill revision.quickSummary, revision.keyPoints, revision.revisionTable with at least two topic/remember rows, and revision.memoryAid. Each row must be a complete teaching point from the passage.`
       : "",
     request.lensType === "illustrative"
-      ? `Mind-map labels must be short complete phrases. Flowcharts must show a real conceptual sequence from the excerpt.`
+      ? `Fill illustrative.flowchart, illustrative.mindMap, and illustrative.conceptDiagram. Each diagram needs at least two phrase labels and edges that show a real relationship from the excerpt, such as cause, condition, or next step. Do not return a prose paragraph in place of nodes and edges.`
       : "",
     `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
     `Return JSON matching the study lens schema. Diagrams must use nodes and edges, not mermaid or arrow prose.`,
@@ -902,25 +904,15 @@ export async function executeControlledAiGateway(
             request,
             ragChunks: rag.selectedChunks,
           });
-          generatedPayload = {
-            ...fallbackPayload,
-            ...customResult.payload,
-            mcqs: preferValidatedMcqs(
-              customResult.payload.mcqs,
-              fallbackPayload.mcqs,
-              request.selectedText
-            ),
-            short_answers:
-              customResult.payload.short_answers ?? fallbackPayload.short_answers,
-            diagram: customResult.payload.diagram ?? fallbackPayload.diagram,
-            explain: customResult.payload.explain ?? fallbackPayload.explain,
-            revision: customResult.payload.revision ?? fallbackPayload.revision,
-            illustrative:
-              customResult.payload.illustrative ?? fallbackPayload.illustrative,
-            story: customResult.payload.story ?? fallbackPayload.story,
-            askMyBook: customResult.payload.askMyBook ?? fallbackPayload.askMyBook,
-            used_fallback: false,
-          };
+          const customMerged = mergeStructuredLensPayload(
+            fallbackPayload,
+            customResult.payload,
+            request.lensType
+          );
+          if (!customMerged.usable) {
+            applyDeterministic("unusable_model_output", false);
+          } else {
+          generatedPayload = customMerged.payload;
           usedDeterministicFallback = false;
           fallbackReason = null;
           geminiErrorClass = null;
@@ -934,6 +926,7 @@ export async function executeControlledAiGateway(
           completionTokens = customResult.completionTokens ?? 160;
           costInr = calculateCallCostInr(modelUsed, promptTokens, completionTokens);
           consumeReservation(decision.reservation, costInr);
+          }
         }
       } else if (hasAnyPaidProvider()) {
         let lastClass: ProviderErrorClass = "unknown";
@@ -958,6 +951,7 @@ export async function executeControlledAiGateway(
             maxAttempts: request.maxProviderAttempts === 1 ? 1 : undefined,
             maxOutputTokens:
               request.maxProviderAttempts === 1 ? 800 : undefined,
+            lensType: request.lensType,
           });
           const attemptCost = calculateCallCostInr(
             attempt.model,
@@ -974,15 +968,7 @@ export async function executeControlledAiGateway(
               }
             : null;
           if (modeled.errorClass === null) {
-            generatedPayload = {
-              ...modeled.payload,
-              mcqs: preferValidatedMcqs(
-                modeled.payload.mcqs,
-                fallbackPayload.mcqs,
-                request.selectedText
-              ),
-              revision: modeled.payload.revision ?? fallbackPayload.revision,
-            };
+            generatedPayload = modeled.payload;
             usedDeterministicFallback = false;
             usedProviderFallback = index > 0;
             fallbackReason = null;
@@ -1040,17 +1026,43 @@ export async function executeControlledAiGateway(
         request.studentQuestion ?? generatedPayload.askMyBook?.question ?? "",
       sourceText: request.selectedText,
       model: usedDeterministicFallback ? null : generatedPayload.askMyBook,
-      fallback: fallbackPayload.askMyBook,
+      fallback: usedDeterministicFallback ? fallbackPayload.askMyBook : null,
       markdownBody: usedDeterministicFallback
         ? undefined
         : generatedPayload.markdown_body,
       history: request.conversationHistory,
+      allowSourceExtract: usedDeterministicFallback,
     });
-    generatedPayload = {
-      ...generatedPayload,
-      askMyBook: asked,
-      markdown_body: `### Question\n${asked.question}\n\n### Answer\n${asked.answer}`,
-    };
+    if (!usedDeterministicFallback && !asked.answer.trim()) {
+      const missing = new Set(generatedPayload.missingStructure ?? []);
+      missing.add("askMyBook");
+      generatedPayload = {
+        ...generatedPayload,
+        askMyBook: undefined,
+        missingStructure: [...missing],
+      };
+    } else {
+      generatedPayload = {
+        ...generatedPayload,
+        askMyBook: asked,
+        markdown_body: `### Question\n${asked.question}\n\n### Answer\n${asked.answer}`,
+      };
+    }
+  }
+
+  if (!usedDeterministicFallback && generatedPayload.mcqs?.length) {
+    const grounded = generatedPayload.mcqs.filter((item) =>
+      isQualityMcq(item, request.selectedText)
+    );
+    if (grounded.length !== generatedPayload.mcqs.length) {
+      const missing = new Set(generatedPayload.missingStructure ?? []);
+      if (grounded.length === 0 && request.lensType === "test_me") missing.add("mcqs");
+      generatedPayload = {
+        ...generatedPayload,
+        mcqs: grounded.length > 0 ? grounded : undefined,
+        missingStructure: [...missing],
+      };
+    }
   }
 
   return finishGatewayResult({

@@ -99,11 +99,11 @@ describe("deterministic study lenses", () => {
     );
     expect(payload.diagram?.nodes.length).toBeGreaterThanOrEqual(3);
     expect(payload.diagram?.edges.length).toBeGreaterThanOrEqual(2);
-    expect(payload.illustrative?.flowchart.nodes.length).toBeGreaterThanOrEqual(3);
-    expect(payload.illustrative?.mindMap.kind).toBe("mind_map");
-    expect(payload.illustrative?.mindMap.nodes.length).toBeGreaterThanOrEqual(3);
-    expect(payload.illustrative?.conceptDiagram.edges.length).toBeGreaterThanOrEqual(3);
-    expect(payload.illustrative?.analogy.takeaway).toMatch(/Newton|velocity|force/i);
+    expect(payload.illustrative?.flowchart?.nodes.length).toBeGreaterThanOrEqual(3);
+    expect(payload.illustrative?.mindMap?.kind).toBe("mind_map");
+    expect(payload.illustrative?.mindMap?.nodes.length).toBeGreaterThanOrEqual(3);
+    expect(payload.illustrative?.conceptDiagram?.edges.length).toBeGreaterThanOrEqual(3);
+    expect(payload.illustrative?.analogy?.takeaway).toMatch(/Newton|velocity|force/i);
     expect(payload.markdown_body).not.toMatch(/```|\[Core Idea\]/);
   });
 
@@ -182,8 +182,8 @@ describe("deterministic study lenses", () => {
         ],
         payload.mcqs,
         MATH_PASSAGE
-      )?.every((item) => item.question !== "According to the selected passage, which statement is grounded in the text?")
-    ).toBe(true);
+      )
+    ).toBeUndefined();
   });
 
   it("explains the passage without reprinting the whole source", () => {
@@ -268,8 +268,8 @@ describe("deterministic study lenses", () => {
     expect(flowchart?.nodes.some((node) => /40/i.test(node.label))).toBe(true);
     expect(mind?.nodes[0]?.label).toMatch(/area/i);
     expect(mind?.nodes.some((node) => /L × W|formula/i.test(node.label))).toBe(true);
-    expect(payload.illustrative?.analogy.mapping).toMatch(/8.+5.+40/);
-    expect(payload.illustrative?.analogy.takeaway).toMatch(/unit squares|edge/i);
+    expect(payload.illustrative?.analogy?.mapping).toMatch(/8.+5.+40/);
+    expect(payload.illustrative?.analogy?.takeaway).toMatch(/unit squares|edge/i);
   });
 
   it("tells an age-appropriate rectangle story that explains area instead of paraphrasing the page", () => {
@@ -377,13 +377,13 @@ describe("deterministic study lenses", () => {
     );
 
     const visual = composeDeterministicLensPayload(requestFor("illustrative", LINEAR_PASSAGE));
-    expect(visual.illustrative?.flowchart.nodes.some((node) => /subtract|divide|ax \+ b/i.test(node.label))).toBe(
+    expect(visual.illustrative?.flowchart?.nodes.some((node) => /subtract|divide|ax \+ b/i.test(node.label))).toBe(
       true
     );
-    expect(visual.illustrative?.mindMap.nodes.every((node) => node.label.split(/\s+/).length >= 2)).toBe(
+    expect(visual.illustrative?.mindMap?.nodes.every((node) => node.label.split(/\s+/).length >= 2)).toBe(
       true
     );
-    expect(visual.illustrative?.mindMap.nodes[0]?.label).toMatch(/linear equation/i);
+    expect(visual.illustrative?.mindMap?.nodes[0]?.label).toMatch(/linear equation/i);
   });
 
   it("answers Ask My Book from the document and reports missing evidence", () => {

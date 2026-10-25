@@ -107,9 +107,13 @@ describe("provider-independent adapters", () => {
 
   it("parses a mocked Google REST payload without printing keys", async () => {
     setEnv("GEMINI_API_KEY", "gemini-test-key");
-    const fetchImpl = vi.fn(async (url: string) => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
       expect(url).toContain("generativelanguage.googleapis.com");
       expect(url).not.toContain("gemini-test-key");
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        generationConfig?: { responseSchema?: { required?: string[] } };
+      };
+      expect(body.generationConfig?.responseSchema?.required).toContain("explain");
       return jsonResponse({
         candidates: [
           { content: { parts: [{ text: JSON.stringify(structuredBody()) }] } },
@@ -126,6 +130,7 @@ describe("provider-independent adapters", () => {
       model: "gemini-2.5-flash-lite",
       prompt: "Explain the passage.",
       fallback,
+      lensType: "explain",
       fetchImpl,
     });
     expect(result.errorClass).toBeNull();

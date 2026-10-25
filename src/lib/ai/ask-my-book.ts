@@ -216,6 +216,7 @@ export function preferAskMyBookAnswer(params: {
   fallback?: { question: string; answer: string; sufficientSource: boolean } | null;
   markdownBody?: string;
   history?: readonly AskBookHistoryTurn[];
+  allowSourceExtract?: boolean;
 }): { question: string; answer: string; sufficientSource: boolean } {
   const question =
     params.question.replace(/\s+/g, " ").trim() ||
@@ -256,9 +257,12 @@ export function preferAskMyBookAnswer(params: {
   if (params.model?.sufficientSource !== false) consider(params.model?.answer);
   consider(extractMarkdownAskAnswer(params.markdownBody));
   if (params.fallback?.sufficientSource !== false) consider(params.fallback?.answer);
-  consider(supporting);
+  if (params.allowSourceExtract !== false) consider(supporting);
 
   if (candidates.length === 0) {
+    if (params.allowSourceExtract === false) {
+      return { question, answer: "", sufficientSource: false };
+    }
     return { question, answer: supporting || refusal, sufficientSource: Boolean(supporting) };
   }
   const best = [...candidates].sort((left, right) => {

@@ -90,10 +90,10 @@ export interface ShortAnswerItem {
 }
 
 export interface IllustrativeBundle {
-  flowchart: StudyDiagram;
-  mindMap: StudyDiagram;
-  conceptDiagram: StudyDiagram;
-  analogy: AnalogySections;
+  flowchart?: StudyDiagram;
+  mindMap?: StudyDiagram;
+  conceptDiagram?: StudyDiagram;
+  analogy?: AnalogySections;
 }
 
 export interface ComposedCitation {
@@ -1981,6 +1981,13 @@ export function isUsableModelText(text: string): boolean {
   if (trimmed.length < 80) return false;
   if (/api key|permission denied|quota|safety|blocked/i.test(trimmed)) return false;
   return trimmed.split(/\s+/).length >= 20;
+}
+
+export function isDisplayableModelText(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 40) return false;
+  if (/api key|permission denied|quota exceeded|safety|blocked/i.test(trimmed)) return false;
+  return true;
 }
 
 export function mergeModelTextIntoPayload<T extends { markdown_body: string; used_fallback?: boolean }>(

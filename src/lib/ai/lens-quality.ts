@@ -16,6 +16,17 @@ export function isGenericExplainTemplate(text: string): boolean {
   return GENERIC_EXPLAIN.test(text);
 }
 
+export function explanationsAreDistinct(
+  simple: string,
+  standard: string,
+  deeper: string
+): boolean {
+  const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const parts = [norm(simple), norm(standard), norm(deeper)];
+  if (parts.some((part) => part.length < 12)) return false;
+  return new Set(parts).size === 3;
+}
+
 export function isGenericStudyStory(text: string): boolean {
   return GENERIC_STORY.test(text);
 }
@@ -67,13 +78,11 @@ export function isQualityMcq(mcq: ComposedMcqItem, sourceText: string): boolean 
 
 export function preferValidatedMcqs(
   modelMcqs: ComposedMcqItem[] | undefined,
-  fallbackMcqs: ComposedMcqItem[] | undefined,
+  _fallbackMcqs: ComposedMcqItem[] | undefined,
   sourceText: string
 ): ComposedMcqItem[] | undefined {
   const validModel = (modelMcqs ?? []).filter((item) => isQualityMcq(item, sourceText));
-  if (validModel.length > 0) return validModel;
-  const validFallback = (fallbackMcqs ?? []).filter((item) => isQualityMcq(item, sourceText));
-  return validFallback.length > 0 ? validFallback : undefined;
+  return validModel.length > 0 ? validModel : undefined;
 }
 
 export function placeCorrectOption(

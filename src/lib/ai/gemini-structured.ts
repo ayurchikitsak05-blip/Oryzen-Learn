@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type {
   AiLensResponsePayload,
+  GatewayTaskType,
   GeminiModelTier,
   TestMeMcqItem,
 } from "./gateway";
@@ -16,9 +17,12 @@ import type {
   StudyDiagramKind,
   StudyDiagramNode,
 } from "./lens-compose";
-import { isUsableModelText } from "./lens-compose";
+import { isDisplayableModelText } from "./lens-compose";
+import { requiredFieldsForLens } from "./lens-schema";
 import {
+  explanationsAreDistinct,
   filterRevisionTable,
+  isEducationallyEmptyLabel,
   isGenericExplainTemplate,
   isGenericStudyStory,
 } from "./lens-quality";
@@ -262,8 +266,9 @@ function asDiagram(value: unknown, fallbackKind: StudyDiagramKind): StudyDiagram
           if (!node || typeof node !== "object") return null;
           const item = node as Record<string, unknown>;
           const id = asCleanString(item.id, 32) ?? `n${index}`;
-          const label = asCleanString(item.label, 64);
-          return label ? { id, label } : null;
+          const label = asCleanString(item.label, 80);
+          if (!label || isEducationallyEmptyLabel(label)) return null;
+          return { id, label };
         })
         .filter((node): node is StudyDiagramNode => Boolean(node))
         .slice(0, 6)
@@ -298,16 +303,21 @@ function asDiagram(value: unknown, fallbackKind: StudyDiagramKind): StudyDiagram
 function asExplain(value: unknown): ExplainSections | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
-  const simpleExplanation = asCleanString(raw.simpleExplanation, 600);
-  const standardExplanation = asCleanString(raw.standardExplanation, 800);
-  const deeperExplanation = asCleanString(raw.deeperExplanation, 1000);
+  const simpleExplanation = asCleanString(raw.simpleExplanation, 900);
+  const standardExplanation = asCleanString(raw.standardExplanation, 1200);
+  const deeperExplanation = asCleanString(raw.deeperExplanation, 1400);
   const keyTakeaway = asCleanString(raw.keyTakeaway, 280);
-  const relevantExample = asCleanString(raw.relevantExample, 280);
-  const importantConcepts = asStringList(raw.importantConcepts, 4, 80);
-  if (!simpleExplanation || !standardExplanation || !keyTakeaway) return null;
+  const relevantExample = asCleanString(raw.relevantExample, 400);
+  const importantConcepts = asStringList(raw.importantConcepts, 4, 120);
+  if (!simpleExplanation || !standardExplanation || !deeperExplanation || !keyTakeaway) {
+    return null;
+  }
+  if (!explanationsAreDistinct(simpleExplanation, standardExplanation, deeperExplanation)) {
+    return null;
+  }
   if (
     isGenericExplainTemplate(
-      `${simpleExplanation} ${standardExplanation} ${deeperExplanation ?? ""}`
+      `${simpleExplanation} ${standardExplanation} ${deeperExplanation}`
     )
   ) {
     return null;
@@ -315,12 +325,28 @@ function asExplain(value: unknown): ExplainSections | null {
   return {
     simpleExplanation,
     standardExplanation,
-    deeperExplanation: deeperExplanation ?? standardExplanation,
+    deeperExplanation,
     importantConcepts:
       importantConcepts.length > 0 ? importantConcepts : [keyTakeaway],
     relevantExample: relevantExample ?? keyTakeaway,
     keyTakeaway,
   };
+}
+
+function explainFromLabeledMarkdown(markdown: string): ExplainSections | null {
+  const match = markdown.match(
+    /simple(?:\s+explanation)?\s*[:.]?\s*([\s\S]+?)\s*(?:#{1,3}\s*)?standard(?:\s+explanation)?\s*[:.]?\s*([\s\S]+?)\s*(?:#{1,3}\s*)?deeper(?:\s+explanation)?\s*[:.]?\s*([\s\S]+)/i
+  );
+  if (!match) return null;
+  const firstSentence = (value: string) => value.split(/(?<=\.)\s/)[0]?.trim() || value.trim();
+  return asExplain({
+    simpleExplanation: match[1],
+    standardExplanation: match[2],
+    deeperExplanation: match[3],
+    importantConcepts: [],
+    relevantExample: firstSentence(match[1]),
+    keyTakeaway: firstSentence(match[2]),
+  });
 }
 
 function asStory(value: unknown): StorySections | null {
@@ -360,11 +386,8 @@ function asRevision(value: unknown): RevisionSections | null {
     quickSummary,
     keyPoints: cleanedPoints,
     revisionTable: cleanedTable,
-    memoryAid: memoryAid ?? quickSummary,
-    examPractice:
-      examPractice.length > 0
-        ? examPractice
-        : ["Restate the main claim from these lines only."],
+    memoryAid: memoryAid ?? "",
+    examPractice,
   };
 }
 
@@ -460,68 +483,99 @@ function asIllustrative(value: unknown): IllustrativeBundle | null {
   const mindMap = asDiagram(raw.mindMap, "mind_map");
   const conceptDiagram = asDiagram(raw.conceptDiagram, "concept_diagram");
   const analogy = asAnalogy(raw.analogy);
-  if (!flowchart || !mindMap || !conceptDiagram || !analogy) return null;
+  if (!flowchart && !mindMap && !conceptDiagram && !analogy) return null;
   return {
-    flowchart: { ...flowchart, kind: "flowchart" },
-    mindMap: { ...mindMap, kind: "mind_map" },
-    conceptDiagram: { ...conceptDiagram, kind: "concept_diagram" },
-    analogy,
+    ...(flowchart ? { flowchart: { ...flowchart, kind: "flowchart" as const } } : {}),
+    ...(mindMap ? { mindMap: { ...mindMap, kind: "mind_map" as const } } : {}),
+    ...(conceptDiagram
+      ? { conceptDiagram: { ...conceptDiagram, kind: "concept_diagram" as const } }
+      : {}),
+    ...(analogy ? { analogy } : {}),
   };
+}
+
+function modeNeeds(lens: GatewayTaskType): string[] {
+  return requiredFieldsForLens(lens).filter(
+    (field) => field !== "title" && field !== "markdown_body" && field !== "key_points"
+  );
 }
 
 export function mergeStructuredLensPayload(
   fallback: AiLensResponsePayload,
-  raw: unknown
-): { payload: AiLensResponsePayload; usable: boolean } {
+  raw: unknown,
+  lensType: GatewayTaskType = fallback.lens_type
+): { payload: AiLensResponsePayload; usable: boolean; missingStructure: string[] } {
   if (!raw || typeof raw !== "object") {
-    return { payload: fallback, usable: false };
+    return { payload: fallback, usable: false, missingStructure: [] };
   }
   const parsed = raw as Record<string, unknown>;
-  const markdown =
-    asCleanString(parsed.markdown_body, 4000) ?? fallback.markdown_body;
+  const modelMarkdown = asCleanString(parsed.markdown_body, 4000);
+  const markdown = modelMarkdown && isDisplayableModelText(modelMarkdown) ? modelMarkdown : "";
+  const modelCitations = Array.isArray(parsed.citations)
+    ? parsed.citations.filter(
+        (item): item is AiLensResponsePayload["citations"][number] =>
+          Boolean(item) &&
+          typeof item === "object" &&
+          typeof (item as { label?: unknown }).label === "string"
+      )
+    : [];
   const title = asCleanString(parsed.title, 80) ?? fallback.title;
-  const keyPoints = asStringList(parsed.key_points, 8, 160);
-  const explain = asExplain(parsed.explain) ?? fallback.explain;
-  const story = asStory(parsed.story) ?? fallback.story;
-  const revision = asRevision(parsed.revision) ?? fallback.revision;
-  const diagram = asDiagram(parsed.diagram, fallback.diagram?.kind ?? "flowchart");
-  const illustrative = asIllustrative(parsed.illustrative) ?? fallback.illustrative;
+  const keyPoints = asStringList(parsed.key_points, 8, 180);
+  const explain =
+    asExplain(parsed.explain) ??
+    (lensType === "explain" || lensType === "deep_integrative_synthesis"
+      ? explainFromLabeledMarkdown(markdown)
+      : null);
+  const story = asStory(parsed.story);
+  const revision = asRevision(parsed.revision);
+  const diagram = asDiagram(parsed.diagram, "flowchart");
+  const illustrative = asIllustrative(parsed.illustrative);
   const mcqs = asMcqs(parsed.mcqs, fallback.citations[0]?.label ?? "[Page]");
   const shortAnswers = asShortAnswers(parsed.short_answers);
-  const analogy = asAnalogy(parsed.analogy);
-  const askMyBook = asAskMyBook(parsed.askMyBook) ?? fallback.askMyBook;
+  const analogy = asAnalogy(parsed.analogy) ?? illustrative?.analogy ?? null;
+  const askMyBook = asAskMyBook(parsed.askMyBook);
 
-  const structuredOk = Boolean(
-    explain ||
-      story ||
-      revision ||
-      illustrative ||
-      diagram ||
-      askMyBook ||
-      mcqs.length > 0 ||
-      isUsableModelText(markdown)
+  const present = {
+    explain: Boolean(explain),
+    illustrative: Boolean(
+      illustrative?.flowchart || illustrative?.mindMap || illustrative?.conceptDiagram
+    ),
+    story: Boolean(story),
+    revision: Boolean(revision),
+    mcqs: mcqs.length > 0,
+    askMyBook: Boolean(askMyBook?.answer),
+  };
+  const missingStructure = modeNeeds(lensType).filter(
+    (field) => !present[field as keyof typeof present]
   );
-  if (!structuredOk) {
-    return { payload: fallback, usable: false };
+  const hasModelTeaching = Boolean(
+    markdown || explain || story || revision || illustrative || diagram || askMyBook || mcqs.length > 0
+  );
+  if (!hasModelTeaching) {
+    return { payload: fallback, usable: false, missingStructure: [] };
   }
 
   return {
     usable: true,
+    missingStructure,
     payload: {
-      ...fallback,
+      lens_type: lensType,
+      prakriti_dosha: fallback.prakriti_dosha,
       title,
       markdown_body: markdown,
-      key_points: keyPoints.length > 0 ? keyPoints : fallback.key_points,
-      explain,
-      story,
-      revision,
-      diagram: diagram ?? illustrative?.flowchart ?? fallback.diagram,
-      illustrative,
-      analogy: analogy ?? illustrative?.analogy ?? fallback.analogy,
-      mcqs: mcqs.length > 0 ? mcqs : fallback.mcqs,
-      short_answers: shortAnswers.length > 0 ? shortAnswers : fallback.short_answers,
-      askMyBook,
+      key_points: keyPoints,
+      citations: modelCitations.length > 0 ? modelCitations : fallback.citations,
+      ...(explain ? { explain } : {}),
+      ...(story ? { story } : {}),
+      ...(revision ? { revision } : {}),
+      ...(diagram ? { diagram } : illustrative?.flowchart ? { diagram: illustrative.flowchart } : {}),
+      ...(illustrative ? { illustrative } : {}),
+      ...(analogy ? { analogy } : {}),
+      ...(mcqs.length > 0 ? { mcqs } : {}),
+      ...(shortAnswers.length > 0 ? { short_answers: shortAnswers } : {}),
+      ...(askMyBook ? { askMyBook } : {}),
       used_fallback: false,
+      missingStructure,
     },
   };
 }
@@ -550,6 +604,7 @@ export async function generateStructuredGeminiLens(params: {
   model: GeminiModelTier;
   prompt: string;
   fallback: AiLensResponsePayload;
+  lensType?: GatewayTaskType;
 }): Promise<{
   payload: AiLensResponsePayload;
   promptTokens?: number;
@@ -572,7 +627,10 @@ export async function generateStructuredGeminiLens(params: {
             abortSignal: signal,
             temperature: 0.2,
             responseMimeType: "application/json",
-            responseSchema: LENS_RESPONSE_SCHEMA,
+            responseSchema: {
+              ...LENS_RESPONSE_SCHEMA,
+              required: requiredFieldsForLens(params.lensType ?? "explain"),
+            },
           },
         })
       );
@@ -587,7 +645,7 @@ export async function generateStructuredGeminiLens(params: {
       const parsed = text
         ? (JSON.parse(text) as unknown)
         : ((response as { parsed?: unknown }).parsed ?? null);
-      const merged = mergeStructuredLensPayload(params.fallback, parsed);
+      const merged = mergeStructuredLensPayload(params.fallback, parsed, params.lensType);
       if (!merged.usable) {
         lastClass = "unusable_output";
         continue;
