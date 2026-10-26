@@ -333,6 +333,7 @@ export function retainGroundedDiagrams<
   const hasDiagram = Boolean(flowchart || mindMap || conceptDiagram);
   const missing = new Set(payload.missingStructure ?? []);
   if (!flowchart) missing.add("flowchart");
+  else missing.delete("flowchart");
   if (!hasDiagram) missing.add("illustrative");
   else missing.delete("illustrative");
   const nextIllustrative =
@@ -350,6 +351,358 @@ export function retainGroundedDiagrams<
     illustrative: nextIllustrative,
     missingStructure: [...missing],
   };
+}
+
+type CompletingDiagram = GroundedDiagram & {
+  title?: string;
+  kind?: "flowchart" | "mind_map" | "concept_diagram";
+};
+
+type MeasuredArea = {
+  length: string;
+  width: string;
+  area: string;
+  lengthValue: string;
+  widthValue: string;
+  areaValue: string;
+};
+
+const PHRASE_SKIP = new Set([
+  "the",
+  "and",
+  "for",
+  "its",
+  "are",
+  "was",
+  "not",
+  "but",
+  "has",
+  "had",
+  "his",
+  "her",
+  "she",
+  "him",
+  "you",
+  "our",
+  "any",
+  "can",
+  "may",
+]);
+
+function phraseWords(text: string): string[] {
+  return (text.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).filter(
+    (word) => !PHRASE_SKIP.has(word)
+  );
+}
+
+function acceptedDiagram<T extends CompletingDiagram>(diagram: T, source: string): T | null {
+  return diagramRelationsAreSupported(diagram, source) ? diagram : null;
+}
+
+function explicitUnlessDiagram(source: string): {
+  flowchart: CompletingDiagram;
+  mindMap: CompletingDiagram;
+} | null {
+  for (const sentence of passageSentences(source)) {
+    const match = sentence.match(/^(.+?)\s+unless\s+(.+?)[.?!]?$/i);
+    if (!match?.[1] || !match[2]) continue;
+    const before = phraseWords(match[1]);
+    const after = phraseWords(match[2]);
+    if (before.length < 2 || after.length < 2) continue;
+    const nodes = [
+      { id: "continues", label: before.slice(-2).join(" ") },
+      { id: "exception", label: after.slice(0, 2).join(" ") },
+    ];
+    const edges = [{ from: "continues", to: "exception", label: "unless" }];
+    const flowchart = acceptedDiagram(
+      {
+        title: "The exception this sentence states",
+        kind: "flowchart" as const,
+        nodes,
+        edges,
+      },
+      source
+    );
+    if (!flowchart) continue;
+    return {
+      flowchart,
+      mindMap: {
+        title: "The exception this sentence states",
+        kind: "mind_map",
+        nodes: nodes.map((node) => ({ ...node })),
+        edges: edges.map((edge) => ({ ...edge })),
+      },
+    };
+  }
+  return null;
+}
+
+function explicitFormula(source: string): { subject: string; formula: string } | null {
+  for (const sentence of passageSentences(source)) {
+    const match = sentence.match(/^(.+?)\s+(?:equals|equal to|is|are|=)\s+(.+)$/i);
+    if (!match?.[1] || !match[2]) continue;
+    const formula = match[2].replace(/[.?!]+$/, "").replace(/\s+/g, " ").trim();
+    if (!/\btimes\b|\bmultiplied by\b|×/i.test(formula)) continue;
+    const subject = match[1]
+      .replace(/^(?:the|a|an)\s+/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (subject.split(/\s+/).length < 2 || formula.split(/\s+/).length < 2) continue;
+    const probe = {
+      nodes: [
+        { id: "subject", label: subject },
+        { id: "formula", label: formula },
+      ],
+      edges: [{ from: "subject", to: "formula", label: "equals" }],
+    };
+    if (!diagramRelationsAreSupported(probe, source)) continue;
+    return { subject, formula };
+  }
+  return null;
+}
+
+function explicitMeasuredArea(source: string): MeasuredArea | null {
+  const length = source.match(
+    /\blength\s+is\s+(\d+(?:\.\d+)?)\s*(cm|centimetres?|centimeters?|metres?|meters?|mm|m)\b/i
+  );
+  const width = source.match(
+    /\bwidth\s+is\s+(\d+(?:\.\d+)?)\s*(cm|centimetres?|centimeters?|metres?|meters?|mm|m)\b/i
+  );
+  const area = source.match(
+    /\barea\s+is\s+(\d+(?:\.\d+)?)\s+((?:square\s+)?(?:centimetres?|centimeters?|metres?|meters?|cm|mm|m)(?:\s*(?:\^?2|²))?)/i
+  );
+  if (!length?.[1] || !length[2] || !width?.[1] || !width[2] || !area?.[1] || !area[2]) {
+    return null;
+  }
+  return {
+    lengthValue: length[1],
+    widthValue: width[1],
+    areaValue: area[1],
+    length: `${length[1]} ${length[2]}`,
+    width: `${width[1]} ${width[2]}`,
+    area: `${area[1]} ${area[2].replace(/\s+/g, " ").trim()}`,
+  };
+}
+
+function identityDiagram(
+  source: string,
+  formula: { subject: string; formula: string } | null,
+  worked: MeasuredArea | null,
+  kind: "mind_map" | "concept_diagram",
+  title: string
+): CompletingDiagram | null {
+  if (!formula) return null;
+  const nodes = [
+    { id: "subject", label: formula.subject },
+    { id: "formula", label: formula.formula },
+  ];
+  const edges = [{ from: "subject", to: "formula", label: "equals" }];
+  if (worked && edgeRelationIsSupported(formula.subject, worked.area, "equals", source)) {
+    nodes.push({ id: "result", label: worked.area });
+    edges.push({ from: "subject", to: "result", label: "equals" });
+  }
+  return acceptedDiagram({ title, kind, nodes, edges }, source);
+}
+
+function workedFlowchart(
+  source: string,
+  formula: { subject: string; formula: string } | null,
+  worked: MeasuredArea | null
+): CompletingDiagram | null {
+  if (!worked) return null;
+  const nodes = [
+    { id: "length", label: `length ${worked.length}` },
+    { id: "width", label: `width ${worked.width}` },
+    { id: "area", label: "the area" },
+    { id: "result", label: worked.area },
+  ];
+  const edges = [
+    { from: "length", to: "width", label: "times" },
+    { from: "area", to: "result", label: "equals" },
+  ];
+  if (formula) {
+    nodes.push(
+      { id: "subject", label: formula.subject },
+      { id: "formula", label: formula.formula }
+    );
+    edges.push({ from: "subject", to: "formula", label: "equals" });
+  }
+  return acceptedDiagram(
+    { title: "The calculation the page states", kind: "flowchart", nodes, edges },
+    source
+  );
+}
+
+function formulaFlowchart(
+  source: string,
+  formula: { subject: string; formula: string } | null
+): CompletingDiagram | null {
+  if (!formula) return null;
+  return acceptedDiagram(
+    {
+      title: "The multiplication the page states",
+      kind: "flowchart",
+      nodes: [
+        { id: "length", label: "the length" },
+        { id: "width", label: "the width" },
+      ],
+      edges: [{ from: "length", to: "width", label: "times" }],
+    },
+    source
+  );
+}
+
+function labelHasNumber(diagram: CompletingDiagram, value: string): boolean {
+  const pattern = new RegExp(`(?<!\\d)${value}(?!\\d)`);
+  return diagram.nodes.some((node) => pattern.test(node.label));
+}
+
+function withNodeIds(diagram: CompletingDiagram): CompletingDiagram {
+  return {
+    ...diagram,
+    nodes: diagram.nodes.map((node, index) => ({
+      ...node,
+      id: node.id || `n${index}`,
+    })),
+  };
+}
+
+function includeWorkedResult(
+  diagram: CompletingDiagram,
+  source: string,
+  worked: MeasuredArea | null
+): CompletingDiagram {
+  if (!worked || labelHasNumber(diagram, worked.areaValue) || diagram.nodes.length >= 6) {
+    return diagram;
+  }
+  const current = withNodeIds(diagram);
+  const existing = current.nodes.find((node) =>
+    edgeRelationIsSupported(node.label, worked.area, "equals", source)
+  );
+  const subject = existing ?? { id: "area-subject", label: "the area" };
+  if (!edgeRelationIsSupported(subject.label, worked.area, "equals", source)) return diagram;
+  const nodes = existing ? current.nodes : [...current.nodes, subject];
+  if (nodes.length >= 6) return diagram;
+  const next = {
+    ...current,
+    nodes: [...nodes, { id: "worked-result", label: worked.area }],
+    edges: [...current.edges, { from: subject.id ?? "area-subject", to: "worked-result", label: "equals" }],
+  };
+  return acceptedDiagram(next, source) ?? diagram;
+}
+
+function includeMeasuredFactors(
+  diagram: CompletingDiagram,
+  source: string,
+  worked: MeasuredArea | null
+): CompletingDiagram {
+  if (!worked || diagram.nodes.length > 4) return diagram;
+  if (labelHasNumber(diagram, worked.lengthValue) && labelHasNumber(diagram, worked.widthValue)) {
+    return diagram;
+  }
+  const lengthLabel = `length ${worked.length}`;
+  const widthLabel = `width ${worked.width}`;
+  if (!edgeRelationIsSupported(lengthLabel, widthLabel, "times", source)) return diagram;
+  const current = withNodeIds(diagram);
+  const next = {
+    ...current,
+    nodes: [
+      ...current.nodes,
+      { id: "measured-length", label: lengthLabel },
+      { id: "measured-width", label: widthLabel },
+    ],
+    edges: [
+      ...current.edges,
+      { from: "measured-length", to: "measured-width", label: "times" },
+    ],
+  };
+  return acceptedDiagram(next, source) ?? diagram;
+}
+
+/**
+ * Fills an empty flowchart, mind map, or concept diagram only when the
+ * passage states the relation. A diagram that fails the relation gate is
+ * not inserted.
+ */
+export function completeExplicitDiagrams<
+  T extends {
+    illustrative?: {
+      flowchart?: CompletingDiagram;
+      mindMap?: CompletingDiagram;
+      conceptDiagram?: CompletingDiagram;
+      analogy?: unknown;
+    };
+  },
+>(payload: T, sourceText: string): T {
+  const source = sourceText.trim();
+  if (!source) return payload;
+  const illustrative = payload.illustrative;
+  const unlessDiagram = explicitUnlessDiagram(source);
+  const formula = explicitFormula(source);
+  const worked = explicitMeasuredArea(source);
+
+  let flowchart = illustrative?.flowchart;
+  let mindMap = illustrative?.mindMap;
+  let conceptDiagram = illustrative?.conceptDiagram;
+
+  if (!flowchart) {
+    flowchart =
+      unlessDiagram?.flowchart ??
+      workedFlowchart(source, formula, worked) ??
+      formulaFlowchart(source, formula) ??
+      undefined;
+  } else if (worked) {
+    flowchart = includeMeasuredFactors(includeWorkedResult(flowchart, source, worked), source, worked);
+  }
+
+  if (!mindMap) {
+    mindMap =
+      identityDiagram(source, formula, worked, "mind_map", "What this quantity equals") ??
+      unlessDiagram?.mindMap ??
+      undefined;
+  } else if (worked) {
+    mindMap = includeWorkedResult(mindMap, source, worked);
+  }
+
+  if (!conceptDiagram) {
+    conceptDiagram =
+      identityDiagram(
+        source,
+        formula,
+        worked,
+        "concept_diagram",
+        "The identity the page states"
+      ) ?? undefined;
+  } else if (worked) {
+    conceptDiagram = includeWorkedResult(conceptDiagram, source, worked);
+  }
+
+  if (!flowchart && !mindMap && !conceptDiagram && !illustrative?.analogy) return payload;
+  return {
+    ...payload,
+    illustrative: {
+      ...(flowchart ? { flowchart } : {}),
+      ...(mindMap ? { mindMap } : {}),
+      ...(conceptDiagram ? { conceptDiagram } : {}),
+      ...(illustrative?.analogy ? { analogy: illustrative.analogy } : {}),
+    },
+  };
+}
+
+export function groundIllustrativeDiagrams<
+  T extends {
+    diagram?: GroundedDiagram;
+    illustrative?: {
+      flowchart?: CompletingDiagram;
+      mindMap?: CompletingDiagram;
+      conceptDiagram?: CompletingDiagram;
+      analogy?: unknown;
+    };
+    missingStructure?: string[];
+  },
+>(payload: T, sourceText: string): T {
+  const grounded = retainGroundedDiagrams(payload, sourceText);
+  return retainGroundedDiagrams(completeExplicitDiagrams(grounded, sourceText), sourceText);
 }
 
 export function isQualityMcq(mcq: ComposedMcqItem, sourceText: string): boolean {

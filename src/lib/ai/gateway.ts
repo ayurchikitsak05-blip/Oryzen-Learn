@@ -38,7 +38,7 @@ import {
   type StorySections,
   type StudyDiagram,
 } from "./lens-compose";
-import { isQualityMcq, retainGroundedDiagrams } from "./lens-quality";
+import { groundIllustrativeDiagrams, isQualityMcq } from "./lens-quality";
 import { mergeStructuredLensPayload, type GeminiErrorClass } from "./gemini-structured";
 import {
   APP_CACHE_KEY_VERSION,
@@ -754,7 +754,7 @@ export async function executeControlledAiGateway(
   if (cached) {
     const payload =
       request.lensType === "illustrative"
-        ? retainGroundedDiagrams(cached.response_payload, request.selectedText)
+        ? groundIllustrativeDiagrams(cached.response_payload, request.selectedText)
         : cached.response_payload;
     return finishGatewayResult({
       request,
@@ -819,7 +819,7 @@ export async function executeControlledAiGateway(
       ? `Fill revision.quickSummary, revision.keyPoints, revision.revisionTable with at least two topic/remember rows, and revision.memoryAid. Each row must be a complete teaching point from the passage.`
       : "",
     request.lensType === "illustrative"
-      ? `Fill illustrative.flowchart, illustrative.mindMap, and illustrative.conceptDiagram only with relationships the selected passage states. Each node is a short phrase of at least two words, not a single keyword. Point each arrow from the concept in the source role to the concept in the target role. Use unless only for an exception the sentence states, with the continuing state pointing to the exception. Use equals only when the page states an identity or formula, such as area equals length times width, with the subject pointing to the formula. For length times width, point times from length to width. Do not use becomes unless the passage says one thing turns into the other. A force does not become a diagram. A law does not cause or equal a force. Do not draw acts on between a velocity and a force; a force acts on an object. If one sentence does not state that role and direction, return an empty edges array instead of inventing one. Put invented scenes only in illustrative.analogy, and call that analogy a teaching example rather than a fact from the textbook.`
+      ? `Fill illustrative.flowchart, illustrative.mindMap, and illustrative.conceptDiagram with relationships the selected passage states. Each node is a short phrase of at least two words, not a single keyword. Point each arrow from the concept in the source role to the concept in the target role. Flowchart: one ordered relation. For an exception, the continuing state points to the exception and the edge label is unless. For a measurement, point times from the length to the width and include the numerical result the page states. Mind map: the subject or named idea is the first node. When the page states both a formula and a worked numerical example, one branch is the formula and another is that result, each with equals from the subject. Concept diagram: the same identities, each as its own arrow, including the numerical result when the page states one. Use equals only when the page states an identity or formula, with the subject pointing to the formula or the stated result. Do not use becomes unless the passage says one thing turns into the other. A force does not become a diagram. A law does not cause or equal a force or a motion. Do not draw acts on between a velocity and a force; a force acts on an object. If a sentence does not state that role and direction, omit that arrow. Do not leave a diagram empty when the passage states a relation that diagram can show, and do not invent a relation to fill a diagram. Put invented scenes only in illustrative.analogy, and call that analogy a teaching example rather than a fact from the textbook.`
       : "",
     `Do not insert Ayurveda, doshas, or constitution theory unless the passage itself is about those topics.`,
     `Return JSON matching the study lens schema. Diagrams must use nodes and edges, not mermaid or arrow prose.`,
@@ -1056,7 +1056,7 @@ export async function executeControlledAiGateway(
   }
 
   if (!usedDeterministicFallback && request.lensType === "illustrative") {
-    generatedPayload = retainGroundedDiagrams(generatedPayload, request.selectedText);
+    generatedPayload = groundIllustrativeDiagrams(generatedPayload, request.selectedText);
   }
 
   if (!usedDeterministicFallback && generatedPayload.mcqs?.length) {

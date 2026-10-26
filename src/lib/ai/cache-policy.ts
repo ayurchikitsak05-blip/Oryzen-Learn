@@ -198,7 +198,7 @@ export async function buildIsolatedAppCacheKey(params: {
     `p:${params.pageNumber}`,
     `sel:${params.selectionHash}`,
     `lens:${params.lensType}`,
-    params.lensType === "illustrative" ? "diagram:relations-v3" : "",
+    params.lensType === "illustrative" ? "diagram:relations-v4" : "",
   ]
     .filter(Boolean)
     .join("|");

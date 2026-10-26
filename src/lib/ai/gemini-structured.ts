@@ -75,7 +75,7 @@ const stringArraySchema = {
 const diagramSchema = {
   type: Type.OBJECT,
   description:
-    "A diagram of the selected concept. Use phrase labels and a relationship on every edge. Do not return an empty diagram or a paragraph.",
+    "A diagram of a relationship the selected passage states. Use phrase labels and a relationship on every edge. Omit an arrow the sentence does not support.",
   properties: {
     title: stringSchema,
     kind: stringSchema,
@@ -186,9 +186,21 @@ export const LENS_RESPONSE_SCHEMA = {
     illustrative: {
       type: Type.OBJECT,
       properties: {
-        flowchart: diagramSchema,
-        mindMap: diagramSchema,
-        conceptDiagram: diagramSchema,
+        flowchart: {
+          ...diagramSchema,
+          description:
+            "The ordered relation the passage states. For an exception, the continuing state points to the exception with edge label unless. For a measurement, length points to width with edge label times, and the stated numerical result is included. At least two phrase nodes and one labeled edge when the passage states that relation.",
+        },
+        mindMap: {
+          ...diagramSchema,
+          description:
+            "The subject or named idea is the first node. Branches are relations the passage states. When the passage gives both a formula and a numerical example, include both as equals branches from the subject. Do not draw acts on between a velocity and a force.",
+        },
+        conceptDiagram: {
+          ...diagramSchema,
+          description:
+            "Each edge is an identity the passage states. The subject points to the formula or the numerical result. Include both when the passage states both.",
+        },
         analogy: {
           type: Type.OBJECT,
           properties: {

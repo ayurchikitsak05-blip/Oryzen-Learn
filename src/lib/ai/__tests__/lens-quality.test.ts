@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   diagramExplainsSource,
   filterRevisionTable,
+  groundIllustrativeDiagrams,
   isEducationallyEmptyLabel,
   isGenericExplainTemplate,
   isGenericStudyStory,
@@ -521,5 +522,182 @@ describe("educational quality guards", () => {
     expect(rejected.diagram).toBeUndefined();
     expect(rejected.missingStructure).toContain("flowchart");
     expect(rejected.missingStructure).toContain("illustrative");
+  });
+
+  const NEWTON =
+    "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law, and it is the reason a free-body diagram starts by asking what is actually pushing or pulling.";
+  const RECTANGLE =
+    "The area of a rectangle is length times width. If the length is 8 cm and the width is 5 cm, the area is 40 square centimetres.";
+  type DiagramSlot = {
+    title?: string;
+    kind?: "flowchart" | "mind_map" | "concept_diagram";
+    nodes: Array<{ id: string; label: string }>;
+    edges: Array<{ from: string; to: string; label: string }>;
+  };
+  type IllustratedPayload = {
+    missingStructure?: string[];
+    illustrative?: {
+      flowchart?: DiagramSlot;
+      mindMap?: DiagramSlot;
+      conceptDiagram?: DiagramSlot;
+    };
+  };
+  function ground(payload: IllustratedPayload, source: string) {
+    return groundIllustrativeDiagrams(payload, source);
+  }
+
+  it("fills a missing Newton concept map from the unless sentence and rejects acts on", () => {
+    const grounded = ground(
+      {
+        missingStructure: [],
+        illustrative: {
+          flowchart: {
+            title: "Newton's First Law Mechanics",
+            nodes: [
+              { id: "node1", label: "constant velocity" },
+              { id: "node2", label: "net force" },
+            ],
+            edges: [{ from: "node1", to: "node2", label: "unless" }],
+          },
+          mindMap: {
+            nodes: [
+              { id: "node1", label: "constant velocity" },
+              { id: "node2", label: "net force" },
+            ],
+            edges: [{ from: "node2", to: "node1", label: "acts on" }],
+          },
+        },
+      },
+      NEWTON
+    );
+    expect(grounded.illustrative?.flowchart?.edges).toEqual([
+      { from: "node1", to: "node2", label: "unless" },
+    ]);
+    const mindMap = grounded.illustrative?.mindMap;
+    expect(mindMap?.edges).toEqual([{ from: "continues", to: "exception", label: "unless" }]);
+    expect(mindMap?.nodes.map((node) => node.label)).toEqual(["constant velocity", "net force"]);
+    expect(JSON.stringify(grounded)).not.toMatch(/acts on/);
+    expect(JSON.stringify(grounded)).not.toMatch(/length times width|40 square/);
+    expect(grounded.missingStructure).not.toContain("flowchart");
+    expect(grounded.missingStructure).not.toContain("illustrative");
+  });
+
+  it("adds the worked rectangle example when the model returned only the formula", () => {
+    const grounded = ground(
+      {
+        missingStructure: ["flowchart"],
+        illustrative: {
+          mindMap: {
+            title: "Rectangle Concepts",
+            kind: "mind_map",
+            nodes: [
+              { id: "node1", label: "The area" },
+              { id: "node2", label: "length times width" },
+            ],
+            edges: [{ from: "node1", to: "node2", label: "equals" }],
+          },
+        },
+      },
+      RECTANGLE
+    );
+    const flowchart = grounded.illustrative?.flowchart;
+    const mindMap = grounded.illustrative?.mindMap;
+    const concept = grounded.illustrative?.conceptDiagram;
+    expect(flowchart?.edges).toEqual(
+      expect.arrayContaining([
+        { from: "length", to: "width", label: "times" },
+        { from: "area", to: "result", label: "equals" },
+        { from: "subject", to: "formula", label: "equals" },
+      ])
+    );
+    expect(flowchart?.nodes.map((node) => node.label)).toEqual([
+      "length 8 cm",
+      "width 5 cm",
+      "the area",
+      "40 square centimetres",
+      "area of a rectangle",
+      "length times width",
+    ]);
+    expect(mindMap?.edges).toEqual([
+      { from: "node1", to: "node2", label: "equals" },
+      { from: "node1", to: "worked-result", label: "equals" },
+    ]);
+    expect(mindMap?.nodes.map((node) => node.label)).toContain("40 square centimetres");
+    expect(concept?.nodes.map((node) => node.label)).toEqual([
+      "area of a rectangle",
+      "length times width",
+      "40 square centimetres",
+    ]);
+    expect(JSON.stringify(grounded)).not.toMatch(/constant velocity|acts on/);
+    expect(grounded.missingStructure).not.toContain("flowchart");
+  });
+
+  it("does not invent a diagram or a worked example the passage does not state", () => {
+    const plain = ground(
+      {
+        missingStructure: [],
+        illustrative: {
+          flowchart: {
+            nodes: [
+              { id: "page", label: "landing page" },
+              { id: "proof", label: "customer outcome" },
+            ],
+            edges: [{ from: "page", to: "proof", label: "causes" }],
+          },
+        },
+      },
+      "A landing page should lead with one customer outcome, then show proof."
+    );
+    expect(plain.illustrative?.flowchart).toBeUndefined();
+    expect(plain.illustrative?.mindMap).toBeUndefined();
+    expect(plain.illustrative?.conceptDiagram).toBeUndefined();
+    expect(plain.missingStructure).toContain("flowchart");
+    expect(plain.missingStructure).toContain("illustrative");
+
+    const formulaOnly = ground(
+      { missingStructure: ["flowchart"] },
+      "The area of a rectangle is length times width."
+    );
+    expect(JSON.stringify(formulaOnly)).not.toMatch(/40|8 cm|5 cm/);
+    expect(formulaOnly.illustrative?.mindMap?.edges[0]?.label).toBe("equals");
+    expect(formulaOnly.illustrative?.flowchart?.edges[0]?.label).toBe("times");
+  });
+
+  it("grounds a leaked diagram to the passage that was actually supplied", () => {
+    const leakedOntoRectangle = ground(
+      {
+        illustrative: {
+          flowchart: {
+            nodes: [
+              { id: "node1", label: "constant velocity" },
+              { id: "node2", label: "net force" },
+            ],
+            edges: [{ from: "node1", to: "node2", label: "unless" }],
+          },
+        },
+      },
+      RECTANGLE
+    );
+    expect(JSON.stringify(leakedOntoRectangle)).not.toMatch(/constant velocity|net force/);
+    expect(JSON.stringify(leakedOntoRectangle.illustrative?.flowchart)).toMatch(/8 cm/);
+    expect(JSON.stringify(leakedOntoRectangle.illustrative?.mindMap)).toMatch(/40 square centimetres/);
+
+    const leakedOntoNewton = ground(
+      {
+        illustrative: {
+          mindMap: {
+            nodes: [
+              { id: "node1", label: "The area" },
+              { id: "node2", label: "length times width" },
+            ],
+            edges: [{ from: "node1", to: "node2", label: "equals" }],
+          },
+        },
+      },
+      NEWTON
+    );
+    expect(JSON.stringify(leakedOntoNewton)).not.toMatch(/length times width|40 square|8 cm/);
+    expect(leakedOntoNewton.illustrative?.flowchart?.edges[0]?.label).toBe("unless");
+    expect(leakedOntoNewton.illustrative?.mindMap?.edges[0]?.label).toBe("unless");
   });
 });

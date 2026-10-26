@@ -112,46 +112,35 @@ function RelationArrow({ label }: { label?: string }) {
   );
 }
 
-function orderedSteps(diagram: StudyDiagram) {
-  const byId = new Map(diagram.nodes.map((item) => [item.id, item]));
-  const incoming = new Set(diagram.edges.map((edge) => edge.to));
-  const used = new Set<string>();
-  const steps: Array<{ id: string; label: string; nextLabel?: string }> = [];
-  let cursorId: string | undefined = (
-    diagram.nodes.find((item) => !incoming.has(item.id)) ?? diagram.nodes[0]
-  )?.id;
-  while (cursorId && !used.has(cursorId)) {
-    const item = byId.get(cursorId);
-    if (!item) break;
-    used.add(item.id);
-    const link = diagram.edges.find((edge) => edge.from === item.id && !used.has(edge.to));
-    steps.push({ id: item.id, label: item.label, nextLabel: link?.label });
-    cursorId = link?.to;
-  }
-  return {
-    steps,
-    rest: diagram.nodes.filter((item) => !used.has(item.id)),
-  };
-}
-
 export function FlowchartSvg({ diagram }: { diagram: StudyDiagram }) {
   const nodes = diagram.nodes.slice(0, 6);
   const geometry =
     diagram.geometry?.kind === "rectangle" ? diagram.geometry : undefined;
   if (nodes.length === 0 && !geometry) return null;
-  const { steps, rest } = orderedSteps({ ...diagram, nodes });
+  const byId = new Map(nodes.map((node) => [node.id, node.label]));
+  const covered = new Set<string>();
+  const rows = diagram.edges.flatMap((edge, index) => {
+    const from = byId.get(edge.from);
+    const to = byId.get(edge.to);
+    if (!from || !to) return [];
+    covered.add(edge.from);
+    covered.add(edge.to);
+    return [{ key: `${edge.from}-${edge.to}-${index}`, from, to, label: edge.label }];
+  });
+  const loose = nodes.filter((node) => !covered.has(node.id));
 
   return (
     <DiagramFrame testId="study-flowchart" title={diagram.title}>
       {geometry ? <RectangleGeometrySvg geometry={geometry} /> : null}
-      <ol className="space-y-2">
-        {steps.map((step, index) => (
-          <li key={step.id}>
-            <PhraseCard label={step.label} />
-            {index < steps.length - 1 ? <RelationArrow label={step.nextLabel} /> : null}
+      <ol className="space-y-3">
+        {rows.map((row) => (
+          <li key={row.key} className="space-y-2">
+            <PhraseCard label={row.from} />
+            <RelationArrow label={row.label} />
+            <PhraseCard label={row.to} />
           </li>
         ))}
-        {rest.map((node) => (
+        {loose.map((node) => (
           <li key={node.id}>
             <PhraseCard label={node.label} />
           </li>
@@ -179,17 +168,15 @@ export function MindMapSvg({ diagram }: { diagram: StudyDiagram }) {
   return (
     <DiagramFrame testId="study-mind-map" title={diagram.title}>
       {hubIsSource ? (
-        <>
-          <PhraseCard label={hub.label} />
-          <ul className="space-y-3">
-            {links.map((link) => (
-              <li key={link.node.id}>
-                <RelationArrow label={link.label} />
-                <PhraseCard label={link.node.label} />
-              </li>
-            ))}
-          </ul>
-        </>
+        <ul className="space-y-3">
+          {links.map((link) => (
+            <li key={link.node.id} className="space-y-2">
+              <PhraseCard label={hub.label} />
+              <RelationArrow label={link.label} />
+              <PhraseCard label={link.node.label} />
+            </li>
+          ))}
+        </ul>
       ) : (
         <ul className="space-y-3">
           {links.map((link) => {
