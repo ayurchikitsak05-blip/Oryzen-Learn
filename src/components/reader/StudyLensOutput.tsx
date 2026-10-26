@@ -251,7 +251,7 @@ function IllustrateOutput({
       {tab === "flowchart" && flowchart ? <FlowchartSvg diagram={flowchart} /> : null}
       {tab === "flowchart" && !flowchart ? (
         <p data-testid="diagram-missing" className="text-sm text-muted">
-          The model did not return a flowchart.
+          This passage does not state a flowchart we can draw.
         </p>
       ) : null}
       {tab === "mind_map" && bundle?.mindMap ? <MindMapSvg diagram={bundle.mindMap} /> : null}
@@ -265,7 +265,7 @@ function IllustrateOutput({
       ) : null}
       {tab === "concept_diagram" && !bundle?.conceptDiagram ? (
         <p data-testid="diagram-missing" className="text-sm text-muted">
-          The model did not return a concept diagram.
+          This passage does not state a concept diagram we can draw.
         </p>
       ) : null}
       {tab === "analogy" && bundle?.analogy ? (

@@ -533,6 +533,162 @@ function workedFlowchart(
   );
 }
 
+function clausePhrase(text: string): string | null {
+  const cleaned = text
+    .replace(/[.?!]+$/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/^(?:and|or|but)\s+/i, "")
+    .trim();
+  if (!cleaned || /[,:;]|\b(?:because|unless|if|when|while)\b/i.test(cleaned)) return null;
+  if (/^(?:not|no)\b/i.test(cleaned)) return null;
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 8) return null;
+  return cleaned;
+}
+
+function explicitCauseDiagram(source: string): {
+  flowchart: CompletingDiagram;
+  mindMap?: CompletingDiagram;
+  conceptDiagram: CompletingDiagram;
+} | null {
+  const nodes: Array<{ id: string; label: string }> = [];
+  const edges: Array<{ from: string; to: string; label: string }> = [];
+  const seen = new Map<string, string>();
+  const idFor = (label: string, role: string) => {
+    const key = label.toLowerCase();
+    const existing = seen.get(key);
+    if (existing) return existing;
+    const id = `${role}-${seen.size + 1}`;
+    seen.set(key, id);
+    nodes.push({ id, label });
+    return id;
+  };
+  for (const sentence of passageSentences(source)) {
+    const match = sentence.match(/^(.+?)\s+causes\s+(.+?)[.?!]?$/i);
+    if (!match?.[1] || !match[2]) continue;
+    const from = clausePhrase(match[1]);
+    const to = clausePhrase(match[2]);
+    if (!from || !to) continue;
+    if (!edgeRelationIsSupported(from, to, "causes", source)) continue;
+    const fromId = idFor(from, "cause");
+    const toId = idFor(to, "effect");
+    if (fromId === toId) continue;
+    edges.push({ from: fromId, to: toId, label: "causes" });
+    if (edges.length >= 3) break;
+  }
+  if (edges.length === 0) return null;
+  const flowchart = acceptedDiagram(
+    {
+      title: "The cause this passage states",
+      kind: "flowchart" as const,
+      nodes,
+      edges,
+    },
+    source
+  );
+  if (!flowchart) return null;
+  const sources = new Set(edges.map((edge) => edge.from));
+  const copy = {
+    title: "The cause this passage states",
+    nodes: nodes.map((node) => ({ ...node })),
+    edges: edges.map((edge) => ({ ...edge })),
+  };
+  return {
+    flowchart,
+    mindMap: sources.size === 1 ? { ...copy, kind: "mind_map" as const } : undefined,
+    conceptDiagram: { ...copy, kind: "concept_diagram" as const },
+  };
+}
+
+function explicitThenChain(source: string): CompletingDiagram | null {
+  for (const sentence of passageSentences(source)) {
+    const parts = sentence
+      .split(/\bthen\b/i)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length < 3) continue;
+    const nodes: Array<{ id: string; label: string }> = [];
+    const edges: Array<{ from: string; to: string; label: string }> = [];
+    let previousId: string | null = null;
+    for (const part of parts) {
+      const label = clausePhrase(part);
+      if (!label) {
+        previousId = null;
+        continue;
+      }
+      const id = `step-${nodes.length + 1}`;
+      nodes.push({ id, label });
+      if (previousId && edgeRelationIsSupported(nodes[nodes.length - 2]?.label ?? "", label, "then", source)) {
+        edges.push({ from: previousId, to: id, label: "then" });
+      }
+      previousId = id;
+      if (nodes.length >= 4) break;
+    }
+    if (edges.length < 2) continue;
+    const flowchart = acceptedDiagram(
+      { title: "The sequence this passage states", kind: "flowchart", nodes, edges },
+      source
+    );
+    if (flowchart) return flowchart;
+  }
+  return null;
+}
+
+function explicitShortIdentity(source: string): {
+  mindMap: CompletingDiagram;
+  conceptDiagram: CompletingDiagram;
+} | null {
+  const nodes: Array<{ id: string; label: string }> = [];
+  const edges: Array<{ from: string; to: string; label: string }> = [];
+  const seen = new Map<string, string>();
+  const idFor = (label: string) => {
+    const key = label.toLowerCase();
+    const existing = seen.get(key);
+    if (existing) return existing;
+    const id = `identity-${seen.size + 1}`;
+    seen.set(key, id);
+    nodes.push({ id, label });
+    return id;
+  };
+  for (const sentence of passageSentences(source)) {
+    if (/\b(?:is|are)\s+not\b/i.test(sentence)) continue;
+    const match = sentence.match(/^(.+?)\s+(?:equals|equal to|is|are|=)\s+(.+)$/i);
+    if (!match?.[1] || !match[2]) continue;
+    const subject = clausePhrase(match[1].replace(/^(?:the|a|an)\s+/i, ""));
+    const value = clausePhrase(match[2]);
+    if (!subject || !value || /\btimes\b|\bmultiplied by\b|×/i.test(value)) continue;
+    if (!edgeRelationIsSupported(subject, value, "equals", source)) continue;
+    const from = idFor(subject);
+    const to = idFor(value);
+    if (from === to) continue;
+    edges.push({ from, to, label: "equals" });
+    if (edges.length >= 3) break;
+  }
+  if (edges.length === 0) return null;
+  const first = edges[0];
+  const mindNodes = nodes.filter((node) => node.id === first?.from || node.id === first?.to);
+  const mindMap = acceptedDiagram(
+    {
+      title: "The identity this sentence states",
+      kind: "mind_map" as const,
+      nodes: mindNodes,
+      edges: first ? [{ ...first }] : [],
+    },
+    source
+  );
+  const conceptDiagram = acceptedDiagram(
+    {
+      title: "The identity this sentence states",
+      kind: "concept_diagram" as const,
+      nodes,
+      edges,
+    },
+    source
+  );
+  if (!mindMap || !conceptDiagram) return null;
+  return { mindMap, conceptDiagram };
+}
+
 function formulaFlowchart(
   source: string,
   formula: { subject: string; formula: string } | null
@@ -640,6 +796,9 @@ export function completeExplicitDiagrams<
   const unlessDiagram = explicitUnlessDiagram(source);
   const formula = explicitFormula(source);
   const worked = explicitMeasuredArea(source);
+  const cause = explicitCauseDiagram(source);
+  const sequence = explicitThenChain(source);
+  const identity = explicitShortIdentity(source);
 
   let flowchart = illustrative?.flowchart;
   let mindMap = illustrative?.mindMap;
@@ -650,6 +809,8 @@ export function completeExplicitDiagrams<
       unlessDiagram?.flowchart ??
       workedFlowchart(source, formula, worked) ??
       formulaFlowchart(source, formula) ??
+      sequence ??
+      cause?.flowchart ??
       undefined;
   } else if (worked) {
     flowchart = includeMeasuredFactors(includeWorkedResult(flowchart, source, worked), source, worked);
@@ -658,7 +819,9 @@ export function completeExplicitDiagrams<
   if (!mindMap) {
     mindMap =
       identityDiagram(source, formula, worked, "mind_map", "What this quantity equals") ??
+      identity?.mindMap ??
       unlessDiagram?.mindMap ??
+      cause?.mindMap ??
       undefined;
   } else if (worked) {
     mindMap = includeWorkedResult(mindMap, source, worked);
@@ -672,7 +835,10 @@ export function completeExplicitDiagrams<
         worked,
         "concept_diagram",
         "The identity the page states"
-      ) ?? undefined;
+      ) ??
+      identity?.conceptDiagram ??
+      cause?.conceptDiagram ??
+      undefined;
   } else if (worked) {
     conceptDiagram = includeWorkedResult(conceptDiagram, source, worked);
   }

@@ -700,4 +700,158 @@ describe("educational quality guards", () => {
     expect(leakedOntoNewton.illustrative?.flowchart?.edges[0]?.label).toBe("unless");
     expect(leakedOntoNewton.illustrative?.mindMap?.edges[0]?.label).toBe("unless");
   });
+
+  const CIRCUIT_TEXT =
+    "An electric circuit needs a closed path so charge can move. Current is the flow of electrons through that path. A current of 2 amperes means two coulombs of charge pass a point each second. A cell or battery supplies the energy that pushes the electrons. If the switch is open, the path is broken and the current stops. If the switch is closed, the lamp lights because electrons flow through the filament. A larger resistance in the same circuit lowers the electron flow. The same 2 ampere current through a thinner wire meets more resistance than through a thicker wire. Keep the unit: 2 A is a current, not a voltage.";
+  const PHYSICS =
+    "Closing the switch causes charge to flow. Electric current is the flow of charge through a closed path.";
+  const BIOLOGY =
+    "Bright sunlight causes glucose to form in the leaf. The leaf uses carbon dioxide and water for that change.";
+  const CHEMISTRY =
+    "An acid causes blue litmus paper to turn red. A base causes red litmus paper to turn blue.";
+  const FRACTIONS = "One half equals 50 percent. One quarter equals 25 percent.";
+  const HISTORY =
+    "In 1857 soldiers began the rebellion then the company lost control then the crown took direct rule in 1858.";
+  const WATER =
+    "Ocean water then evaporates into vapour then the vapour condenses into clouds then rain falls back down.";
+
+  it("draws stated causes, sequences, and short identities without subject templates", () => {
+    const physics = ground({}, PHYSICS);
+    expect(physics.illustrative?.flowchart?.edges.map((edge) => edge.label)).toEqual(["causes"]);
+    expect(physics.illustrative?.flowchart?.nodes.map((node) => node.label)).toEqual([
+      "Closing the switch",
+      "charge to flow",
+    ]);
+    expect(physics.illustrative?.mindMap?.edges[0]?.label).toBe("equals");
+    expect(physics.illustrative?.mindMap?.nodes.map((node) => node.label)).toEqual([
+      "Electric current",
+      "the flow of charge through a closed path",
+    ]);
+    expect(physics.illustrative?.conceptDiagram?.edges[0]?.label).toBe("equals");
+
+    const biology = ground({}, BIOLOGY);
+    expect(biology.illustrative?.flowchart?.edges.map((edge) => edge.label)).toEqual(["causes"]);
+    expect(biology.illustrative?.flowchart?.nodes.map((node) => node.label)).toEqual([
+      "Bright sunlight",
+      "glucose to form in the leaf",
+    ]);
+    expect(biology.illustrative?.mindMap?.nodes.map((node) => node.label)).toEqual([
+      "Bright sunlight",
+      "glucose to form in the leaf",
+    ]);
+    expect(biology.illustrative?.conceptDiagram?.edges[0]?.label).toBe("causes");
+    expect(JSON.stringify(biology)).not.toMatch(/oxygen|chlorophyll|Newton|rectangle/);
+
+    const chemistry = ground({}, CHEMISTRY);
+    expect(chemistry.illustrative?.flowchart?.edges.map((edge) => edge.label)).toEqual([
+      "causes",
+      "causes",
+    ]);
+    expect(chemistry.illustrative?.conceptDiagram?.nodes.map((node) => node.label)).toEqual([
+      "An acid",
+      "blue litmus paper to turn red",
+      "A base",
+      "red litmus paper to turn blue",
+    ]);
+    expect(chemistry.illustrative?.mindMap).toBeUndefined();
+
+    const fractions = ground({}, FRACTIONS);
+    expect(fractions.illustrative?.flowchart).toBeUndefined();
+    expect(fractions.missingStructure).toContain("flowchart");
+    expect(fractions.illustrative?.mindMap?.edges).toEqual([
+      { from: "identity-1", to: "identity-2", label: "equals" },
+    ]);
+    expect(fractions.illustrative?.conceptDiagram?.edges.map((edge) => edge.label)).toEqual([
+      "equals",
+      "equals",
+    ]);
+    expect(fractions.illustrative?.conceptDiagram?.nodes.map((node) => node.label)).toEqual([
+      "One half",
+      "50 percent",
+      "One quarter",
+      "25 percent",
+    ]);
+
+    const history = ground({}, HISTORY);
+    expect(history.illustrative?.flowchart?.edges.map((edge) => edge.label)).toEqual([
+      "then",
+      "then",
+    ]);
+    expect(history.illustrative?.flowchart?.nodes.map((node) => node.label)).toEqual([
+      "In 1857 soldiers began the rebellion",
+      "the company lost control",
+      "the crown took direct rule in 1858",
+    ]);
+    expect(history.illustrative?.mindMap).toBeUndefined();
+    expect(history.illustrative?.conceptDiagram).toBeUndefined();
+    expect(JSON.stringify(history)).not.toMatch(/glucose|litmus|percent/);
+
+    const water = ground({}, WATER);
+    expect(water.illustrative?.flowchart?.edges).toHaveLength(3);
+    expect(water.illustrative?.flowchart?.edges.every((edge) => edge.label === "then")).toBe(true);
+    expect(water.illustrative?.flowchart?.nodes.map((node) => node.label)).toEqual([
+      "Ocean water",
+      "evaporates into vapour",
+      "the vapour condenses into clouds",
+      "rain falls back down",
+    ]);
+    expect(water.illustrative?.mindMap).toBeUndefined();
+    expect(water.illustrative?.conceptDiagram).toBeUndefined();
+  });
+
+  it("does not invent a circuit diagram from the authorized chapter wording", () => {
+    const grounded = ground({}, CIRCUIT_TEXT);
+    expect(grounded.illustrative?.flowchart).toBeUndefined();
+    expect(grounded.illustrative?.mindMap).toBeUndefined();
+    expect(grounded.illustrative?.conceptDiagram).toBeUndefined();
+    expect(JSON.stringify(grounded)).not.toMatch(/voltage|glucose|1857|percent/);
+  });
+
+  it("rejects a diagram that belongs to another subject", () => {
+    const leaked = ground(
+      {
+        illustrative: {
+          flowchart: {
+            nodes: [
+              { id: "a", label: "Bright sunlight" },
+              { id: "b", label: "glucose to form in the leaf" },
+            ],
+            edges: [{ from: "a", to: "b", label: "causes" }],
+          },
+          mindMap: {
+            nodes: [
+              { id: "a", label: "One half" },
+              { id: "b", label: "50 percent" },
+            ],
+            edges: [{ from: "a", to: "b", label: "equals" }],
+          },
+        },
+      },
+      HISTORY
+    );
+    expect(JSON.stringify(leaked)).not.toMatch(/sunlight|glucose|percent/);
+    expect(leaked.illustrative?.flowchart?.edges.map((edge) => edge.label)).toEqual(["then", "then"]);
+  });
+
+  it("rejects a reversed cause even when both words appear in the passage", () => {
+    const reversed = ground(
+      {
+        illustrative: {
+          flowchart: {
+            nodes: [
+              { id: "effect", label: "glucose to form in the leaf" },
+              { id: "cause", label: "Bright sunlight" },
+            ],
+            edges: [{ from: "effect", to: "cause", label: "causes" }],
+          },
+        },
+      },
+      BIOLOGY
+    );
+    expect(reversed.illustrative?.flowchart?.edges.map((edge) => edge.label)).toEqual(["causes"]);
+    expect(reversed.illustrative?.flowchart?.nodes.map((node) => node.label)).toEqual([
+      "Bright sunlight",
+      "glucose to form in the leaf",
+    ]);
+  });
 });
