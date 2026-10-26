@@ -13,6 +13,7 @@ import {
   wellnessSuggestions,
   type SavedBodyType,
 } from "@/lib/study/body-type";
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { createClient } from "@/lib/supabase/client";
 import {
   beginFocus,
@@ -49,7 +50,7 @@ const ALERT_COPY: Record<ScheduleAlert, { title: string; body: string }> = {
 
 function readStoredSchedule(): StudySchedule | null {
   try {
-    const raw = window.localStorage.getItem(SCHEDULE_STORAGE_KEY);
+    const raw = readPrivateString(SCHEDULE_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { version?: number; schedule?: unknown };
     if (parsed.version !== 1) return null;
@@ -60,10 +61,7 @@ function readStoredSchedule(): StudySchedule | null {
 }
 
 function writeStoredSchedule(schedule: StudySchedule) {
-  window.localStorage.setItem(
-    SCHEDULE_STORAGE_KEY,
-    JSON.stringify({ version: 1, schedule })
-  );
+  writePrivateString(SCHEDULE_STORAGE_KEY, JSON.stringify({ version: 1, schedule }));
 }
 
 function playChime(contextRef: React.MutableRefObject<AudioContext | null>) {

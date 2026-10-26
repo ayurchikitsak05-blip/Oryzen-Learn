@@ -1,3 +1,4 @@
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import { isThemeId } from "@/lib/rhythm/themes";
 import { nearestDuration } from "@/lib/sprint/plan";
@@ -136,7 +137,7 @@ export function sanitizeDayPlan(value: unknown): DayPlan | null {
 export function readUniversePrefs(userId?: string | null): UniversePrefs {
   if (typeof window === "undefined") return { ...DEFAULT_UNIVERSE_PREFS };
   try {
-    const raw = window.localStorage.getItem(universeStorageKey(userId));
+    const raw = readPrivateString(UNIVERSE_STORAGE_KEY, userId);
     if (!raw) return { ...DEFAULT_UNIVERSE_PREFS };
     return sanitizeUniversePrefs(JSON.parse(raw));
   } catch {
@@ -147,7 +148,7 @@ export function readUniversePrefs(userId?: string | null): UniversePrefs {
 export function writeUniversePrefs(prefs: UniversePrefs, userId?: string | null): UniversePrefs {
   const next = sanitizeUniversePrefs(prefs);
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(universeStorageKey(userId), JSON.stringify(next));
+    writePrivateString(UNIVERSE_STORAGE_KEY, JSON.stringify(next), userId);
   }
   return next;
 }
@@ -155,7 +156,7 @@ export function writeUniversePrefs(prefs: UniversePrefs, userId?: string | null)
 export function readDayPlan(userId?: string | null): DayPlan | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(universePlanStorageKey(userId));
+    const raw = readPrivateString(UNIVERSE_PLAN_STORAGE_KEY, userId);
     if (!raw) return null;
     return sanitizeDayPlan(JSON.parse(raw));
   } catch {
@@ -165,7 +166,7 @@ export function readDayPlan(userId?: string | null): DayPlan | null {
 
 export function writeDayPlan(plan: DayPlan, userId?: string | null): DayPlan {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(universePlanStorageKey(userId), JSON.stringify(plan));
+    writePrivateString(UNIVERSE_PLAN_STORAGE_KEY, JSON.stringify(plan), userId);
   }
   return plan;
 }

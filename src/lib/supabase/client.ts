@@ -22,13 +22,11 @@ function isCompleteAnonKey(key: string): boolean {
 export function getSupabaseEnvConfig(): {
   url: string;
   anonKey: string;
-  serviceRoleKey: string | null;
   isConfigured: boolean;
   keyLooksTruncated: boolean;
 } {
   const url = readEnv("NEXT_PUBLIC_SUPABASE_URL");
   const anonKey = readEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  const serviceRoleKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
   const validUrl = isHttpUrl(url) && !url.includes("placeholder.supabase.co");
   const keyLooksTruncated = anonKey.includes("...");
   const validAnon = isCompleteAnonKey(anonKey);
@@ -36,7 +34,6 @@ export function getSupabaseEnvConfig(): {
   return {
     url: validUrl ? url : "https://placeholder.supabase.co",
     anonKey: validAnon ? anonKey : "placeholder-anon-key",
-    serviceRoleKey: serviceRoleKey || null,
     isConfigured: validUrl && validAnon,
     keyLooksTruncated,
   };

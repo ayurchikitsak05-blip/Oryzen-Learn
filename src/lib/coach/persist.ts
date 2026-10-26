@@ -1,3 +1,4 @@
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import {
   COACH_ACTIONS,
@@ -75,7 +76,7 @@ export function readCoachPrefs(userId?: string | null): CoachPrefs {
     return { ...DEFAULT_COACH_PREFS, shownByKey: {}, feedback: {}, recentIds: [], postponeLog: [] };
   }
   try {
-    const raw = window.localStorage.getItem(coachStorageKey(userId));
+    const raw = readPrivateString(COACH_STORAGE_KEY, userId);
     if (!raw) {
       return { ...DEFAULT_COACH_PREFS, shownByKey: {}, feedback: {}, recentIds: [], postponeLog: [] };
     }
@@ -88,7 +89,7 @@ export function readCoachPrefs(userId?: string | null): CoachPrefs {
 export function writeCoachPrefs(prefs: CoachPrefs, userId?: string | null): CoachPrefs {
   const next = sanitizeCoachPrefs(prefs);
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(coachStorageKey(userId), JSON.stringify(next));
+    writePrivateString(COACH_STORAGE_KEY, JSON.stringify(next), userId);
     window.dispatchEvent(new Event("oryzen-coach-changed"));
   }
   return next;

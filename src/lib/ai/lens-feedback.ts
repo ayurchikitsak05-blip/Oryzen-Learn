@@ -1,3 +1,4 @@
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import type { HighlightLensType } from "@/lib/prakriti/config";
 import type { CognitiveTelemetryEventType } from "@/lib/ai/adaptive-memory";
 
@@ -42,7 +43,7 @@ export function mapFeedbackToMemoryEvent(
 export function readLensFeedback(): LensFeedbackEntry[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(LENS_FEEDBACK_STORAGE_KEY);
+    const raw = readPrivateString(LENS_FEEDBACK_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as LensFeedbackEntry[];
     return Array.isArray(parsed) ? parsed : [];
@@ -63,7 +64,7 @@ export function recordLensFeedback(
   if (typeof window !== "undefined") {
     try {
       const next = [...readLensFeedback(), entry].slice(-40);
-      window.localStorage.setItem(LENS_FEEDBACK_STORAGE_KEY, JSON.stringify(next));
+      writePrivateString(LENS_FEEDBACK_STORAGE_KEY, JSON.stringify(next));
     } catch {
       // Private mode still lets the in-session UI acknowledge the tap.
     }

@@ -22,6 +22,7 @@ import {
   saveLocalPdfDocument,
   updateLocalPdfMetadata,
 } from "../storage";
+import { unlockTestVault } from "@/test/unlock-vault";
 import {
   extractDocumentCitationIndex,
   extractPageCitationChunksFromTextItems,
@@ -32,6 +33,7 @@ import {
 describe("Layer 2: Tablet-First PDF Engine & Local-First Storage Pipeline", () => {
   beforeEach(async () => {
     await clearAllLocalPdfStorage();
+    await unlockTestVault("reader-test");
   });
 
   describe("1. PDF Worker & 3-Page Virtualized RAM Window (pdf-worker.ts)", () => {

@@ -1,3 +1,4 @@
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import { nearestDuration } from "./plan";
 import {
@@ -83,7 +84,7 @@ export function sanitizeSprintStore(value: unknown): SprintStore {
 export function readSprintStore(userId?: string | null): SprintStore {
   if (typeof window === "undefined") return { ...DEFAULT_SPRINT_STORE, sessions: [] };
   try {
-    const raw = window.localStorage.getItem(sprintStorageKey(userId));
+    const raw = readPrivateString(SPRINT_STORAGE_KEY, userId);
     if (!raw) return { ...DEFAULT_SPRINT_STORE, sessions: [] };
     return sanitizeSprintStore(JSON.parse(raw));
   } catch {
@@ -94,7 +95,7 @@ export function readSprintStore(userId?: string | null): SprintStore {
 export function writeSprintStore(store: SprintStore, userId?: string | null): SprintStore {
   const next = sanitizeSprintStore(store);
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(sprintStorageKey(userId), JSON.stringify(next));
+    writePrivateString(SPRINT_STORAGE_KEY, JSON.stringify(next), userId);
   }
   return next;
 }

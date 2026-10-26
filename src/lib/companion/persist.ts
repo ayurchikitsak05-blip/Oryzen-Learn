@@ -1,3 +1,4 @@
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import {
   COMPANION_CHARACTERS,
@@ -127,7 +128,7 @@ export function sanitizeCompanionStore(value: unknown): CompanionStore {
 export function readCompanionStore(userId?: string | null): CompanionStore {
   if (typeof window === "undefined") return emptyCompanionStore();
   try {
-    const raw = window.localStorage.getItem(companionStorageKey(userId));
+    const raw = readPrivateString(COMPANION_STORAGE_KEY, userId);
     if (!raw) return emptyCompanionStore();
     return sanitizeCompanionStore(JSON.parse(raw));
   } catch {
@@ -141,7 +142,7 @@ export function writeCompanionStore(
 ): CompanionStore {
   const next = sanitizeCompanionStore(store);
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(companionStorageKey(userId), JSON.stringify(next));
+    writePrivateString(COMPANION_STORAGE_KEY, JSON.stringify(next), userId);
   }
   return next;
 }

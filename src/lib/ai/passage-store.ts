@@ -8,10 +8,13 @@
 
 import type { BoundingBox } from "@/lib/reader/extractor";
 import {
-  ANONYMOUS_READER_SCOPE,
-  normalizeReaderScope,
-  scopedReaderStorageKey,
-} from "@/lib/reader/local-scope";
+  privateAccessAllowed,
+  readPrivateString,
+  registerVaultLockHook,
+  removePrivateString,
+  writePrivateString,
+} from "@/lib/privacy/account-vault";
+import { normalizeReaderScope, scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import type { InlineCitationCoordinate } from "./gateway";
 
 export const SAVED_PASSAGE_STORAGE_KEY = "oryzen_saved_passages_v1";
@@ -71,9 +74,13 @@ function memoryFor(userId?: string | null): Map<string, SavedPassageEntry> {
 
 function hydrateScope(userId?: string | null): Map<string, SavedPassageEntry> {
   const store = memoryFor(userId);
+  if (!privateAccessAllowed(userId)) {
+    store.clear();
+    return store;
+  }
   if (typeof window === "undefined") return store;
   try {
-    const raw = window.localStorage.getItem(savedPassagesStorageKey(userId));
+    const raw = readPrivateString(SAVED_PASSAGE_STORAGE_KEY, userId);
     if (!raw) return store;
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return store;
@@ -90,9 +97,10 @@ function hydrateScope(userId?: string | null): Map<string, SavedPassageEntry> {
 function persistScope(userId?: string | null): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(
-      savedPassagesStorageKey(userId),
-      JSON.stringify(Array.from(memoryFor(userId).values()))
+    writePrivateString(
+      SAVED_PASSAGE_STORAGE_KEY,
+      JSON.stringify(Array.from(memoryFor(userId).values())),
+      userId
     );
   } catch {
     // The in-memory store still holds the passage.
@@ -129,9 +137,7 @@ export function clearSavedPassages(userId?: string | null): void {
     memoryByScope.clear();
     if (typeof window !== "undefined") {
       try {
-        window.localStorage.removeItem(
-          scopedReaderStorageKey(SAVED_PASSAGE_STORAGE_KEY, ANONYMOUS_READER_SCOPE)
-        );
+        removePrivateString(SAVED_PASSAGE_STORAGE_KEY);
       } catch {
         // Ignored
       }
@@ -141,8 +147,12 @@ export function clearSavedPassages(userId?: string | null): void {
   memoryByScope.delete(normalizeReaderScope(userId));
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(savedPassagesStorageKey(userId));
+    removePrivateString(SAVED_PASSAGE_STORAGE_KEY, userId);
   } catch {
     // Ignored
   }
 }
+
+registerVaultLockHook(() => {
+  memoryByScope.clear();
+});

@@ -5,6 +5,12 @@
  * entry or citation scrolls the virtualized PDF reader directly to that coordinate.
  */
 
+import {
+  readPrivateString,
+  registerVaultLockHook,
+  removePrivateString,
+  writePrivateString,
+} from "@/lib/privacy/account-vault";
 import type { BoundingBox } from "@/lib/reader/extractor";
 import type { InlineCitationCoordinate } from "./gateway";
 
@@ -31,7 +37,7 @@ export function listSavedPassages(
 ): SavedPassageEntry[] {
   if (typeof window !== "undefined") {
     try {
-      const raw = window.localStorage.getItem(SAVED_PASSAGE_STORAGE_KEY);
+      const raw = readPrivateString(SAVED_PASSAGE_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as SavedPassageEntry[];
         parsed.forEach((item) => memoryNotebookStore.set(item.id, item));
@@ -63,10 +69,7 @@ export function savePassageEntry(
   if (typeof window !== "undefined") {
     try {
       const all = Array.from(memoryNotebookStore.values());
-      window.localStorage.setItem(
-        SAVED_PASSAGE_STORAGE_KEY,
-        JSON.stringify(all)
-      );
+      writePrivateString(SAVED_PASSAGE_STORAGE_KEY, JSON.stringify(all));
     } catch {
       // Memory fallback already holds entry
     }
@@ -79,9 +82,13 @@ export function clearSavedPassages(): void {
   memoryNotebookStore.clear();
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.removeItem(SAVED_PASSAGE_STORAGE_KEY);
+      removePrivateString(SAVED_PASSAGE_STORAGE_KEY);
     } catch {
       // Ignored
     }
   }
 }
+
+registerVaultLockHook(() => {
+  memoryNotebookStore.clear();
+});

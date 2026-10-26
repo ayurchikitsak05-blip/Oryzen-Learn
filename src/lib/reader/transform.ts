@@ -1,3 +1,4 @@
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import type { AiLensResponsePayload } from "@/lib/ai/gateway";
 import { excerptForDisplay, extractKeyPhrases, splitPassageSentences } from "@/lib/ai/lens-compose";
 import type { CitationReadyChunk } from "@/lib/reader/extractor";
@@ -33,7 +34,7 @@ function cacheKey(
 function readCacheMap(): Record<string, TransformChapterEdition> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(TRANSFORM_CACHE_STORAGE_KEY);
+    const raw = readPrivateString(TRANSFORM_CACHE_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, TransformChapterEdition>;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -183,7 +184,7 @@ export function writeTransformEdition(edition: TransformChapterEdition): Transfo
         ? cacheKey(edition.documentHash, edition.chapterTitle, edition.edition)
         : cacheKey(edition.documentId, edition.chapterTitle, edition.edition);
       map[key] = edition;
-      window.localStorage.setItem(TRANSFORM_CACHE_STORAGE_KEY, JSON.stringify(map));
+      writePrivateString(TRANSFORM_CACHE_STORAGE_KEY, JSON.stringify(map));
     } catch {
       // Memory-less environments still return the composed sheet.
     }

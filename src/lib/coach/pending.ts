@@ -1,4 +1,11 @@
+import { registerVaultLockHook } from "@/lib/privacy/account-vault";
 import type { CoachActionId, CoachTrigger } from "./types";
+
+registerVaultLockHook(() => {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(COACH_PENDING_KEY);
+  window.sessionStorage.removeItem(COACH_FORCE_TRIGGER_KEY);
+});
 
 export const COACH_PENDING_KEY = "oryzen_coach_pending_v1";
 export const COACH_FORCE_TRIGGER_KEY = "oryzen_coach_force_trigger";

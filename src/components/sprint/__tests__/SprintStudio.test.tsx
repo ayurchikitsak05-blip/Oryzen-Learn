@@ -3,13 +3,17 @@ import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { SprintStudio } from "../SprintStudio";
 import { readSprintStore, todayKey } from "@/lib/sprint";
+import { discardAccountVault } from "@/lib/privacy/account-vault";
+import { unlockTestVault } from "@/test/unlock-vault";
 
 describe("SprintStudio", () => {
   afterEach(() => {
+    discardAccountVault();
     window.localStorage.clear();
   });
 
   it("starts, pauses, resumes, and completes a timed session", async () => {
+    await unlockTestVault("student-a");
     const view = render(<SprintStudio userId="student-a" />);
     fireEvent.change(view.getByTestId("sprint-goal"), {
       target: { value: "Finish linear equations" },
@@ -40,7 +44,8 @@ describe("SprintStudio", () => {
     expect(view.getByTestId("sprint-next-block").textContent).toMatch(/Next recommended|complete/i);
   });
 
-  it("splits a longer daily target and keeps another student isolated", () => {
+  it("splits a longer daily target and keeps another student isolated", async () => {
+    await unlockTestVault("student-a");
     const view = render(<SprintStudio userId="student-a" />);
     fireEvent.change(view.getByTestId("sprint-daily-target"), { target: { value: "90" } });
     expect(view.getByTestId("sprint-progress").textContent).toMatch(/4 session/);
@@ -51,7 +56,8 @@ describe("SprintStudio", () => {
     expect(readSprintStore("student-a").sessions[0]?.date).toBe(todayKey());
   });
 
-  it("lets a student override the suggested rhythm", () => {
+  it("lets a student override the suggested rhythm", async () => {
+    await unlockTestVault("student-a");
     const view = render(<SprintStudio userId="student-a" />);
     fireEvent.click(view.getByTestId("sprint-rhythm-laser"));
     fireEvent.click(view.getByTestId("sprint-duration-60"));

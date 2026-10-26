@@ -4,6 +4,7 @@ import {
   type CalculatedPrakritiProfile,
   type DoshaScores,
 } from "@/lib/prakriti/config";
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import type {
   CognitiveDnaCardJson,
@@ -34,7 +35,7 @@ export function readLocalPrakritiProfile(
 ): LocalPrakritiRecord | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(localPrakritiStorageKey(userId));
+    const raw = readPrivateString(LOCAL_PRAKRITI_STORAGE_KEY, userId);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as LocalPrakritiRecord;
     if (parsed.userId && userId && parsed.userId !== userId) return null;
@@ -49,10 +50,7 @@ export function writeLocalPrakritiProfile(
   userId?: string | null
 ): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    localPrakritiStorageKey(userId),
-    JSON.stringify(payload)
-  );
+  writePrivateString(LOCAL_PRAKRITI_STORAGE_KEY, JSON.stringify(payload), userId);
 }
 
 /**

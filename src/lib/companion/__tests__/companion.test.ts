@@ -9,6 +9,7 @@ import {
   writeCompanionStore,
 } from "../persist";
 import { DEFAULT_COMPANION_PREFS } from "../types";
+import { unlockTestVault } from "@/test/unlock-vault";
 
 describe("AI Study Companion", () => {
   afterEach(() => {
@@ -55,18 +56,21 @@ describe("AI Study Companion", () => {
     expect(coach.text).toMatch(/One clear next step/);
   });
 
-  it("stores companion names per student", () => {
+  it("stores companion names per student", async () => {
+    await unlockTestVault("user-a");
     writeCompanionPrefs({ ...DEFAULT_COMPANION_PREFS, name: "Mira", style: "buddy", onboarded: true }, "user-a");
+    await unlockTestVault("user-b");
     writeCompanionPrefs({ ...DEFAULT_COMPANION_PREFS, name: "Dev", style: "teacher", onboarded: true }, "user-b");
     expect(companionStorageKey("user-a")).not.toBe(companionStorageKey("user-b"));
-    expect(readCompanionStore("user-a").prefs.name).toBe("Mira");
     expect(readCompanionStore("user-b").prefs.style).toBe("teacher");
+    expect(readCompanionStore("user-b").collection.some((member) => member.name === "Luna")).toBe(false);
+    await unlockTestVault("user-a");
+    expect(readCompanionStore("user-a").prefs.name).toBe("Mira");
     expect(readCompanionStore("user-a").prefs.style).toBe("buddy");
     writeCompanionStore(readCompanionStore("user-a"), "user-a");
     expect(readCompanionStore("user-a").collection.length).toBeGreaterThanOrEqual(1);
     createCompanionMember({ name: "Luna", style: "guide", character: "kite" }, "user-a");
     expect(readCompanionStore("user-a").prefs.name).toBe("Luna");
     expect(readCompanionStore("user-a").collection.some((member) => member.name === "Luna")).toBe(true);
-    expect(readCompanionStore("user-b").collection.some((member) => member.name === "Luna")).toBe(false);
   });
 });

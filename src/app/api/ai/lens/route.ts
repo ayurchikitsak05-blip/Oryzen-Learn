@@ -61,6 +61,9 @@ export async function POST(request: NextRequest) {
         .catch(() => ({ data: { user: null } }));
       sessionUserId = data?.user?.id ?? null;
     }
+    if (!sessionUserId) {
+      return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+    }
     const resolvedUserId = resolveAuthorizedUserId(sessionUserId, body.userId);
 
     const result = await executeControlledAiGateway({

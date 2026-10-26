@@ -3,13 +3,17 @@ import { fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { CompanionChat } from "../CompanionChat";
 import { readCompanionStore } from "@/lib/companion";
+import { discardAccountVault } from "@/lib/privacy/account-vault";
+import { unlockTestVault } from "@/test/unlock-vault";
 
 describe("CompanionChat", () => {
   afterEach(() => {
+    discardAccountVault();
     window.localStorage.clear();
   });
 
-  it("lets a student name a companion, pick a style, and change it later", () => {
+  it("lets a student name a companion, pick a style, and change it later", async () => {
+    await unlockTestVault("student-a");
     const view = render(<CompanionChat userId="student-a" fromOnboarding />);
     expect(view.getByTestId("companion-setup").textContent).toMatch(/not a person/i);
     fireEvent.change(view.getByTestId("companion-name"), { target: { value: "Mira" } });
@@ -49,15 +53,18 @@ describe("CompanionChat", () => {
     expect(view.getByTestId("companion-thread").textContent).not.toMatch(/\bI feel\b/);
   });
 
-  it("keeps companion names isolated per student", () => {
+  it("keeps companion names isolated per student", async () => {
+    await unlockTestVault("student-a");
     const first = render(<CompanionChat userId="student-a" />);
     fireEvent.change(first.getByTestId("companion-name"), { target: { value: "Mira" } });
     fireEvent.click(first.getByTestId("companion-save"));
     first.unmount();
 
+    await unlockTestVault("student-b");
     const second = render(<CompanionChat userId="student-b" />);
     expect(second.getByTestId("companion-setup")).toBeTruthy();
     expect(readCompanionStore("student-b").prefs.onboarded).toBe(false);
+    await unlockTestVault("student-a");
     expect(readCompanionStore("student-a").prefs.name).toBe("Mira");
   });
 });

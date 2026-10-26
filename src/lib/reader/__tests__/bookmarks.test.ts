@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { unlockTestVault } from "@/test/unlock-vault";
 import {
   hasBookmark,
   listBookmarks,
@@ -6,6 +7,10 @@ import {
 } from "../bookmarks";
 
 describe("reader bookmarks", () => {
+  beforeEach(async () => {
+    await unlockTestVault("user-a");
+  });
+
   afterEach(() => {
     window.localStorage.clear();
   });

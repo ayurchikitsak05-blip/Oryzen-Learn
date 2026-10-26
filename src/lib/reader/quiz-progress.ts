@@ -1,4 +1,5 @@
 import { saveToNotebook } from "@/lib/notes/save-to-notebook";
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 
 export const READER_QUIZ_PROGRESS_KEY = "oryzen_reader_quiz_progress_v1";
@@ -33,7 +34,7 @@ export function quizProgressId(
 function readMap(userId?: string | null): Record<string, ReaderQuizProgress> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(quizProgressStorageKey(userId));
+    const raw = readPrivateString(READER_QUIZ_PROGRESS_KEY, userId);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, ReaderQuizProgress>;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -53,7 +54,7 @@ export function writeQuizProgress(
   if (typeof window !== "undefined") {
     const map = readMap(userId);
     map[quizProgressId(next.documentId, next.pageNumber, next.selectionKey)] = next;
-    window.localStorage.setItem(quizProgressStorageKey(userId), JSON.stringify(map));
+    writePrivateString(READER_QUIZ_PROGRESS_KEY, JSON.stringify(map), userId);
   }
   return next;
 }
@@ -81,7 +82,7 @@ export function replaceAllQuizProgress(
     for (const item of items) {
       map[quizProgressId(item.documentId, item.pageNumber, item.selectionKey)] = item;
     }
-    window.localStorage.setItem(quizProgressStorageKey(userId), JSON.stringify(map));
+    writePrivateString(READER_QUIZ_PROGRESS_KEY, JSON.stringify(map), userId);
   }
   return [...items];
 }

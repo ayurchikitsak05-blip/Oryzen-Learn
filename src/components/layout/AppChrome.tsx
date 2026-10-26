@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Archive, BookOpen, House, PenLine, Sparkles, UserRound } from "lucide-react";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
 import OwnerDemoBanner from "@/components/demo/OwnerDemoBanner";
+import { ensureAccountVault } from "@/lib/privacy/account-vault";
 
 const APP_LINKS = [
   { href: "/hub", label: "Learning Space", mobileLabel: "Home", icon: House },
@@ -37,6 +38,11 @@ export default function AppChrome({
 }) {
   const pathname = usePathname();
   const showAppNav = nav === "app";
+
+  useEffect(() => {
+    if (!showAppNav) return;
+    void ensureAccountVault();
+  }, [showAppNav]);
 
   return (
     <div className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink ${showAppNav ? "pb-20 md:pb-0" : ""}`}>

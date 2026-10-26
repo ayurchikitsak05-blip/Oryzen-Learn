@@ -18,6 +18,8 @@ import {
   writeLocalRoadmap,
 } from "../persist";
 import { prepareRoadmapRecord } from "../sanitize";
+import { readPrivateString } from "@/lib/privacy/account-vault";
+import { unlockTestVault } from "@/test/unlock-vault";
 
 const TODAY = "2026-11-02";
 
@@ -34,7 +36,8 @@ describe("roadmap persist", () => {
     window.localStorage.clear();
   });
 
-  it("keeps a student plan in localStorage when the table is not live", () => {
+  it("keeps a student plan in localStorage when the table is not live", async () => {
+    await unlockTestVault("student-1");
     const record = sample("student-1");
     writeLocalRoadmap(record, "student-1");
     const loaded = readLocalRoadmap("student-1");
@@ -57,12 +60,14 @@ describe("roadmap persist", () => {
     expect(coachStorageKey("student-a")).not.toBe(roadmapStorageKey("student-a"));
   });
 
-  it("keeps a dated snapshot for Keep Both without replacing the live local plan", () => {
+  it("keeps a dated snapshot for Keep Both without replacing the live local plan", async () => {
+    await unlockTestVault("student-1");
     const record = sample("student-1");
     writeLocalRoadmap(record, "student-1");
     const key = snapshotLocalRoadmap(record, "student-1");
     expect(key).toContain("oryzen_study_roadmap_v1::student-1::snapshot::");
-    expect(window.localStorage.getItem(key)).toContain(record.id);
+    expect(window.localStorage.getItem(key)).toBeNull();
+    expect(readPrivateString("oryzen_study_roadmap_snapshot_v1", "student-1")).toContain(record.id);
     expect(readLocalRoadmap("student-1")?.id).toBe(record.id);
     expect(exportRoadmapJson(record)).toContain(record.id);
     expect(exportRoadmapFilename(record, new Date("2026-11-02T00:00:00.000Z"))).toContain("2026-11-02");

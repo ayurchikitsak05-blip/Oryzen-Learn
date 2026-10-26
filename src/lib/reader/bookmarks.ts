@@ -1,4 +1,4 @@
-import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 
 export const READER_BOOKMARKS_KEY = "oryzen_reader_bookmarks_v1";
 
@@ -9,14 +9,10 @@ export interface ReaderBookmark {
   createdAt: string;
 }
 
-function storageKey(userId?: string | null): string {
-  return scopedReaderStorageKey(READER_BOOKMARKS_KEY, userId);
-}
-
 function readAll(userId?: string | null): ReaderBookmark[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(storageKey(userId));
+    const raw = readPrivateString(READER_BOOKMARKS_KEY, userId);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as ReaderBookmark[];
     return Array.isArray(parsed) ? parsed : [];
@@ -27,7 +23,7 @@ function readAll(userId?: string | null): ReaderBookmark[] {
 
 function writeAll(items: readonly ReaderBookmark[], userId?: string | null) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(storageKey(userId), JSON.stringify(items));
+  writePrivateString(READER_BOOKMARKS_KEY, JSON.stringify(items), userId);
 }
 
 export function listAllBookmarks(userId?: string | null): ReaderBookmark[] {

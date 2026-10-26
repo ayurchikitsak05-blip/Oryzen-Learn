@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { ui } from "@/components/ui/classes";
+import { lockAccountVault } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 
 export default function AccountMenu() {
@@ -19,6 +20,7 @@ export default function AccountMenu() {
   }, []);
 
   const signOut = async () => {
+    await lockAccountVault();
     await fetch("/api/auth/signout", {
       method: "POST",
       credentials: "same-origin",

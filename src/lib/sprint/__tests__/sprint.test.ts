@@ -12,6 +12,7 @@ import {
   tickSprint,
 } from "../engine";
 import { listSprintNotes, saveSprintNote, sprintNotesKey } from "../notes";
+import { unlockTestVault } from "@/test/unlock-vault";
 import {
   activeSession,
   nearestDuration,
@@ -67,13 +68,14 @@ describe("StudySprint planning", () => {
     expect(done.completedAt).toBeTruthy();
   });
 
-  it("uses an accelerated clock for focus, break, refresh, and navigation", () => {
+  it("uses an accelerated clock for focus, break, refresh, and navigation", async () => {
     const started = startSprint(
       createSprintSession({ goal: "Page 1", durationMinutes: 15, breakMinutes: 5, date: "2026-10-24" }),
       0
     );
     const atFocusEnd = tickSprint(started, 15 * 60_000);
     expect(atFocusEnd.status).toBe("break");
+    await unlockTestVault("nav-user");
     writeSprintStore({ ...readSprintStore("nav-user"), sessions: [atFocusEnd] }, "nav-user");
     const restored = readSprintStore("nav-user").sessions[0];
     expect(restored?.status).toBe("break");
@@ -126,12 +128,14 @@ describe("StudySprint persistence", () => {
     window.localStorage.clear();
   });
 
-  it("keeps two students' sessions apart and restores unfinished work", () => {
+  it("keeps two students' sessions apart and restores unfinished work", async () => {
+    await unlockTestVault("user-a");
     const open = startSprint(
       createSprintSession({ goal: "Page 2", durationMinutes: 25, date: "2026-10-24" }),
       1
     );
     writeSprintStore({ ...readSprintStore("user-a"), sessions: [open] }, "user-a");
+    await unlockTestVault("user-b");
     writeSprintStore(
       {
         ...readSprintStore("user-b"),
@@ -140,15 +144,17 @@ describe("StudySprint persistence", () => {
       "user-b"
     );
     expect(sprintStorageKey("user-a")).not.toBe(sprintStorageKey("user-b"));
-    const a = readSprintStore("user-a");
     const b = readSprintStore("user-b");
+    await unlockTestVault("user-a");
+    const a = readSprintStore("user-a");
     expect(activeSession(a.sessions)?.goal).toBe("Page 2");
     expect(pendingSessions(a.sessions, "2026-10-24")).toHaveLength(1);
     expect(b.sessions[0]?.goal).toBe("Other book");
     expect(studiedMinutesOnDate(a.sessions, "2026-10-24")).toBe(0);
   });
 
-  it("keeps sprint notes isolated per student", () => {
+  it("keeps sprint notes isolated per student", async () => {
+    await unlockTestVault("user-a");
     const session = createSprintSession({ goal: "Notes check", durationMinutes: 25, date: "2026-10-24" });
     saveSprintNote({ session, kind: "session", title: "A note", body: "Only for A" }, "user-a");
     expect(listSprintNotes("user-a")[0]?.body).toMatch(/Only for A/);

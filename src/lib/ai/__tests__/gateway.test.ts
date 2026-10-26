@@ -18,6 +18,7 @@ import {
   savePassageEntry,
 } from "../passage-store";
 import type { CitationReadyChunk } from "@/lib/reader/extractor";
+import { unlockTestVault } from "@/test/unlock-vault";
 
 function restoreEnv(previous: Record<string, string | undefined>) {
   for (const [name, value] of Object.entries(previous)) {
@@ -894,7 +895,8 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
   });
 
   describe("6. Bi-Directional Deep-Linked Study Compendium (`passage-store.ts`)", () => {
-    it("persists compendium entries with exact PDF page number, section heading, and bounding-box coordinates", () => {
+    it("persists compendium entries with exact PDF page number, section heading, and bounding-box coordinates", async () => {
+      await unlockTestVault("compendium-student");
       const saved = savePassageEntry({
         documentId: "study-companion-vol1",
         documentTitle: "Energy & Constitution Companion",

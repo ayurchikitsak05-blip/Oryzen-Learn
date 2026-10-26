@@ -10,6 +10,7 @@ import {
   writeLastReaderDocumentId,
   writePersistedReaderView,
 } from "../fit";
+import { unlockTestVault } from "@/test/unlock-vault";
 import {
   readQuizProgress,
   selectionKeyFromText,
@@ -33,7 +34,8 @@ describe("local reader scope (tests only, no live RLS)", () => {
     );
   });
 
-  it("keeps reading position, last book, and quiz scores isolated between users", () => {
+  it("keeps reading position, last book, and quiz scores isolated between users", async () => {
+    await unlockTestVault("user-a");
     writePersistedReaderView(
       "rect-doc",
       { page: 3, zoom: 1.4, fitMode: "width", progress: 0.5 },

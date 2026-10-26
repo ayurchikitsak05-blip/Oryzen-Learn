@@ -9,7 +9,12 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Dosha } from "@/lib/prakriti/config";
-import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
+import {
+  privateAccessAllowed,
+  readPrivateString,
+  registerVaultLockHook,
+  writePrivateString,
+} from "@/lib/privacy/account-vault";
 import type { CognitiveDnaCardJson } from "@/lib/supabase/types";
 
 export type NoteModificationAction =
@@ -53,9 +58,9 @@ export interface TelemetryEventInput {
 
 let inMemoryDnaState = new Map<string, AdaptiveCognitiveDnaState>();
 
-function cognitiveDnaStorageKey(userId: string): string {
-  return scopedReaderStorageKey(LOCAL_COGNITIVE_DNA_STORAGE_KEY, userId);
-}
+registerVaultLockHook(() => {
+  inMemoryDnaState = new Map();
+});
 
 export function clearLocalAdaptiveMemory(): void {
   inMemoryDnaState = new Map();
@@ -227,11 +232,11 @@ export function getLocalCognitiveDnaState(
   defaultDosha: Dosha = "Vata"
 ): AdaptiveCognitiveDnaState {
   const cached = inMemoryDnaState.get(userId);
-  if (cached) return cached;
+  if (cached && privateAccessAllowed(userId)) return cached;
 
   if (typeof window !== "undefined") {
     try {
-      const raw = window.localStorage.getItem(cognitiveDnaStorageKey(userId));
+      const raw = readPrivateString(LOCAL_COGNITIVE_DNA_STORAGE_KEY, userId);
       if (raw) {
         const parsed = JSON.parse(raw) as AdaptiveCognitiveDnaState;
         if (parsed && parsed.summary_text) {
@@ -301,9 +306,10 @@ export async function recordCognitiveTelemetryEvent(
 
   if (typeof window !== "undefined") {
     try {
-      window.localStorage.setItem(
-        cognitiveDnaStorageKey(input.userId),
-        JSON.stringify(updatedCard)
+      writePrivateString(
+        LOCAL_COGNITIVE_DNA_STORAGE_KEY,
+        JSON.stringify(updatedCard),
+        input.userId
       );
     } catch {
       // Ignored

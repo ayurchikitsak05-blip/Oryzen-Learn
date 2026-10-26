@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { suggestionForCanonical } from "@/lib/rhythm/suggest";
 import { detectCoachTrigger } from "../detect";
 import { cacheKey, readCoachPrefs, rememberShown, writeCoachPrefs } from "../persist";
+import { unlockTestVault } from "@/test/unlock-vault";
 import { selectAndRemember, selectCoachMessage } from "../selector";
 import { suggestedVoice, voiceFromRhythmStyle } from "../styles";
 import { DEFAULT_COACH_PREFS } from "../types";
@@ -30,7 +31,8 @@ describe("coach selector", () => {
     expect(second!.id).not.toBe(first!.id);
   });
 
-  it("reuses the cached id for the same user, trigger, and day", () => {
+  it("reuses the cached id for the same user, trigger, and day", async () => {
+    await unlockTestVault("user-cache");
     const first = selectAndRemember({
       style: "courage_calm",
       trigger: "overwhelmed",
@@ -86,7 +88,8 @@ describe("coach selector", () => {
     expect(trigger).toBeNull();
   });
 
-  it("does not lock style to the Prakriti suggestion", () => {
+  it("does not lock style to the Prakriti suggestion", async () => {
+    await unlockTestVault("user-style");
     const suggested = suggestionForCanonical("Vata");
     expect(suggested.coachStyle).toBe("calm");
     expect(voiceFromRhythmStyle(suggested.coachStyle)).toBe("courage_calm");

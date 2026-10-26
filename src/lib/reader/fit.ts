@@ -3,7 +3,7 @@ import {
   MAX_READER_ZOOM,
   MIN_READER_ZOOM,
 } from "@/lib/reader/pdf-worker";
-import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 
 export type ReaderFitMode = "page" | "width" | "custom";
 
@@ -167,9 +167,7 @@ export function readPersistedReaderView(
 ): PersistedReaderView | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(
-      scopedReaderStorageKey(READER_VIEW_STORAGE_KEY, userId)
-    );
+    const raw = readPrivateString(READER_VIEW_STORAGE_KEY, userId);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Record<string, PersistedReaderView>;
     const view = parsed[documentId];
@@ -188,13 +186,12 @@ export function writePersistedReaderView(
 ): void {
   if (typeof window === "undefined") return;
   try {
-    const key = scopedReaderStorageKey(READER_VIEW_STORAGE_KEY, userId);
-    const raw = window.localStorage.getItem(key);
+    const raw = readPrivateString(READER_VIEW_STORAGE_KEY, userId);
     const parsed = raw
       ? (JSON.parse(raw) as Record<string, PersistedReaderView>)
       : {};
     parsed[documentId] = view;
-    window.localStorage.setItem(key, JSON.stringify(parsed));
+    writePrivateString(READER_VIEW_STORAGE_KEY, JSON.stringify(parsed), userId);
     writeLastReaderDocumentId(documentId, userId);
   } catch {
     // Ignore quota / private-mode failures
@@ -204,9 +201,7 @@ export function writePersistedReaderView(
 export function readLastReaderDocumentId(userId?: string | null): string | null {
   if (typeof window === "undefined") return null;
   try {
-    const value = window.localStorage
-      .getItem(scopedReaderStorageKey(READER_LAST_DOCUMENT_KEY, userId))
-      ?.trim();
+    const value = readPrivateString(READER_LAST_DOCUMENT_KEY, userId)?.trim();
     return value || null;
   } catch {
     return null;
@@ -221,10 +216,7 @@ export function writeLastReaderDocumentId(
   const id = documentId.trim();
   if (!id) return;
   try {
-    window.localStorage.setItem(
-      scopedReaderStorageKey(READER_LAST_DOCUMENT_KEY, userId),
-      id
-    );
+    writePrivateString(READER_LAST_DOCUMENT_KEY, id, userId);
   } catch {
     // Ignore quota / private-mode failures
   }

@@ -1,3 +1,4 @@
+import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import { markNotesLinked } from "./engine";
 import { upsertSprintSession } from "./persist";
@@ -47,7 +48,7 @@ function sanitizeNote(value: unknown): SprintNote | null {
 export function listSprintNotes(userId?: string | null): SprintNote[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(sprintNotesKey(userId));
+    const raw = readPrivateString(SPRINT_NOTES_KEY, userId);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown[];
     return Array.isArray(parsed)
@@ -92,7 +93,7 @@ export function saveSprintNote(
   };
   const next = [...listSprintNotes(userId), note].slice(-80);
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(sprintNotesKey(userId), JSON.stringify(next));
+    writePrivateString(SPRINT_NOTES_KEY, JSON.stringify(next), userId);
   }
   upsertSprintSession(markNotesLinked(input.session), userId);
   return note;

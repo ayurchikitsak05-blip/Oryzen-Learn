@@ -1,3 +1,4 @@
+import { readPrivateString, removePrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import { createId, ROADMAP_STORAGE_KEY } from "./defaults";
 import { buildRoadmapPlan, sanitizeIntake } from "./engine";
@@ -35,7 +36,7 @@ export function snapshotStorageKey(userId: string | null | undefined, at: string
 export function readLocalRoadmap(userId?: string | null): RoadmapRecord | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(roadmapStorageKey(userId));
+    const raw = readPrivateString(ROADMAP_STORAGE_KEY, userId);
     if (!raw) return null;
     return sanitizeRecord(JSON.parse(raw), userId || "local-anonymous");
   } catch {
@@ -46,21 +47,32 @@ export function readLocalRoadmap(userId?: string | null): RoadmapRecord | null {
 export function writeLocalRoadmap(record: RoadmapRecord, userId?: string | null): RoadmapRecord {
   const scoped = { ...record, userId: userId || record.userId };
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(roadmapStorageKey(userId), JSON.stringify(scoped));
+    writePrivateString(ROADMAP_STORAGE_KEY, JSON.stringify(scoped), userId);
   }
   return scoped;
 }
 
 export function clearLocalRoadmap(userId?: string | null): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(roadmapStorageKey(userId));
+  removePrivateString(ROADMAP_STORAGE_KEY, userId);
 }
+
+const ROADMAP_SNAPSHOT_KEY = "oryzen_study_roadmap_snapshot_v1";
 
 export function snapshotLocalRoadmap(record: RoadmapRecord, userId?: string | null): string {
   const at = new Date().toISOString();
   const key = snapshotStorageKey(userId, at);
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(key, JSON.stringify({ ...record, userId: userId || record.userId }));
+    const prior = readPrivateString(ROADMAP_SNAPSHOT_KEY, userId);
+    let snapshots: unknown[] = [];
+    try {
+      const parsed = prior ? JSON.parse(prior) : [];
+      if (Array.isArray(parsed)) snapshots = parsed;
+    } catch {
+      snapshots = [];
+    }
+    snapshots.push({ key, record: { ...record, userId: userId || record.userId } });
+    writePrivateString(ROADMAP_SNAPSHOT_KEY, JSON.stringify(snapshots), userId);
   }
   return key;
 }

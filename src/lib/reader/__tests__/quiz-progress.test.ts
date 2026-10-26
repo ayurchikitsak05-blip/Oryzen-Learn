@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { unlockTestVault } from "@/test/unlock-vault";
 import {
   formatQuizProgressNote,
   quizProgressId,
@@ -12,7 +13,8 @@ describe("reader quiz progress", () => {
     window.localStorage.clear();
   });
 
-  it("saves answers locally and resumes the same selection later", () => {
+  it("saves answers locally and resumes the same selection later", async () => {
+    await unlockTestVault("quiz-student");
     const selected =
       "The area of a rectangle is length times width. If the length is 8 cm and the width is 5 cm, the area is 40 square centimetres.";
     writeQuizProgress({

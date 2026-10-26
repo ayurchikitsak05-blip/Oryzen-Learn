@@ -8,6 +8,14 @@
 import { computeSha256Hex, findDuplicateDocumentByHash } from "./hashing";
 import type { CitationReadyChunk } from "./extractor";
 import { buildSelectableStudyPdf } from "./sample-chapter";
+import {
+  isAccountVaultUnlocked,
+  openBytes,
+  registerVaultLockHook,
+  sealBytes,
+  sealWithRawKey,
+  wrapLegacyDataKey,
+} from "@/lib/privacy/account-vault";
 
 export const LOCAL_READER_DB_NAME = "prakriti_reader_local_db_v1";
 export const LOCAL_READER_DB_VERSION = 1;
@@ -44,6 +52,55 @@ export interface SaveLocalPdfResult {
 // and acting as a hot metadata cache.
 const memoryDocumentStore = new Map<string, LocalPdfDocumentRecord>();
 const memoryBinaryStore = new Map<string, Uint8Array>();
+const sealedDocumentFallback = new Map<string, { iv: string; data: string }>();
+const sealedBinaryFallback = new Map<string, { iv: string; data: string }>();
+const quarantinedBookFallback: QuarantineBookRecord[] = [];
+
+registerVaultLockHook(() => {
+  memoryDocumentStore.clear();
+  memoryBinaryStore.clear();
+});
+
+type SealedBlob = { sealed: 1; id: string; iv: string; data: string };
+
+type QuarantineBookRecord = {
+  quarantine: 1;
+  id: string;
+  ownerId: null;
+  payloadIv: string;
+  payloadData: string;
+  binaryIv: string | null;
+  binaryData: string | null;
+  keyIv: string;
+  keyData: string;
+};
+
+function isQuarantineBook(value: unknown): value is QuarantineBookRecord {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<QuarantineBookRecord>;
+  return (
+    record.quarantine === 1 &&
+    typeof record.id === "string" &&
+    typeof record.payloadIv === "string" &&
+    typeof record.payloadData === "string" &&
+    typeof record.keyIv === "string" &&
+    typeof record.keyData === "string"
+  );
+}
+
+function readSealedBlob(value: unknown): SealedBlob | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (
+    record.sealed !== 1 ||
+    typeof record.id !== "string" ||
+    typeof record.iv !== "string" ||
+    typeof record.data !== "string"
+  ) {
+    return null;
+  }
+  return { sealed: 1, id: record.id, iv: record.iv, data: record.data };
+}
 
 function isIndexedDbSupported(): boolean {
   return (
@@ -92,71 +149,193 @@ function openReaderIndexedDb(): Promise<IDBDatabase> {
   });
 }
 
-async function writeBinaryToOpfs(
-  opfsFileName: string,
-  bytes: Uint8Array
-): Promise<boolean> {
-  try {
-    if (!(await isOpfsSupported())) return false;
-    const root = await navigator.storage.getDirectory();
-    const fileHandle = await root.getFileHandle(opfsFileName, { create: true });
-    if ("createWritable" in fileHandle) {
-      const writable = await fileHandle.createWritable();
-      const cleanBuffer = new ArrayBuffer(bytes.byteLength);
-      new Uint8Array(cleanBuffer).set(bytes);
-      await writable.write(cleanBuffer);
-      await writable.close();
-      return true;
-    }
-  } catch {
-    // Fall back to IndexedDB
-  }
-  return false;
+function plainBinaryBytes(value: unknown): Uint8Array | null {
+  if (!value || typeof value !== "object") return null;
+  const bytes = (value as { bytes?: unknown }).bytes;
+  if (bytes instanceof Uint8Array) return bytes;
+  if (bytes instanceof ArrayBuffer) return new Uint8Array(bytes);
+  return null;
 }
 
-async function readBinaryFromOpfs(
-  opfsFileName: string
-): Promise<Uint8Array | null> {
+async function putQuarantineBook(record: QuarantineBookRecord): Promise<void> {
+  quarantinedBookFallback.push(record);
+  if (!isIndexedDbSupported()) return;
+  const db = await openReaderIndexedDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(DOCUMENTS_STORE_NAME, "readwrite");
+    tx.objectStore(DOCUMENTS_STORE_NAME).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function quarantinePlaintextBook(
+  document: Record<string, unknown>,
+  binary: Uint8Array | null
+): Promise<boolean> {
+  const sourceId = typeof document.id === "string" ? document.id : "";
+  if (!sourceId) return false;
+  if (quarantinedBookFallback.some((item) => item.id === `quarantine-${sourceId}`)) return true;
+  const dataKey = crypto.getRandomValues(new Uint8Array(32));
+  const sealedDocument = await sealWithRawKey(
+    dataKey,
+    new TextEncoder().encode(JSON.stringify(document))
+  );
+  const sealedBinary = binary ? await sealWithRawKey(dataKey, binary) : null;
+  const wrapped = await wrapLegacyDataKey(null, dataKey);
+  if (!wrapped) return false;
+  await putQuarantineBook({
+    quarantine: 1,
+    id: `quarantine-${sourceId}`,
+    ownerId: null,
+    payloadIv: sealedDocument.iv,
+    payloadData: sealedDocument.data,
+    binaryIv: sealedBinary?.iv ?? null,
+    binaryData: sealedBinary?.data ?? null,
+    keyIv: wrapped.iv,
+    keyData: wrapped.data,
+  });
+  return true;
+}
+
+async function quarantineLegacyBooks(): Promise<void> {
+  const stored = await readStore<unknown>(DOCUMENTS_STORE_NAME).catch(() => []);
+  const binaries = await readStore<unknown>(BINARIES_STORE_NAME).catch(() => []);
+  const quarantinedIds: string[] = [];
+  for (const item of stored) {
+    if (!item || typeof item !== "object" || readSealedBlob(item) || isQuarantineBook(item)) continue;
+    const document = item as Record<string, unknown>;
+    const id = typeof document.id === "string" ? document.id : "";
+    if (!id) continue;
+    const binaryRecord = binaries.find(
+      (entry) => Boolean(entry) && typeof entry === "object" && (entry as { id?: unknown }).id === id
+    );
+    const sealed = await quarantinePlaintextBook(document, plainBinaryBytes(binaryRecord));
+    if (sealed) quarantinedIds.push(id);
+  }
+  await deleteStoredIds(quarantinedIds);
   try {
-    if (!(await isOpfsSupported())) return null;
+    if (!(await isOpfsSupported())) return;
     const root = await navigator.storage.getDirectory();
-    const fileHandle = await root.getFileHandle(opfsFileName, {
-      create: false,
-    });
-    const file = await fileHandle.getFile();
-    const buffer = await file.arrayBuffer();
-    return new Uint8Array(buffer);
+    for await (const [name] of root.entries()) {
+      if (!name.endsWith(".pdf")) continue;
+      const sourceId = name.slice(0, -4);
+      if (quarantinedBookFallback.some((item) => item.id === `quarantine-${sourceId}`)) {
+        await root.removeEntry(name).catch(() => undefined);
+        continue;
+      }
+      const handle = await root.getFileHandle(name);
+      const bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
+      const sealed = await quarantinePlaintextBook(
+        {
+          id: sourceId,
+          title: name,
+          fileName: name,
+          fileHash: "",
+          fileSize: bytes.byteLength,
+          pageCount: 1,
+          storageBackend: "indexeddb",
+          opfsPath: name,
+          chapters: [],
+          chunks: [],
+          lastReadPage: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        bytes
+      );
+      if (sealed) await root.removeEntry(name).catch(() => undefined);
+    }
   } catch {
-    return null;
+    // A failed file read leaves the original file in place.
+  }
+}
+
+async function readStore<T>(storeName: string): Promise<T[]> {
+  if (!isIndexedDbSupported()) return [];
+  const db = await openReaderIndexedDb();
+  try {
+    return await new Promise<T[]>((resolve, reject) => {
+      const tx = db.transaction(storeName, "readonly");
+      const request = tx.objectStore(storeName).getAll();
+      request.onsuccess = () => resolve((request.result ?? []) as T[]);
+      request.onerror = () => reject(request.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function writeSealedPair(document: SealedBlob, binary: SealedBlob): Promise<void> {
+  sealedDocumentFallback.set(document.id, { iv: document.iv, data: document.data });
+  sealedBinaryFallback.set(binary.id, { iv: binary.iv, data: binary.data });
+  if (!isIndexedDbSupported()) return;
+  const db = await openReaderIndexedDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([DOCUMENTS_STORE_NAME, BINARIES_STORE_NAME], "readwrite");
+    tx.objectStore(DOCUMENTS_STORE_NAME).put(document);
+    tx.objectStore(BINARIES_STORE_NAME).put(binary);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function deleteStoredIds(ids: string[]): Promise<void> {
+  for (const id of ids) {
+    sealedDocumentFallback.delete(id);
+    sealedBinaryFallback.delete(id);
+  }
+  if (!isIndexedDbSupported() || ids.length === 0) return;
+  const db = await openReaderIndexedDb();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([DOCUMENTS_STORE_NAME, BINARIES_STORE_NAME], "readwrite");
+    for (const id of ids) {
+      tx.objectStore(DOCUMENTS_STORE_NAME).delete(id);
+      tx.objectStore(BINARIES_STORE_NAME).delete(id);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function loadSealedDocuments(): Promise<void> {
+  if (!isAccountVaultUnlocked()) return;
+  await quarantineLegacyBooks();
+  const stored = await readStore<unknown>(DOCUMENTS_STORE_NAME).catch(() => []);
+  for (const item of stored) {
+    const sealed = readSealedBlob(item);
+    if (sealed) sealedDocumentFallback.set(sealed.id, { iv: sealed.iv, data: sealed.data });
+  }
+  const storedBinaries = await readStore<unknown>(BINARIES_STORE_NAME).catch(() => []);
+  for (const item of storedBinaries) {
+    const sealed = readSealedBlob(item);
+    if (sealed) sealedBinaryFallback.set(sealed.id, { iv: sealed.iv, data: sealed.data });
+  }
+  const sealed = [...sealedDocumentFallback.entries()];
+  for (const [id, blob] of sealed) {
+    const opened = await openBytes(blob.iv, blob.data);
+    if (!opened) continue;
+    try {
+      const record = JSON.parse(new TextDecoder().decode(opened)) as LocalPdfDocumentRecord;
+      if (record?.id) memoryDocumentStore.set(record.id, record);
+    } catch {
+      // Another account's sealed book stays unreadable.
+    }
   }
 }
 
 /**
- * Lists all locally stored PDF document metadata records sorted by updatedAt descending.
+ * Lists the signed-in account's PDF metadata. Other accounts' sealed books
+ * and older plaintext copies are not returned.
  */
 export async function listLocalPdfDocuments(): Promise<
   LocalPdfDocumentRecord[]
 > {
-  if (isIndexedDbSupported()) {
-    try {
-      const db = await openReaderIndexedDb();
-      const records = await new Promise<LocalPdfDocumentRecord[]>(
-        (resolve, reject) => {
-          const tx = db.transaction(DOCUMENTS_STORE_NAME, "readonly");
-          const store = tx.objectStore(DOCUMENTS_STORE_NAME);
-          const req = store.getAll();
-          req.onsuccess = () =>
-            resolve((req.result ?? []) as LocalPdfDocumentRecord[]);
-          req.onerror = () => reject(req.error);
-        }
-      );
-      db.close();
-      records.forEach((r) => memoryDocumentStore.set(r.id, r));
-    } catch {
-      // Fall back to memoryDocumentStore
-    }
-  }
-
+  if (!isAccountVaultUnlocked()) return [];
+  await loadSealedDocuments();
   return Array.from(memoryDocumentStore.values()).sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
@@ -194,24 +373,14 @@ export async function saveLocalPdfDocument(params: {
     };
   }
 
-  const id = `doc-${fileHash.slice(0, 12)}`;
-  const opfsFileName = `${id}.pdf`;
-  const nowIso = new Date().toISOString();
-
-  let storageBackend: LocalPdfDocumentRecord["storageBackend"] = "memory";
-  let opfsPath: string | null = null;
-
-  const wroteOpfs = await writeBinaryToOpfs(opfsFileName, bytes);
-  if (wroteOpfs) {
-    storageBackend = "opfs";
-    opfsPath = `opfs://${opfsFileName}`;
+  if (!isAccountVaultUnlocked()) {
+    throw new Error("Sign in is required before a book can be saved on this device.");
   }
 
-  // Always update in-memory cache and IndexedDB when available
+  const id = `doc-${fileHash.slice(0, 12)}`;
+  const nowIso = new Date().toISOString();
   const cleanCopy = new Uint8Array(bytes.byteLength);
   cleanCopy.set(bytes);
-  memoryBinaryStore.set(id, cleanCopy);
-
   const resolvedChapters: LocalPdfChapterItem[] =
     params.chapters && params.chapters.length > 0
       ? params.chapters
@@ -219,7 +388,6 @@ export async function saveLocalPdfDocument(params: {
           title: `Page ${idx + 1}`,
           pageNumber: idx + 1,
         }));
-
   const record: LocalPdfDocumentRecord = {
     id,
     title: params.title.trim() || params.fileName,
@@ -227,40 +395,27 @@ export async function saveLocalPdfDocument(params: {
     fileHash,
     fileSize: bytes.byteLength,
     pageCount: Math.max(1, params.pageCount),
-    storageBackend: isIndexedDbSupported() && !wroteOpfs ? "indexeddb" : storageBackend,
-    opfsPath,
+    storageBackend: "indexeddb",
+    opfsPath: null,
     chapters: resolvedChapters,
     chunks: params.chunks ?? [],
     lastReadPage: 1,
     createdAt: nowIso,
     updatedAt: nowIso,
   };
-
-  memoryDocumentStore.set(id, record);
-
-  if (isIndexedDbSupported()) {
-    try {
-      const db = await openReaderIndexedDb();
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(
-          [DOCUMENTS_STORE_NAME, BINARIES_STORE_NAME],
-          "readwrite"
-        );
-        tx.objectStore(DOCUMENTS_STORE_NAME).put(record);
-        tx.objectStore(BINARIES_STORE_NAME).put({ id, bytes: cleanCopy });
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-      db.close();
-    } catch {
-      // Memory fallback already holds the document
-    }
+  const sealedDocument = await sealBytes(new TextEncoder().encode(JSON.stringify(record)));
+  const sealedBinary = await sealBytes(cleanCopy);
+  if (!sealedDocument || !sealedBinary) {
+    throw new Error("Sign in is required before a book can be saved on this device.");
   }
-
-  return {
-    document: record,
-    isDuplicate: false,
-  };
+  await writeSealedPair(
+    { sealed: 1, id, ...sealedDocument },
+    { sealed: 1, id, ...sealedBinary }
+  );
+  memoryDocumentStore.set(id, record);
+  memoryBinaryStore.set(id, cleanCopy);
+  await quarantineLegacyBooks();
+  return { document: record, isDuplicate: false };
 }
 
 /**
@@ -269,6 +424,7 @@ export async function saveLocalPdfDocument(params: {
 export async function getLocalPdfDocument(
   documentId: string
 ): Promise<LocalPdfDocumentRecord | null> {
+  if (!isAccountVaultUnlocked()) return null;
   const cached = memoryDocumentStore.get(documentId);
   if (cached) return cached;
 
@@ -282,42 +438,24 @@ export async function getLocalPdfDocument(
 export async function getLocalPdfBinary(
   documentId: string
 ): Promise<Uint8Array | null> {
+  if (!isAccountVaultUnlocked()) return null;
   const mem = memoryBinaryStore.get(documentId);
   if (mem) {
     const copy = new Uint8Array(mem.byteLength);
     copy.set(mem);
     return copy;
   }
-
-  const opfsBytes = await readBinaryFromOpfs(`${documentId}.pdf`);
-  if (opfsBytes) {
-    memoryBinaryStore.set(documentId, opfsBytes);
-    return opfsBytes;
-  }
-
-  if (isIndexedDbSupported()) {
-    try {
-      const db = await openReaderIndexedDb();
-      const result = await new Promise<Uint8Array | null>((resolve, reject) => {
-        const tx = db.transaction(BINARIES_STORE_NAME, "readonly");
-        const req = tx.objectStore(BINARIES_STORE_NAME).get(documentId);
-        req.onsuccess = () => {
-          const val = req.result as { id: string; bytes: Uint8Array } | undefined;
-          resolve(val?.bytes ?? null);
-        };
-        req.onerror = () => reject(req.error);
-      });
-      db.close();
-      if (result) {
-        memoryBinaryStore.set(documentId, result);
-        return result;
-      }
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
+  const fallback = sealedBinaryFallback.get(documentId);
+  const stored =
+    fallback ??
+    (await readStore<unknown>(BINARIES_STORE_NAME).catch(() => []))
+      .map(readSealedBlob)
+      .find((item) => item?.id === documentId);
+  if (!stored) return null;
+  const opened = await openBytes(stored.iv, stored.data);
+  if (!opened) return null;
+  memoryBinaryStore.set(documentId, opened);
+  return opened;
 }
 
 /**
@@ -338,56 +476,22 @@ export async function updateLocalPdfMetadata(
     updatedAt: new Date().toISOString(),
   };
 
+  const sealedDocument = await sealBytes(new TextEncoder().encode(JSON.stringify(updated)));
+  const existingBinary = sealedBinaryFallback.get(documentId);
+  if (!sealedDocument || !existingBinary) return null;
+  await writeSealedPair(
+    { sealed: 1, id: documentId, ...sealedDocument },
+    { sealed: 1, id: documentId, ...existingBinary }
+  );
   memoryDocumentStore.set(documentId, updated);
-
-  if (isIndexedDbSupported()) {
-    try {
-      const db = await openReaderIndexedDb();
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(DOCUMENTS_STORE_NAME, "readwrite");
-        tx.objectStore(DOCUMENTS_STORE_NAME).put(updated);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-      db.close();
-    } catch {
-      // Ignored
-    }
-  }
-
   return updated;
 }
 
 export async function removeLocalPdfDocument(documentId: string): Promise<void> {
-  const existing = memoryDocumentStore.get(documentId);
   memoryDocumentStore.delete(documentId);
   memoryBinaryStore.delete(documentId);
-  const opfsName = existing?.opfsPath?.replace("opfs://", "") || `${documentId}.pdf`;
-  try {
-    if (await isOpfsSupported()) {
-      const root = await navigator.storage.getDirectory();
-      await root.removeEntry(opfsName);
-    }
-  } catch {
-    // The indexed record is the copy the reader opens.
-  }
-  if (!isIndexedDbSupported()) return;
-  try {
-    const db = await openReaderIndexedDb();
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(
-        [DOCUMENTS_STORE_NAME, BINARIES_STORE_NAME],
-        "readwrite"
-      );
-      tx.objectStore(DOCUMENTS_STORE_NAME).delete(documentId);
-      tx.objectStore(BINARIES_STORE_NAME).delete(documentId);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-    db.close();
-  } catch {
-    // Memory copy is already gone.
-  }
+  await deleteStoredIds([documentId]);
+  await quarantineLegacyBooks();
 }
 
 /**
@@ -396,6 +500,9 @@ export async function removeLocalPdfDocument(documentId: string): Promise<void> 
 export async function clearAllLocalPdfStorage(): Promise<void> {
   memoryDocumentStore.clear();
   memoryBinaryStore.clear();
+  sealedDocumentFallback.clear();
+  sealedBinaryFallback.clear();
+  quarantinedBookFallback.length = 0;
 
   if (isIndexedDbSupported()) {
     try {
@@ -415,6 +522,17 @@ export async function clearAllLocalPdfStorage(): Promise<void> {
       // Ignored
     }
   }
+}
+
+export function legacyBookQuarantineSnapshot(): string {
+  return JSON.stringify(quarantinedBookFallback);
+}
+
+export function sealedPdfSnapshot(): string {
+  return JSON.stringify({
+    documents: [...sealedDocumentFallback.values()],
+    binaries: [...sealedBinaryFallback.values()],
+  });
 }
 
 /**

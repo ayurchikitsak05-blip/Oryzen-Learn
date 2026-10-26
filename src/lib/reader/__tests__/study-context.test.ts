@@ -9,6 +9,7 @@ import {
 import { buildIsolatedAppCacheKey, type AppCacheAuthorization } from "@/lib/ai/cache-policy";
 import { readPersistedReaderView, writePersistedReaderView } from "../fit";
 import { clearSavedPassages, listSavedPassages, savePassageEntry } from "@/lib/ai/passage-store";
+import { unlockTestVault } from "@/test/unlock-vault";
 
 const NEWTON =
   "An object keeps a constant velocity unless a net force acts on it. That is Newton's first law.";
@@ -263,9 +264,10 @@ describe("study context stays on the open textbook", () => {
     expect(live.selectedText).toMatch(/constant velocity/i);
   });
 
-  it("keeps saved notes and reading progress when the study selection is dropped", () => {
+  it("keeps saved notes and reading progress when the study selection is dropped", async () => {
     window.localStorage.clear();
     clearSavedPassages();
+    await unlockTestVault("student-a");
     savePassageEntry(
       {
         documentId: "newton-doc",

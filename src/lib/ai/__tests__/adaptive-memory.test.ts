@@ -7,6 +7,7 @@ import {
   MAX_COGNITIVE_DNA_WORDS,
   recordCognitiveTelemetryEvent,
 } from "../adaptive-memory";
+import { unlockTestVault } from "@/test/unlock-vault";
 import {
   DEFAULT_SYNTHESIS_SOURCES,
   DEFAULT_VIDEO_LECTURES,
@@ -65,6 +66,7 @@ describe("Layer 4: Adaptive Note Modification, Cognitive Memory Engine & Multi-S
 
   describe("2. Adaptive Cognitive Memory Engine (`student_cognitive_memory`)", () => {
     it("logs note edits and video rewind friction, updates Supabase `student_cognitive_memory`, and enforces <= 200 words", async () => {
+      await unlockTestVault("student-dna-01");
       let upsertedMemoryRow: Record<string, unknown> | null = null;
       const supabaseMock = {
         from: vi.fn((table: string) => {

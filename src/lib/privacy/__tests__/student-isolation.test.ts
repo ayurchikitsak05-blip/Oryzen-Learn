@@ -22,6 +22,7 @@ import { writeQuizProgress, readQuizProgress } from "@/lib/reader/quiz-progress"
 import { readSprintStore, writeSprintStore } from "@/lib/sprint/persist";
 import { UNCLAIMED_STUDENT_DATA_KEYS } from "@/lib/reader/local-scope";
 import { applyUniversePreset, readUniversePrefs, universeStorageKey } from "@/lib/universe";
+import { unlockTestVault } from "@/test/unlock-vault";
 
 const passage = {
   documentId: "doc-1",
@@ -59,7 +60,8 @@ describe("student data isolation", () => {
     expect(window.localStorage.getItem(SAVED_PASSAGE_STORAGE_KEY)).toContain("legacy-note");
   });
 
-  it("keeps new highlights, notes, sprints, companion prefs, quizzes, and profiles apart", () => {
+  it("keeps new highlights, notes, sprints, companion prefs, quizzes, and profiles apart", async () => {
+    await unlockTestVault("user-a");
     savePassageEntry(passage, "user-a");
     writeLocalPrakritiProfile(
       {

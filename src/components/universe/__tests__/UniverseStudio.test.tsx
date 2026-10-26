@@ -3,6 +3,8 @@ import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UniverseStudio } from "../UniverseStudio";
 import { readUniversePrefs } from "@/lib/universe";
+import { discardAccountVault } from "@/lib/privacy/account-vault";
+import { unlockTestVault } from "@/test/unlock-vault";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -10,10 +12,12 @@ vi.mock("next/navigation", () => ({
 
 describe("UniverseStudio", () => {
   afterEach(() => {
+    discardAccountVault();
     window.localStorage.clear();
   });
 
   it("offers create, customize, or a plain reader after onboarding", async () => {
+    await unlockTestVault("student-a");
     const view = render(<UniverseStudio userId="student-a" fromOnboarding />);
     await waitFor(() => expect(view.getByTestId("universe-offer")).toBeTruthy());
     expect(view.getByTestId("universe-offer").textContent).toMatch(/Create My Study Universe/);
@@ -31,6 +35,7 @@ describe("UniverseStudio", () => {
   });
 
   it("opens the reader path without activating a universe", async () => {
+    await unlockTestVault("student-b");
     const view = render(<UniverseStudio userId="student-b" fromOnboarding />);
     await waitFor(() => expect(view.getByTestId("universe-open-reader")).toBeTruthy());
     fireEvent.click(view.getByTestId("universe-open-reader"));

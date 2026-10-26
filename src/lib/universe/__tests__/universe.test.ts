@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { unlockTestVault } from "@/test/unlock-vault";
 import { createCompanionMember, readCompanionStore } from "@/lib/companion";
 import { readRhythmPrefs } from "@/lib/rhythm/persist";
 import { readSprintStore } from "@/lib/sprint/persist";
@@ -65,7 +66,8 @@ describe("My Study Universe", () => {
     expect(suggestUniverseProfile({ canonicalType: "Vata" })).toBe("vata");
   });
 
-  it("applies a preset as a coordinated set and lets every setting be overridden", () => {
+  it("applies a preset as a coordinated set and lets every setting be overridden", async () => {
+    await unlockTestVault("user-a");
     applyUniversePreset("vata", "user-a");
     const prefs = readUniversePrefs("user-a");
     expect(prefs.activated).toBe(true);
@@ -123,12 +125,15 @@ describe("My Study Universe", () => {
     expect(missed.blocks.some((block) => block.kind === "buffer")).toBe(true);
   });
 
-  it("skips personalization and keeps students isolated", () => {
+  it("skips personalization and keeps students isolated", async () => {
+    await unlockTestVault("user-a");
     applyUniversePreset("pitta", "user-a");
+    await unlockTestVault("user-b");
     skipUniverse("user-b");
-    expect(readUniversePrefs("user-a").activated).toBe(true);
     expect(readUniversePrefs("user-b").skipped).toBe(true);
     expect(readUniversePrefs("user-b").activated).toBe(false);
+    await unlockTestVault("user-a");
+    expect(readUniversePrefs("user-a").activated).toBe(true);
     expect(universeStorageKey("user-a")).not.toBe(universeStorageKey("user-b"));
     expect(readUniversePrefs("user-a").themeId).toBe("cool-clear");
     expect(DEFAULT_UNIVERSE_PREFS.soundEnabled).toBe(false);

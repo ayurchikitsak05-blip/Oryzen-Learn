@@ -109,6 +109,7 @@ import {
   writeMarginNotes,
   writeTextMarks,
 } from "@/lib/reader/marks";
+import { ensureAccountVault, lockAccountVault } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import {
   SAMPLE_CHAPTER_FILE,
@@ -392,7 +393,10 @@ export default function PdfViewer({
   useEffect(() => {
     let active = true;
     void fetchSignedInUser()
-      .then((user) => {
+      .then(async (user) => {
+        if (!active) return;
+        if (user?.userId) await ensureAccountVault();
+        else await lockAccountVault();
         if (!active) return;
         setReaderUserId(user?.userId ?? ANONYMOUS_READER_SCOPE);
       })
