@@ -141,9 +141,9 @@ describe("educational quality guards", () => {
       source
     );
     expect(kept.illustrative?.flowchart).toBeUndefined();
-    expect(kept.illustrative?.mindMap?.nodes[0]?.label).toMatch(/first law/i);
+    expect(kept.illustrative?.mindMap).toBeUndefined();
     expect(kept.missingStructure).toContain("flowchart");
-    expect(kept.missingStructure).not.toContain("illustrative");
+    expect(kept.missingStructure).toContain("illustrative");
   });
 
   it("rejects the live Newton arrows that invented a force or a diagram", () => {
@@ -535,6 +535,7 @@ describe("educational quality guards", () => {
     edges: Array<{ from: string; to: string; label: string }>;
   };
   type IllustratedPayload = {
+    title?: string;
     missingStructure?: string[];
     illustrative?: {
       flowchart?: DiagramSlot;
@@ -799,12 +800,119 @@ describe("educational quality guards", () => {
     expect(water.illustrative?.conceptDiagram).toBeUndefined();
   });
 
-  it("does not invent a circuit diagram from the authorized chapter wording", () => {
+  it("draws the circuit relations the authorized chapter states", () => {
     const grounded = ground({}, CIRCUIT_TEXT);
-    expect(grounded.illustrative?.flowchart).toBeUndefined();
-    expect(grounded.illustrative?.mindMap).toBeUndefined();
-    expect(grounded.illustrative?.conceptDiagram).toBeUndefined();
+    const flow = JSON.stringify(grounded.illustrative?.flowchart);
+    const concept = JSON.stringify(grounded.illustrative?.conceptDiagram);
+    expect(flow).toMatch(/closed path/i);
+    expect(flow).toMatch(/charge can move/i);
+    expect(flow).toMatch(/switch is open/i);
+    expect(flow).toMatch(/current stops/i);
+    expect(flow).toMatch(/lamp lights/i);
+    expect(flow).toMatch(/electrons flow through the filament/i);
+    expect(flow).toMatch(/larger resistance/i);
+    expect(flow).toMatch(/electron flow/i);
+    expect(concept).toMatch(/Current/);
+    expect(concept).toMatch(/flow of electrons through that path/i);
+    expect(concept).toMatch(/2 amperes/i);
+    expect(concept).toMatch(/coulombs/i);
     expect(JSON.stringify(grounded)).not.toMatch(/voltage|glucose|1857|percent/);
+  });
+
+  it("rejects a litmus diagram that drops the colour change", () => {
+    const grounded = ground(
+      {
+        illustrative: {
+          conceptDiagram: {
+            title: "Base Action Concept",
+            kind: "concept_diagram",
+            nodes: [
+              { id: "node1", label: "A base" },
+              { id: "node2", label: "red litmus paper" },
+            ],
+            edges: [{ from: "node1", to: "node2", label: "causes" }],
+          },
+          mindMap: {
+            title: "Indicator Reactions",
+            kind: "mind_map",
+            nodes: [
+              { id: "node1", label: "blue litmus paper" },
+              { id: "node2", label: "An acid" },
+              { id: "node3", label: "red litmus paper" },
+            ],
+            edges: [{ from: "node2", to: "node1", label: "causes" }],
+          },
+        },
+      },
+      CHEMISTRY
+    );
+    const concept = grounded.illustrative?.conceptDiagram;
+    const labels = concept?.nodes.map((node) => node.label).join(" ") ?? "";
+    expect(labels).toMatch(/blue litmus paper to turn red/i);
+    expect(labels).toMatch(/red litmus paper to turn blue/i);
+    expect(concept?.edges.map((edge) => edge.label)).toEqual(["causes", "causes"]);
+    expect(JSON.stringify(grounded.illustrative?.mindMap ?? {})).not.toMatch(/Indicator Reactions/);
+  });
+
+  it("rejects an includes map and an unstated place in the heading", () => {
+    const grounded = ground(
+      {
+        title: "Transition of Rule in India",
+        illustrative: {
+          flowchart: {
+            title: "Historical Sequence of Rule Transition",
+            kind: "flowchart",
+            nodes: [
+              { id: "node1", label: "soldiers began the rebellion" },
+              { id: "node2", label: "company lost control" },
+              { id: "node3", label: "crown took direct rule" },
+            ],
+            edges: [
+              { from: "node1", to: "node2", label: "next" },
+              { from: "node2", to: "node3", label: "next" },
+            ],
+          },
+          mindMap: {
+            title: "Events of 1857 to 1858",
+            kind: "mind_map",
+            nodes: [
+              { id: "node1", label: "rebellion and rule change" },
+              { id: "node2", label: "soldiers began the rebellion" },
+              { id: "node3", label: "crown took direct rule" },
+            ],
+            edges: [
+              { from: "node1", to: "node2", label: "includes" },
+              { from: "node1", to: "node3", label: "includes" },
+            ],
+          },
+        },
+      },
+      HISTORY
+    );
+    expect(grounded.title).not.toMatch(/india/i);
+    expect(grounded.illustrative?.mindMap).toBeUndefined();
+    const historyLabels = grounded.illustrative?.flowchart?.nodes.map((node) => node.label).join(" ") ?? "";
+    expect(historyLabels).toMatch(/1857/);
+    expect(historyLabels).toMatch(/company lost control/i);
+    expect(historyLabels).toMatch(/1858/);
+    expect(grounded.illustrative?.flowchart?.title).not.toMatch(/historical|india/i);
+    const skipped = ground(
+      {
+        illustrative: {
+          flowchart: {
+            nodes: [
+              { id: "a", label: "soldiers began the rebellion" },
+              { id: "b", label: "crown took direct rule" },
+            ],
+            edges: [{ from: "a", to: "b", label: "next" }],
+          },
+        },
+      },
+      HISTORY
+    );
+    expect(skipped.illustrative?.flowchart?.nodes.map((node) => node.label).join(" ")).toMatch(
+      /company lost control/i
+    );
   });
 
   it("rejects a diagram that belongs to another subject", () => {

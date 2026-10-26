@@ -174,6 +174,55 @@ function targetMatchesClause(clause: string, label: string): boolean {
   return digits.some((digit) => label.includes(digit));
 }
 
+function quantitiesPreserved(label: string, clause: string): boolean {
+  const numbers = clause.match(/\d+(?:\.\d+)?/g) ?? [];
+  if (numbers.some((number) => !label.includes(number))) return false;
+  const units =
+    clause.match(
+      /\b(?:amperes?|coulombs?|volts?|ohms?|watts?|joules?|newtons?|percent|centimetres?|centimeters?|metres?|meters?)\b/gi
+    ) ?? [];
+  const haystack = label.toLowerCase();
+  return units.every((unit) => haystack.includes(unit.toLowerCase().replace(/s$/, "").slice(0, 5)));
+}
+
+function transformationPreserved(label: string, clause: string): boolean {
+  const match = clause.match(
+    /\b(?:turns?|turned|becomes?|became|changes?|changed)(?:\s+into)?\s+([a-z]{3,})/i
+  );
+  if (!match || match.index === undefined) return true;
+  const result = match[1]?.toLowerCase() ?? "";
+  const haystack = label.toLowerCase();
+  if (!haystack.includes(result)) return false;
+  const lead = contentWordsInOrder(clause.slice(0, match.index))[0];
+  return !lead || haystack.includes(lead);
+}
+
+function detailPreserved(
+  sentence: string,
+  marker: RegExp,
+  fromLabel: string,
+  toLabel: string,
+  flip: boolean
+): boolean {
+  const flags = marker.flags.includes("g") ? marker.flags : `${marker.flags}g`;
+  const pattern = new RegExp(marker.source, flags);
+  for (const match of sentence.matchAll(pattern)) {
+    const before = clauseBefore(sentence, match.index ?? 0);
+    const after = clauseAfter(sentence, (match.index ?? 0) + match[0].length);
+    const sourceClause = flip ? after : before;
+    const targetClause = flip ? before : after;
+    if (
+      quantitiesPreserved(fromLabel, sourceClause) &&
+      quantitiesPreserved(toLabel, targetClause) &&
+      transformationPreserved(fromLabel, sourceClause) &&
+      transformationPreserved(toLabel, targetClause)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * The source must play the role before the relation, and the target the role
  * after it. Sharing the relation's words with both labels is not enough.
@@ -239,7 +288,49 @@ export function edgeRelationIsSupported(
     (mentionsLaw(toLabel) && mentionsMotion(fromLabel));
   const sentences = passageSentences(source);
   const directed = (marker: RegExp, mode: "nearest" | "subject") =>
-    sentences.some((sentence) => directedRelation(sentence, marker, fromLabel, toLabel, mode));
+    sentences.some(
+      (sentence) =>
+        directedRelation(sentence, marker, fromLabel, toLabel, mode) &&
+        detailPreserved(sentence, marker, fromLabel, toLabel, false)
+    );
+  const becauseCause = () =>
+    sentences.some((sentence) => {
+      if (!/\bbecause\b/i.test(sentence)) return false;
+      const marker = /\bbecause\b/i;
+      for (const match of sentence.matchAll(new RegExp(marker.source, "gi"))) {
+        const effect = clauseBefore(sentence, match.index ?? 0);
+        const cause = clauseAfter(sentence, (match.index ?? 0) + match[0].length);
+        const forward =
+          labelHasWord(fromLabel, nearestContentWord(cause, "after")) &&
+          (labelHasWord(toLabel, nearestContentWord(effect, "before")) ||
+            targetMatchesClause(effect, toLabel));
+        if (
+          forward &&
+          detailPreserved(sentence, marker, fromLabel, toLabel, true)
+        ) {
+          return true;
+        }
+      }
+      return false;
+    });
+  const statedIf = () =>
+    sentences.some((sentence) => {
+      const match = sentence.match(/\bif\s+(.+?),\s+(.+)/i);
+      if (!match?.[1] || !match[2]) return false;
+      const condition = match[1];
+      const results = match[2].split(/\bbecause\b/i)[0]?.split(/\band\b/i) ?? [];
+      if (!labelHasWord(fromLabel, nearestContentWord(condition, "before"))) return false;
+      if (!quantitiesPreserved(fromLabel, condition) || !transformationPreserved(fromLabel, condition)) {
+        return false;
+      }
+      return results.some((result) => {
+        const clause = result.trim();
+        const aimed =
+          labelHasWord(toLabel, nearestContentWord(clause, "after")) ||
+          targetMatchesClause(clause, toLabel);
+        return aimed && quantitiesPreserved(toLabel, clause) && transformationPreserved(toLabel, clause);
+      });
+    });
 
   if (/^(becomes|become|turns into|transforms into)$/.test(relation)) {
     if (forceAndDiagram) return false;
@@ -251,10 +342,12 @@ export function edgeRelationIsSupported(
   }
   if (/^(causes|cause|creates|produces|leads to|results in)$/.test(relation)) {
     if (lawAndForce) return false;
-    return directed(/\b(causes|cause|creates|produces|leads to|results in)\b/i, "nearest");
+    return directed(/\b(causes|cause|creates|produces|leads to|results in)\b/i, "nearest") || becauseCause();
   }
   if (relation === "unless") return directed(/\bunless\b/i, "nearest");
   if (/^(next|then)$/.test(relation)) return directed(/\b(next|then)\b/i, "nearest");
+  if (relation === "if") return statedIf();
+  if (relation === "so") return directed(/\bso\b/i, "nearest");
   if (/^(times|multiplied by|multiplies|multiply)$/.test(relation)) {
     return directed(/\btimes\b|\bmultiplied by\b|×/i, "nearest");
   }
@@ -263,12 +356,7 @@ export function edgeRelationIsSupported(
     return directed(/\bacts on\b|\bacts upon\b|\bacting on\b/i, "nearest");
   }
   if (/^(states|means|describes|includes)$/.test(relation)) {
-    if (toLabel.trim().split(/\s+/).length < 4) return false;
-    const haystack = source.toLowerCase();
-    return (
-      labelWords(fromLabel).some((word) => haystack.includes(word)) &&
-      labelWords(toLabel).some((word) => haystack.includes(word))
-    );
+    return directed(new RegExp(`\\b${relation}\\b`, "i"), "nearest");
   }
   if (labelWords(relation).length === 0 && !relation.includes(" ")) return false;
   const phrase = relation.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
@@ -281,12 +369,25 @@ export function diagramRelationsAreSupported(diagram: RelatedDiagram, source: st
   const haystack = source.toLowerCase();
   for (const node of diagram.nodes) {
     const words = node.label.trim().split(/\s+/).filter(Boolean);
-    if (words.length < 2 && !/\d/.test(node.label)) return false;
+    const definedTerm = words.length === 1 && node.label.trim().length >= 6;
+    if (words.length < 2 && !/\d/.test(node.label) && !definedTerm) return false;
     const sharesWord = labelWords(node.label).some((word) => haystack.includes(word));
     const sharesDigit = (node.label.match(/\d+(?:\.\d+)?/g) ?? []).some((digit) =>
       source.includes(digit)
     );
     if (!sharesWord && !sharesDigit) return false;
+  }
+  const sequential = diagram.edges.filter((edge) => /^(next|then)$/i.test(edge.label ?? ""));
+  if (sequential.length > 0) {
+    const sentence = passageSentences(source).find((item) => item.split(/\bthen\b/i).length >= 3);
+    const parts = sentence?.split(/\bthen\b/i).map((part) => part.trim()).filter(Boolean) ?? [];
+    if (parts.length >= 3) {
+      const labels = diagram.nodes.map((node) => node.label).join(" ").toLowerCase();
+      const complete = parts.every((part) =>
+        contentWordsInOrder(part).some((word) => labels.includes(word))
+      );
+      if (!complete) return false;
+    }
   }
   return diagram.edges.every((edge, index) => {
     const from =
@@ -312,6 +413,48 @@ type GroundedDiagram = {
   edges: Array<{ from?: string; to?: string; label?: string }>;
 };
 
+const TITLE_STRUCTURE = new Set([
+  "what",
+  "this",
+  "that",
+  "passage",
+  "states",
+  "state",
+  "cause",
+  "causes",
+  "sequence",
+  "identity",
+  "sentence",
+  "page",
+  "concept",
+  "diagram",
+  "relation",
+  "process",
+  "definition",
+  "calculation",
+  "exception",
+  "quantity",
+  "multiplication",
+  "equals",
+  "shown",
+  "study",
+]);
+
+function groundedHeading(title: string | undefined, source: string): string | undefined {
+  if (!title) return title;
+  const unsupported = contentWordsInOrder(title).filter(
+    (word) => !TITLE_STRUCTURE.has(word) && !source.toLowerCase().includes(word)
+  );
+  return unsupported.length === 0 ? title : "The relation this passage states";
+}
+
+function withGroundedTitle<D extends GroundedDiagram>(diagram: D, source: string): D {
+  const title = (diagram as { title?: string }).title;
+  if (!title) return diagram;
+  const next = groundedHeading(title, source);
+  return next === title ? diagram : { ...diagram, title: next };
+}
+
 export function retainGroundedDiagrams<
   T extends {
     diagram?: GroundedDiagram;
@@ -330,6 +473,8 @@ export function retainGroundedDiagrams<
   const flowchart = keep(illustrative?.flowchart) ?? keep(payload.diagram);
   const mindMap = keep(illustrative?.mindMap);
   const conceptDiagram = keep(illustrative?.conceptDiagram);
+  const titled = (diagram?: GroundedDiagram) =>
+    diagram ? withGroundedTitle(diagram, sourceText) : undefined;
   const hasDiagram = Boolean(flowchart || mindMap || conceptDiagram);
   const missing = new Set(payload.missingStructure ?? []);
   if (!flowchart) missing.add("flowchart");
@@ -339,9 +484,9 @@ export function retainGroundedDiagrams<
   const nextIllustrative =
     hasDiagram || illustrative?.analogy
       ? {
-          ...(flowchart ? { flowchart } : {}),
-          ...(mindMap ? { mindMap } : {}),
-          ...(conceptDiagram ? { conceptDiagram } : {}),
+          ...(flowchart ? { flowchart: titled(flowchart) } : {}),
+          ...(mindMap ? { mindMap: titled(mindMap) } : {}),
+          ...(conceptDiagram ? { conceptDiagram: titled(conceptDiagram) } : {}),
           ...(illustrative?.analogy ? { analogy: illustrative.analogy } : {}),
         }
       : undefined;
@@ -533,7 +678,7 @@ function workedFlowchart(
   );
 }
 
-function clausePhrase(text: string): string | null {
+function clausePhrase(text: string, maxWords = 8): string | null {
   const cleaned = text
     .replace(/[.?!]+$/g, "")
     .replace(/\s+/g, " ")
@@ -542,8 +687,13 @@ function clausePhrase(text: string): string | null {
   if (!cleaned || /[,:;]|\b(?:because|unless|if|when|while)\b/i.test(cleaned)) return null;
   if (/^(?:not|no)\b/i.test(cleaned)) return null;
   const words = cleaned.split(/\s+/).filter(Boolean);
-  if (words.length < 2 || words.length > 8) return null;
+  if (words.length < 2 || words.length > maxWords) return null;
   return cleaned;
+}
+
+function subjectPhrase(text: string): string | null {
+  const stripped = text.replace(/^(?:the|a|an)\s+/i, "").trim();
+  return clausePhrase(stripped) ?? (/^[A-Za-z]{6,}$/.test(stripped) ? stripped : null);
 }
 
 function explicitCauseDiagram(source: string): {
@@ -651,17 +801,20 @@ function explicitShortIdentity(source: string): {
     return id;
   };
   for (const sentence of passageSentences(source)) {
-    if (/\b(?:is|are)\s+not\b/i.test(sentence)) continue;
+    if (/\bnot\b/i.test(sentence) || /^if\b/i.test(sentence)) continue;
     const match = sentence.match(/^(.+?)\s+(?:equals|equal to|is|are|=)\s+(.+)$/i);
-    if (!match?.[1] || !match[2]) continue;
-    const subject = clausePhrase(match[1].replace(/^(?:the|a|an)\s+/i, ""));
-    const value = clausePhrase(match[2]);
+    const means = sentence.match(/^(.+?)\s+means\s+(.+)$/i);
+    const found = match?.[1] && match[2] ? { left: match[1], right: match[2], label: "equals" } : null;
+    const stated = found ?? (means?.[1] && means[2] ? { left: means[1], right: means[2], label: "means" } : null);
+    if (!stated) continue;
+    const subject = subjectPhrase(stated.left);
+    const value = clausePhrase(stated.right, 12);
     if (!subject || !value || /\btimes\b|\bmultiplied by\b|×/i.test(value)) continue;
-    if (!edgeRelationIsSupported(subject, value, "equals", source)) continue;
+    if (!edgeRelationIsSupported(subject, value, stated.label, source)) continue;
     const from = idFor(subject);
     const to = idFor(value);
     if (from === to) continue;
-    edges.push({ from, to, label: "equals" });
+    edges.push({ from, to, label: stated.label });
     if (edges.length >= 3) break;
   }
   if (edges.length === 0) return null;
@@ -775,6 +928,65 @@ function includeMeasuredFactors(
   return acceptedDiagram(next, source) ?? diagram;
 }
 
+function explicitStatedProcesses(source: string): CompletingDiagram | null {
+  const nodes: Array<{ id: string; label: string }> = [];
+  const edges: Array<{ from: string; to: string; label: string }> = [];
+  const seen = new Map<string, string>();
+  const idFor = (label: string) => {
+    const key = label.toLowerCase();
+    const existing = seen.get(key);
+    if (existing) return existing;
+    const id = `process-${seen.size + 1}`;
+    seen.set(key, id);
+    nodes.push({ id, label });
+    return id;
+  };
+  const add = (from: string | null, to: string | null, label: string) => {
+    if (!from || !to || edges.length >= 8) return;
+    if (!edgeRelationIsSupported(from, to, label, source)) return;
+    const fromId = idFor(from);
+    const toId = idFor(to);
+    if (fromId === toId) return;
+    if (edges.some((edge) => edge.from === fromId && edge.to === toId && edge.label === label)) return;
+    edges.push({ from: fromId, to: toId, label });
+  };
+  for (const sentence of passageSentences(source)) {
+    const becauseAt = sentence.search(/\bbecause\b/i);
+    if (becauseAt >= 0) {
+      add(
+        clausePhrase(clauseAfter(sentence, becauseAt + "because".length), 12),
+        clausePhrase(clauseBefore(sentence, becauseAt), 12),
+        "causes"
+      );
+    }
+    const conditional = sentence.match(/\bif\s+(.+?),\s+(.+)/i);
+    if (conditional?.[1] && conditional[2]) {
+      const condition = clausePhrase(conditional[1], 12);
+      const results = conditional[2].split(/\bbecause\b/i)[0]?.split(/\band\b/i) ?? [];
+      for (const result of results) add(condition, clausePhrase(result, 12), "if");
+    }
+    const needs = sentence.match(/^(.+?)\s+needs\s+(.+)$/i);
+    if (needs?.[1] && needs[2]) {
+      const [needed, purpose] = needs[2].split(/\s+so\s+/i);
+      const object = clausePhrase(needed ?? "", 12);
+      add(clausePhrase(needs[1], 12), object, "needs");
+      if (purpose) add(object, clausePhrase(purpose, 12), "so");
+    }
+    const verb = sentence.match(
+      /^(.+?)\s+(lowers|raises|increases|decreases|reduces)\s+(.+?)[.?!]?$/i
+    );
+    if (verb?.[1] && verb[2] && verb[3]) {
+      add(clausePhrase(verb[1], 12), clausePhrase(verb[3], 12), verb[2].toLowerCase());
+    }
+    if (edges.length >= 8) break;
+  }
+  if (edges.length === 0) return null;
+  return acceptedDiagram(
+    { title: "The relation this passage states", kind: "flowchart", nodes, edges },
+    source
+  );
+}
+
 /**
  * Fills an empty flowchart, mind map, or concept diagram only when the
  * passage states the relation. A diagram that fails the relation gate is
@@ -799,6 +1011,7 @@ export function completeExplicitDiagrams<
   const cause = explicitCauseDiagram(source);
   const sequence = explicitThenChain(source);
   const identity = explicitShortIdentity(source);
+  const process = explicitStatedProcesses(source);
 
   let flowchart = illustrative?.flowchart;
   let mindMap = illustrative?.mindMap;
@@ -811,6 +1024,7 @@ export function completeExplicitDiagrams<
       formulaFlowchart(source, formula) ??
       sequence ??
       cause?.flowchart ??
+      process ??
       undefined;
   } else if (worked) {
     flowchart = includeMeasuredFactors(includeWorkedResult(flowchart, source, worked), source, worked);
@@ -857,6 +1071,7 @@ export function completeExplicitDiagrams<
 
 export function groundIllustrativeDiagrams<
   T extends {
+    title?: string;
     diagram?: GroundedDiagram;
     illustrative?: {
       flowchart?: CompletingDiagram;
@@ -868,7 +1083,9 @@ export function groundIllustrativeDiagrams<
   },
 >(payload: T, sourceText: string): T {
   const grounded = retainGroundedDiagrams(payload, sourceText);
-  return retainGroundedDiagrams(completeExplicitDiagrams(grounded, sourceText), sourceText);
+  const completed = retainGroundedDiagrams(completeExplicitDiagrams(grounded, sourceText), sourceText);
+  const title = groundedHeading(completed.title, sourceText);
+  return title === completed.title ? completed : { ...completed, title };
 }
 
 export function isQualityMcq(mcq: ComposedMcqItem, sourceText: string): boolean {

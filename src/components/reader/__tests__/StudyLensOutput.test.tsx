@@ -134,6 +134,44 @@ describe("student study screens", () => {
     );
     expect(diagram.getByTestId("study-flowchart").textContent).toMatch(/constant velocity/i);
     expect(diagram.getByTestId("study-flowchart").textContent).toMatch(/net force/i);
+
+    const chain = render(
+      <StudyLensOutput
+        lens="illustrative"
+        selectedMcqOptions={{}}
+        onPickMcq={() => undefined}
+        result={result({
+          ...base,
+          lens_type: "illustrative",
+          markdown_body: "The rebellion then changed control then the crown ruled.",
+          illustrative: {
+            flowchart: {
+              title: "The sequence this passage states",
+              kind: "flowchart",
+              nodes: [
+                { id: "step-1", label: "soldiers began the rebellion" },
+                { id: "step-2", label: "company lost control" },
+                { id: "step-3", label: "crown took direct rule" },
+              ],
+              edges: [
+                { from: "step-1", to: "step-2", label: "next" },
+                { from: "step-2", to: "step-3", label: "next" },
+              ],
+            },
+          },
+        })}
+      />
+    );
+    const chainText = within(chain.container).getByTestId("study-flowchart").textContent ?? "";
+    expect(chainText.match(/company lost control/gi)).toHaveLength(1);
+    expect(chainText.indexOf("soldiers began the rebellion")).toBeLessThan(
+      chainText.indexOf("company lost control")
+    );
+    expect(chainText.indexOf("company lost control")).toBeLessThan(
+      chainText.indexOf("crown took direct rule")
+    );
+    expect(chainText.indexOf("next")).toBeLessThan(chainText.lastIndexOf("next"));
+    chain.unmount();
     fireEvent.click(diagram.getByTestId("illustrate-tab-mind_map"));
     expect(diagram.getByTestId("study-mind-map").textContent).toMatch(/Newton's/);
     expect(diagram.getByTestId("study-mind-map").textContent).toMatch(/first law/);

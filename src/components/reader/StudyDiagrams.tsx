@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { StudyDiagram, StudyRectangleGeometry } from "@/lib/ai/lens-compose";
+import type { StudyDiagram, StudyDiagramEdge, StudyRectangleGeometry } from "@/lib/ai/lens-compose";
 
 export function RectangleGeometrySvg({
   geometry,
@@ -113,33 +113,66 @@ function RelationArrow({ label }: { label?: string }) {
 }
 
 export function FlowchartSvg({ diagram }: { diagram: StudyDiagram }) {
-  const nodes = diagram.nodes.slice(0, 6);
+  const nodes = diagram.nodes.slice(0, 12);
   const geometry =
     diagram.geometry?.kind === "rectangle" ? diagram.geometry : undefined;
   if (nodes.length === 0 && !geometry) return null;
   const byId = new Map(nodes.map((node) => [node.id, node.label]));
-  const covered = new Set<string>();
-  const rows = diagram.edges.flatMap((edge, index) => {
-    const from = byId.get(edge.from);
-    const to = byId.get(edge.to);
-    if (!from || !to) return [];
-    covered.add(edge.from);
-    covered.add(edge.to);
-    return [{ key: `${edge.from}-${edge.to}-${index}`, from, to, label: edge.label }];
-  });
+  const incoming = new Map<string, number>();
+  const outgoing = new Map<string, StudyDiagramEdge[]>();
+  const usable: StudyDiagramEdge[] = diagram.edges.filter(
+    (edge) => byId.has(edge.from) && byId.has(edge.to)
+  );
+  for (const edge of usable) {
+    incoming.set(edge.to, (incoming.get(edge.to) ?? 0) + 1);
+    outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge]);
+  }
+  const used = new Set<StudyDiagramEdge>();
+  const chains: StudyDiagramEdge[][] = [];
+  for (const edge of usable) {
+    if (used.has(edge) || (incoming.get(edge.from) ?? 0) > 0) continue;
+    const chain: StudyDiagramEdge[] = [];
+    let current: StudyDiagramEdge | undefined = edge;
+    while (current && !used.has(current)) {
+      used.add(current);
+      chain.push(current);
+      const nextEdges: StudyDiagramEdge[] = outgoing.get(current.to) ?? [];
+      current =
+        nextEdges.length === 1 && (incoming.get(current.to) ?? 0) === 1
+          ? nextEdges[0]
+          : undefined;
+    }
+    if (chain.length > 0) chains.push(chain);
+  }
+  for (const edge of usable) {
+    if (!used.has(edge)) chains.push([edge]);
+  }
+  const covered = new Set(usable.flatMap((edge) => [edge.from, edge.to]));
   const loose = nodes.filter((node) => !covered.has(node.id));
 
   return (
     <DiagramFrame testId="study-flowchart" title={diagram.title}>
       {geometry ? <RectangleGeometrySvg geometry={geometry} /> : null}
       <ol className="space-y-3">
-        {rows.map((row) => (
-          <li key={row.key} className="space-y-2">
-            <PhraseCard label={row.from} />
-            <RelationArrow label={row.label} />
-            <PhraseCard label={row.to} />
-          </li>
-        ))}
+        {chains.map((chain, index) => {
+          const first = byId.get(chain[0]?.from ?? "");
+          if (!first) return null;
+          return (
+            <li key={`${chain[0]?.from}-${index}`} className="space-y-2">
+              <PhraseCard label={first} />
+              {chain.map((edge) => {
+                const next = byId.get(edge.to);
+                if (!next) return null;
+                return (
+                  <div key={`${edge.from}-${edge.to}-${edge.label}`} className="space-y-2">
+                    <RelationArrow label={edge.label} />
+                    <PhraseCard label={next} />
+                  </div>
+                );
+              })}
+            </li>
+          );
+        })}
         {loose.map((node) => (
           <li key={node.id}>
             <PhraseCard label={node.label} />
