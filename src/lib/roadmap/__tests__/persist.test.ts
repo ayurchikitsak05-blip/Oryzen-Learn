@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { coachStorageKey } from "@/lib/coach/persist";
 import { defaultIntake } from "../defaults";
 import {
@@ -11,12 +11,14 @@ import {
   createRoadmapRecord,
   exportRoadmapFilename,
   exportRoadmapJson,
+  fetchRemoteRoadmap,
   readLocalRoadmap,
   roadmapStorageKey,
   sanitizeRecord,
   snapshotLocalRoadmap,
   writeLocalRoadmap,
 } from "../persist";
+import { decideHydrate } from "../sync";
 import { prepareRoadmapRecord } from "../sanitize";
 import { readPrivateString } from "@/lib/privacy/account-vault";
 import { unlockTestVault } from "@/test/unlock-vault";
@@ -125,5 +127,69 @@ describe("roadmap sanitizer and upload limits", () => {
     if (prepared.ok) return;
     expect(prepared.status).toBe(400);
     expect(prepared.code).toBe("too_complex");
+  });
+});
+
+describe("roadmap remote loading", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps a slow account copy and then returns it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              resolve(
+                new Response(JSON.stringify({ record: null, persist: "server" }), {
+                  status: 200,
+                  headers: { "Content-Type": "application/json" },
+                })
+              );
+            }, 30);
+          })
+      )
+    );
+    const result = await fetchRemoteRoadmap(200);
+    expect(result.persist).toBe("server");
+    expect(result.record).toBeNull();
+  });
+
+  it("stops a request that never returns and keeps the device plan", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+    const remote = await fetchRemoteRoadmap(20);
+    expect(remote.code).toBe("offline");
+    expect(remote.persist).toBe("local");
+    const local = sample("student-1");
+    const decision = decideHydrate({
+      local,
+      remote: remote.record,
+      persist: remote.persist,
+      code: remote.code,
+      error: remote.error,
+    });
+    expect(decision.kind).toBe("offline");
+    if (decision.kind === "offline") expect(decision.local?.id).toBe(local.id);
+  });
+
+  it("treats a failed account copy as unavailable without dropping the device plan", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "unavailable" }), { status: 500 }))
+    );
+    const remote = await fetchRemoteRoadmap();
+    expect(remote.code).toBe("unavailable");
+    const local = sample("student-1");
+    const decision = decideHydrate({
+      local,
+      remote: null,
+      persist: remote.persist,
+      code: remote.code,
+      error: remote.error,
+    });
+    expect(decision.kind).toBe("offline");
+    if (decision.kind === "offline") expect(decision.local?.userId).toBe("student-1");
   });
 });

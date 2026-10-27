@@ -58,6 +58,7 @@ export default function RoadmapApp() {
   );
 
   const hydrate = useCallback(async () => {
+    try {
     const user = await fetchSignedInUser().catch(() => null);
     const scope = user?.userId ?? "local-anonymous";
     setUserId(scope);
@@ -137,6 +138,13 @@ export default function RoadmapApp() {
     setServerUpdatedAt(decision.record.updatedAt);
     setSyncMessage(null);
     setLoading(false);
+    } catch {
+      setSyncPhase("idle");
+      setSyncMessage("Your plan is saved on this device. Try again when you are back online.");
+      setSyncRetry("hydrate");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

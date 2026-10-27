@@ -697,6 +697,7 @@ export default function PdfViewer({
   }, [readerUserId, scopeReady]);
 
   const totalPages = activeDoc?.pageCount ?? 1;
+  const documentReady = Boolean(activePdfBytes);
   const ramWindowPages = useMemo(
     () => computeThreePageWindow(activePage, totalPages),
     [activePage, totalPages]
@@ -1309,7 +1310,14 @@ export default function PdfViewer({
             ))}
           </select>
         ) : null}
-        <button type="button" onClick={() => setContentsOpen(true)} className="btn-ghost px-2 text-[11px]">
+        <button
+          type="button"
+          disabled={!documentReady}
+          onClick={() => {
+            if (documentReady) setContentsOpen(true);
+          }}
+          className="btn-ghost px-2 text-[11px] disabled:opacity-40"
+        >
           Contents
         </button>
         {activeDoc ? (
@@ -1339,51 +1347,69 @@ export default function PdfViewer({
               : "Bookmark"}
           </button>
         ) : null}
-        <button type="button" onClick={() => setGridOpen(true)} className="btn-ghost px-2 text-[11px]">
+        <button
+          type="button"
+          disabled={!documentReady}
+          onClick={() => {
+            if (documentReady) setGridOpen(true);
+          }}
+          className="btn-ghost px-2 text-[11px] disabled:opacity-40"
+        >
           Pages
         </button>
         <button
           type="button"
-          onClick={() => setAnnotationsOpen(true)}
-          className="btn-ghost px-2 text-[11px]"
+          disabled={!documentReady}
+          onClick={() => {
+            if (documentReady) setAnnotationsOpen(true);
+          }}
+          className="btn-ghost px-2 text-[11px] disabled:opacity-40"
         >
           Notes
         </button>
         <button
           type="button"
           data-testid="transform-open"
-          onClick={() => setTransformOpen(true)}
-          className="btn-ghost px-2 text-[11px]"
+          disabled={!documentReady}
+          onClick={() => {
+            if (documentReady) setTransformOpen(true);
+          }}
+          className="btn-ghost px-2 text-[11px] disabled:opacity-40"
         >
           Transform
         </button>
         <button
           type="button"
           data-testid="ask-my-book-open"
-          onClick={() => openAskMyBook()}
-          className="btn-ghost px-2 text-[11px]"
+          disabled={!documentReady}
+          onClick={() => {
+            if (documentReady) openAskMyBook();
+          }}
+          className="btn-ghost px-2 text-[11px] disabled:opacity-40"
         >
           Ask My Book
         </button>
         <button
           type="button"
           aria-label="Previous Page"
-          disabled={activePage <= 1}
-          onClick={() => handleGoToPage(activePage - 1)}
+          disabled={!documentReady || activePage <= 1}
+          onClick={() => void handleGoToPage(activePage - 1)}
           className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading disabled:opacity-40"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <div className="min-w-[3.25rem] text-center text-[11px] font-medium text-muted">
-          {activePage} / {totalPages}
-          <span data-testid="ram-window-indicator" className="sr-only">
-            Pages {ramWindowPages.join("–")}
-          </span>
+        <div className="min-w-[3.25rem] text-center text-[11px] font-medium text-muted" data-testid="reader-page-indicator">
+          {documentReady ? `${activePage} / ${totalPages}` : "—"}
+          {documentReady ? (
+            <span data-testid="ram-window-indicator" className="sr-only">
+              Pages {ramWindowPages.join("–")}
+            </span>
+          ) : null}
         </div>
         <button
           type="button"
           aria-label="Next Page"
-          disabled={activePage >= totalPages}
+          disabled={!documentReady || activePage >= totalPages}
           onClick={() => handleGoToPage(activePage + 1)}
           className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-heading disabled:opacity-40"
         >
@@ -1393,8 +1419,9 @@ export default function PdfViewer({
           type="button"
           data-testid="fit-page-btn"
           aria-pressed={fitMode === "page"}
+          disabled={!documentReady}
           onClick={() => chooseFit("page")}
-          className={`inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] ${
+          className={`inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] disabled:opacity-40 ${
             fitMode === "page" ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
           }`}
         >
@@ -1404,8 +1431,9 @@ export default function PdfViewer({
           type="button"
           data-testid="fit-width-btn"
           aria-pressed={fitMode === "width"}
+          disabled={!documentReady}
           onClick={() => chooseFit("width")}
-          className={`inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] ${
+          className={`inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] disabled:opacity-40 ${
             fitMode === "width" ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
           }`}
         >
@@ -1415,11 +1443,12 @@ export default function PdfViewer({
           type="button"
           aria-label="Zoom Out"
           data-testid="zoom-out-btn"
+          disabled={!documentReady}
           onClick={() => {
             setFitMode("custom");
             setCustomZoom(clampFitZoom(zoomScale - 0.15));
           }}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-heading"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-heading disabled:opacity-40"
         >
           <ZoomOut className="h-4 w-4" />
         </button>
@@ -1427,19 +1456,21 @@ export default function PdfViewer({
           type="button"
           aria-label="Zoom In"
           data-testid="zoom-in-btn"
+          disabled={!documentReady}
           onClick={() => {
             setFitMode("custom");
             setCustomZoom(clampFitZoom(zoomScale + 0.15));
           }}
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-heading"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-heading disabled:opacity-40"
         >
           <ZoomIn className="h-4 w-4" />
         </button>
         <button
           type="button"
           data-testid="reset-zoom-btn"
+          disabled={!documentReady}
           onClick={() => chooseFit(anchorFitRef.current)}
-          className="inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] text-ink hover:bg-beige-2"
+          className="inline-flex min-h-11 items-center rounded-lg px-2 text-[11px] text-ink hover:bg-beige-2 disabled:opacity-40"
         >
           Reset Zoom
         </button>
@@ -1474,23 +1505,31 @@ export default function PdfViewer({
         >
           <div
             data-testid="pdf-page-stage"
-            className={`flex min-h-full min-w-full w-max p-1 ${
-              pageGeometry && pageGeometry.height * zoomScale > Math.max(0, viewportBox.height - FIT_PAGE_PADDING)
-                ? "items-start"
-                : "items-center"
-            } ${
-              fitMode === "width" ||
-              (pageGeometry &&
-                pageGeometry.width * zoomScale > Math.max(0, viewportBox.width - FIT_WIDTH_PADDING))
-                ? "justify-start"
-                : "justify-center"
-            }`}
+            className={
+              documentReady
+                ? `flex min-h-full min-w-full w-max p-1 ${
+                    pageGeometry && pageGeometry.height * zoomScale > Math.max(0, viewportBox.height - FIT_PAGE_PADDING)
+                      ? "items-start"
+                      : "items-center"
+                  } ${
+                    fitMode === "width" ||
+                    (pageGeometry &&
+                      pageGeometry.width * zoomScale > Math.max(0, viewportBox.width - FIT_WIDTH_PADDING))
+                      ? "justify-start"
+                      : "justify-center"
+                  }`
+                : "flex min-h-full w-full items-center justify-center p-6"
+            }
           >
-            {!activePdfBytes ? (
-              <p className="text-sm text-muted" data-testid="pdf-empty-state">
+            {!documentReady ? (
+              <p
+                className="max-w-sm rounded-2xl border border-dashed border-line bg-canvas-2 px-6 py-10 text-center text-sm leading-relaxed text-muted"
+                data-testid="pdf-empty-state"
+              >
                 Open a document to start reading.
               </p>
-            ) : null}
+            ) : (
+              <>
             {ramWindowPages.map((pageNumber) => {
               const pageChunks =
                 activeDoc?.chunks.filter((chunk) => chunk.page_number === pageNumber) ?? [];
@@ -1567,6 +1606,8 @@ export default function PdfViewer({
                   Page {pageNumber}
                 </div>
               ))}
+              </>
+            )}
           </div>
         </div>
 

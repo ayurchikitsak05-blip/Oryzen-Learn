@@ -141,9 +141,29 @@ function asCode(value: unknown): RemotePersistCode | undefined {
     : undefined;
 }
 
-export async function fetchRemoteRoadmap(): Promise<RemoteFetchResult> {
+export const ROADMAP_REMOTE_TIMEOUT_MS = 12_000;
+
+export async function fetchRemoteRoadmap(
+  timeoutMs = ROADMAP_REMOTE_TIMEOUT_MS
+): Promise<RemoteFetchResult> {
+  const controller = new AbortController();
   try {
-    const response = await fetch("/api/roadmap", { credentials: "same-origin" });
+    const response = await new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        controller.abort();
+        reject(new DOMException("The roadmap request timed out.", "AbortError"));
+      }, timeoutMs);
+      fetch("/api/roadmap", { credentials: "same-origin", signal: controller.signal }).then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error: unknown) => {
+          clearTimeout(timer);
+          reject(error);
+        }
+      );
+    });
     const json = (await response.json().catch(() => null)) as {
       record?: RoadmapRecord | null;
       persist?: "server" | "local";
