@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CompanionFigure } from "@/components/companion/CompanionFigure";
 import { CompanionSetup } from "@/components/companion/CompanionSetup";
@@ -9,11 +9,12 @@ import {
   COMPANION_MOCK_NOTICE,
   DEFAULT_COMPANION_PREFS,
   activateCompanionStyle,
-  appendCompanionTurn,
   companionReply,
   createCompanionMember,
+  forgetCompanionTurns,
   openingCompanionTurn,
   readCompanionStore,
+  retainCompanionTurns,
   STYLE_COPY,
   switchCompanion,
   writeCompanionPrefs,
@@ -22,6 +23,8 @@ import {
   type CompanionStore,
   type CompanionStyle,
 } from "@/lib/companion";
+import { ensureAccountVault, privateAccessAllowed } from "@/lib/privacy/account-vault";
+import { ANONYMOUS_READER_SCOPE, isAnonymousScope } from "@/lib/reader/local-scope";
 import { activeSession, quizHref, readSprintStore, saveSprintNote } from "@/lib/sprint";
 
 const EMPTY_COMPANION_STORE: CompanionStore = {
@@ -46,13 +49,54 @@ export function CompanionChat({
   const [editing, setEditing] = useState(true);
   const [adding, setAdding] = useState(false);
   const [noteStatus, setNoteStatus] = useState("");
+  const settledScopeRef = useRef(userId);
+  const scopeRef = useRef(userId);
+  const storeRef = useRef(store);
+  const sessionTurnIds = useRef(new Set<string>());
+  scopeRef.current = userId;
+  storeRef.current = store;
   const unfinished = useMemo(
     () => activeSession(readSprintStore(userId).sessions),
     [userId, store.turns.length]
   );
 
   useEffect(() => {
-    const next = initialStyle ? activateCompanionStyle(initialStyle, userId) : readCompanionStore(userId);
+    const previousScope = settledScopeRef.current;
+    const resolvingAccount = isAnonymousScope(previousScope) && !isAnonymousScope(userId);
+    const switchingAccount = !isAnonymousScope(previousScope) && previousScope !== userId;
+    if (switchingAccount) sessionTurnIds.current.clear();
+
+    let next = initialStyle ? activateCompanionStyle(initialStyle, userId) : readCompanionStore(userId);
+    if (resolvingAccount && sessionTurnIds.current.size > 0) {
+      const carried = storeRef.current.turns.filter((turn) => sessionTurnIds.current.has(turn.id));
+      if (privateAccessAllowed(userId)) {
+        next = retainCompanionTurns(next, carried, userId);
+        forgetCompanionTurns(sessionTurnIds.current, ANONYMOUS_READER_SCOPE);
+        sessionTurnIds.current.clear();
+      } else {
+        const known = new Set(next.turns.map((turn) => turn.id));
+        const missing = carried.filter((turn) => !known.has(turn.id));
+        if (missing.length > 0) next = { ...next, turns: [...next.turns, ...missing] };
+        const pendingScope = userId;
+        void ensureAccountVault().then((opened) => {
+          if (!opened || settledScopeRef.current !== pendingScope) return;
+          if (!privateAccessAllowed(pendingScope) || sessionTurnIds.current.size === 0) return;
+          setStore((current) => {
+            if (settledScopeRef.current !== pendingScope || sessionTurnIds.current.size === 0) return current;
+            const still = current.turns.filter((turn) => sessionTurnIds.current.has(turn.id));
+            const base = initialStyle
+              ? activateCompanionStyle(initialStyle, pendingScope)
+              : readCompanionStore(pendingScope);
+            const saved = retainCompanionTurns(base, still, pendingScope);
+            forgetCompanionTurns(sessionTurnIds.current, ANONYMOUS_READER_SCOPE);
+            sessionTurnIds.current.clear();
+            return saved;
+          });
+        });
+      }
+    }
+
+    settledScopeRef.current = userId;
     setStore(next);
     setEditing((wasEditing) =>
       wasEditing && !next.prefs.onboarded ? true : !next.prefs.onboarded
@@ -85,22 +129,28 @@ export function CompanionChat({
   const ask = () => {
     const question = draft.replace(/\s+/g, " ").trim();
     if (question.length < 2) return;
-    appendCompanionTurn(
-      {
-        id: `student-${Date.now().toString(36)}`,
-        role: "student",
-        text: question,
-        mocked: false,
-        createdAt: new Date().toISOString(),
-      },
-      userId
-    );
+    const student = {
+      id: `student-${Date.now().toString(36)}`,
+      role: "student" as const,
+      text: question,
+      mocked: false,
+      createdAt: new Date().toISOString(),
+    };
     const reply = companionReply({
       question,
       prefs: store.prefs,
       unfinished,
     });
-    setStore(appendCompanionTurn(reply, userId));
+    if (isAnonymousScope(scopeRef.current)) {
+      sessionTurnIds.current.add(student.id);
+      sessionTurnIds.current.add(reply.id);
+    }
+    setStore((current) =>
+      writeCompanionStore(
+        { ...current, turns: [...current.turns, student, reply] },
+        scopeRef.current
+      )
+    );
     setDraft("");
   };
 

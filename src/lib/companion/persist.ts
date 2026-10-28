@@ -1,5 +1,5 @@
 import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
-import { scopedReaderStorageKey } from "@/lib/reader/local-scope";
+import { ANONYMOUS_READER_SCOPE, scopedReaderStorageKey } from "@/lib/reader/local-scope";
 import {
   COMPANION_CHARACTERS,
   COMPANION_STORAGE_KEY,
@@ -303,4 +303,30 @@ export function appendCompanionTurn(
 ): CompanionStore {
   const current = readCompanionStore(userId);
   return writeCompanionStore({ ...current, turns: [...current.turns, turn] }, userId);
+}
+
+/** Append turns that were shown before the signed-in account id was known. */
+export function retainCompanionTurns(
+  saved: CompanionStore,
+  turns: CompanionTurn[],
+  userId?: string | null
+): CompanionStore {
+  const known = new Set(saved.turns.map((turn) => turn.id));
+  const missing = turns.filter((turn) => !known.has(turn.id));
+  if (missing.length === 0) return saved;
+  return writeCompanionStore({ ...saved, turns: [...saved.turns, ...missing] }, userId);
+}
+
+/** Drop turns that were only held for the unresolved account placeholder. */
+export function forgetCompanionTurns(
+  turnIds: ReadonlySet<string>,
+  userId: string = ANONYMOUS_READER_SCOPE
+): void {
+  if (turnIds.size === 0) return;
+  const current = readCompanionStore(userId);
+  if (!current.turns.some((turn) => turnIds.has(turn.id))) return;
+  writeCompanionStore(
+    { ...current, turns: current.turns.filter((turn) => !turnIds.has(turn.id)) },
+    userId
+  );
 }

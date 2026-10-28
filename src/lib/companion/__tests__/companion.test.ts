@@ -5,7 +5,9 @@ import {
   activateCompanionStyle,
   companionStorageKey,
   createCompanionMember,
+  forgetCompanionTurns,
   readCompanionStore,
+  retainCompanionTurns,
   writeCompanionPrefs,
   writeCompanionStore,
 } from "../persist";
@@ -73,6 +75,32 @@ describe("AI Study Companion", () => {
     createCompanionMember({ name: "Luna", style: "guide", character: "kite" }, "user-a");
     expect(readCompanionStore("user-a").prefs.name).toBe("Luna");
     expect(readCompanionStore("user-a").collection.some((member) => member.name === "Luna")).toBe(true);
+  });
+
+  it("keeps a turn that arrived before the account id without copying it to someone else", async () => {
+    await unlockTestVault("user-a");
+    const saved = activateCompanionStyle("teacher", "user-a");
+    const retained = retainCompanionTurns(
+      saved,
+      [
+        {
+          id: "student-early",
+          role: "student",
+          text: "Explain work and energy",
+          mocked: false,
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      "user-a"
+    );
+    expect(retained.turns.map((turn) => turn.text)).toContain("Explain work and energy");
+    expect(retainCompanionTurns(retained, retained.turns, "user-a").turns).toEqual(retained.turns);
+    await unlockTestVault("user-b");
+    expect(readCompanionStore("user-b").turns.map((turn) => turn.text)).not.toContain("Explain work and energy");
+    await unlockTestVault("user-a");
+    expect(readCompanionStore("user-a").turns.map((turn) => turn.id)).toContain("student-early");
+    forgetCompanionTurns(new Set(["student-early"]), "user-a");
+    expect(readCompanionStore("user-a").turns.map((turn) => turn.id)).not.toContain("student-early");
   });
 
   it("selects an existing starter style without a second companion store", async () => {
