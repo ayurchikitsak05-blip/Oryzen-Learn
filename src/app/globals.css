@@ -313,6 +313,14 @@ h3,
   }
 }
 
+@media (max-width: 767px) {
+  header .btn-secondary,
+  header .btn-ghost {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+}
+
 .field-input {
   min-height: 44px;
   width: 100%;

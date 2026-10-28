@@ -5,6 +5,7 @@
  * deterministic in-memory fallback for headless test environments.
  */
 
+import { chunksStoredOnBook } from "./document-identity";
 import { computeSha256Hex, findDuplicateDocumentByHash } from "./hashing";
 import type { CitationReadyChunk } from "./extractor";
 import { buildSelectableStudyPdf } from "./sample-chapter";
@@ -411,7 +412,7 @@ export async function saveLocalPdfDocument(params: {
     storageBackend: "indexeddb",
     opfsPath: null,
     chapters: resolvedChapters,
-    chunks: params.chunks ?? [],
+    chunks: chunksStoredOnBook(id, params.chunks ?? []),
     lastReadPage: 1,
     createdAt: nowIso,
     updatedAt: nowIso,

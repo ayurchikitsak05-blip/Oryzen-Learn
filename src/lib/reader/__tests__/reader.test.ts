@@ -268,6 +268,58 @@ describe("Layer 2: Tablet-First PDF Engine & Local-First Storage Pipeline", () =
       expect(loadedBinary).not.toBeNull();
       expect(loadedBinary?.byteLength).toBe(sampleBytes.byteLength);
 
+      const chapterBytes = new Uint8Array([37, 80, 68, 70, 45, 50]);
+      const chapter = await saveLocalPdfDocument({
+        title: "Work and Energy — Sample Chapter",
+        fileName: "work-and-energy.pdf",
+        pdfBytes: chapterBytes,
+        pageCount: 1,
+        chunks: [
+          {
+            chunk_id: "work-and-energy-chapter-p1-c1",
+            document_id: "work-and-energy-chapter",
+            page_number: 1,
+            section_heading: "CHAPTER 6 WORK AND ENERGY",
+            text: "The formula is W = F x d.",
+            bounding_box: { x: 0, y: 0, width: 1, height: 1 },
+            token_estimate: 8,
+          },
+          {
+            chunk_id: "doc-bbbbbbbbbbbb-p1-c1",
+            document_id: "doc-bbbbbbbbbbbb",
+            page_number: 1,
+            section_heading: "Other book",
+            text: "Leave this chunk on its own book.",
+            bounding_box: { x: 0, y: 0, width: 1, height: 1 },
+            token_estimate: 6,
+          },
+        ],
+      });
+      expect(chapter.document.chunks[0]?.chunk_id).toBe("work-and-energy-chapter-p1-c1");
+      expect(chapter.document.chunks[0]?.document_id).toBe(chapter.document.id);
+      expect(chapter.document.chunks[1]?.document_id).toBe("doc-bbbbbbbbbbbb");
+      const reseal = await saveLocalPdfDocument({
+        title: "Changed title",
+        fileName: "work-and-energy.pdf",
+        pdfBytes: chapterBytes,
+        pageCount: 1,
+        chunks: [
+          {
+            chunk_id: "work-and-energy-chapter-p1-c1",
+            document_id: "work-and-energy-chapter",
+            page_number: 1,
+            section_heading: "CHAPTER 6 WORK AND ENERGY",
+            text: "The formula is W = F x d.",
+            bounding_box: { x: 0, y: 0, width: 1, height: 1 },
+            token_estimate: 8,
+          },
+        ],
+      });
+      expect(reseal.isDuplicate).toBe(true);
+      expect(reseal.document.id).toBe(chapter.document.id);
+      expect(reseal.document.chunks[0]?.chunk_id).toBe("work-and-energy-chapter-p1-c1");
+      expect(reseal.document.title).toBe("Work and Energy — Sample Chapter");
+
       // Update lastReadPage metadata
       const updated = await updateLocalPdfMetadata(firstSave.document.id, {
         lastReadPage: 4,

@@ -86,7 +86,7 @@ export default function StudyHubPage() {
     <AppChrome
       subtitle="My Learning Space"
       actions={
-        <div className="flex items-center gap-1">
+        <div className="flex max-w-full flex-wrap items-center justify-end gap-1">
           <AccountMenu />
           <button
             type="button"

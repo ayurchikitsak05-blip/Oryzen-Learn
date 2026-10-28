@@ -1,3 +1,4 @@
+import { chunkListedForBook, noteListedForBook, passageQuote } from "@/lib/reader/document-identity";
 import type { CitationReadyChunk } from "@/lib/reader/extractor";
 
 export interface HighlightSlice {
@@ -35,9 +36,8 @@ export function collectAnnotations(input: {
   for (const mark of input.marks) {
     if (mark.kind !== "highlight" && mark.kind !== "underline") continue;
     const chunk = input.chunks.find((item) => item.chunk_id === mark.chunkId);
-    if (!chunk) continue;
-    if (input.documentId && chunk.document_id !== input.documentId) continue;
-    const quote = chunk.text.slice(mark.start, mark.end).trim();
+    if (!chunk || !chunkListedForBook(chunk, input.documentId, input.chunks)) continue;
+    const quote = passageQuote(chunk, mark.start, mark.end);
     if (!quote) continue;
     highlights.push({
       kind: mark.kind,
@@ -48,7 +48,7 @@ export function collectAnnotations(input: {
   }
 
   const notes = input.notes
-    .filter((note) => !input.documentId || note.documentId === input.documentId)
+    .filter((note) => noteListedForBook(note.documentId, input.documentId, input.chunks))
     .map((note) => ({
       kind: "note" as const,
       pageNumber: note.pageNumber,

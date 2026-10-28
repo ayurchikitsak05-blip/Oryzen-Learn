@@ -20,6 +20,7 @@ import {
   type CitationReadyChunk,
 } from "@/lib/reader/extractor";
 import { parseAndIndexUploadedPdf } from "@/lib/reader/document-parser";
+import { isSavedBookId } from "@/lib/reader/document-identity";
 import {
   acceptSelectionText,
   resolveStudySnapshot,
@@ -528,7 +529,7 @@ export default function PdfViewer({
       ...current,
       {
         id: `note-${Date.now()}-${current.length}`,
-        documentId: chunk.document_id,
+        documentId: activeDoc?.id ?? chunk.document_id,
         pageNumber: chunk.page_number,
         sectionHeading: chunk.section_heading,
         quote,
@@ -957,7 +958,11 @@ export default function PdfViewer({
   ) => {
     if (!activeDoc) return null;
     const pageNumber =
-      chunk && chunk.document_id === activeDoc.id ? chunk.page_number : activePage;
+      chunk &&
+      activeDoc.chunks.some((item) => item.chunk_id === chunk.chunk_id) &&
+      (chunk.document_id === activeDoc.id || !isSavedBookId(chunk.document_id))
+        ? chunk.page_number
+        : activePage;
     const resolved = resolveStudySnapshot({
       documentId: activeDoc.id,
       documentHash: activeDoc.fileHash,

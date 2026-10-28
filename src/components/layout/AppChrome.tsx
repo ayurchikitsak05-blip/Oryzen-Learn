@@ -48,7 +48,7 @@ export default function AppChrome({
     <div className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink ${showAppNav ? "pb-20 md:pb-0" : ""}`}>
       <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-canvas/92 backdrop-blur-md">
         <div
-          className={`mx-auto flex h-12 min-w-0 items-center justify-between gap-1 px-3 md:px-4 lg:gap-2 lg:px-6 ${maxWidthClass}`}
+          className={`mx-auto flex min-h-12 w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1 md:flex-nowrap md:px-4 lg:gap-2 lg:px-6 ${maxWidthClass}`}
         >
           <OryzenLearnBrand subtitle={subtitle} />
           {showAppNav ? (
@@ -68,7 +68,7 @@ export default function AppChrome({
               ))}
             </nav>
           ) : null}
-          <div className="flex shrink-0 items-center gap-1">{actions}</div>
+          <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1">{actions}</div>
         </div>
       </header>
       {showAppNav ? <OwnerDemoBanner /> : null}
