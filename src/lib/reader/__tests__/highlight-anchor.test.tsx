@@ -164,4 +164,35 @@ describe("PassageText highlight painting", () => {
     expect(highlighted()).toContain(QUOTE);
     expect(highlighted()).not.toContain("e moves an");
   });
+
+  it("shows the saved quote on the readable page when the PDF canvas falls back", () => {
+    const located = locateQuote(PASSAGE, QUOTE)!;
+    const { container } = render(
+      <PassageText
+        chunkId="doc-sample-p1-c0"
+        text={PASSAGE}
+        marks={[
+          {
+            id: "mark-1",
+            chunkId: "doc-sample-p1-c0",
+            start: located.start,
+            end: located.end,
+            kind: "highlight",
+          },
+        ]}
+        overlay
+        readable
+        onAddMark={() => undefined}
+        onExplain={() => undefined}
+        onAddNote={() => undefined}
+      />
+    );
+    const page = container.firstElementChild as HTMLElement;
+    expect(page.className).toContain("text-heading");
+    expect(page.className).not.toContain("text-transparent");
+    expect(page.textContent).toContain(PASSAGE);
+    expect(
+      [...page.querySelectorAll(".bg-selected")].map((node) => node.textContent ?? "").join("")
+    ).toBe(QUOTE);
+  });
 });

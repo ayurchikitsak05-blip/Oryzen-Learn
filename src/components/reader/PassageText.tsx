@@ -39,6 +39,8 @@ export interface PassageTextProps {
   text: string;
   marks: readonly ReaderTextMark[];
   overlay?: boolean;
+  /** When the PDF canvas could not be drawn, the flow text is the page the student reads. */
+  readable?: boolean;
   placedLines?: readonly PdfTextRun[];
   onAddMark: (mark: Omit<ReaderTextMark, "id">) => void;
   onExplain: (selectedText: string) => void;
@@ -201,6 +203,7 @@ export default function PassageText({
   text,
   marks,
   overlay = false,
+  readable = false,
   placedLines,
   onAddMark,
   onExplain,
@@ -374,7 +377,7 @@ export default function PassageText({
           aligned
             ? "relative h-full w-full select-text font-sans text-transparent selection:bg-selected selection:text-heading"
             : overlay
-              ? "font-reading-family h-full w-full text-[11px] leading-tight text-transparent selection:bg-selected selection:text-heading"
+              ? `font-reading-family h-full w-full text-[13px] leading-relaxed selection:bg-selected selection:text-heading ${readable ? "text-heading" : "text-transparent"}`
               : "text-sm leading-relaxed"
         }
       >

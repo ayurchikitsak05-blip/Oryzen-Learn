@@ -148,30 +148,6 @@ export function PdfPageCanvas({
         if (ctx) {
           ctx.fillStyle = "#fffdfc";
           ctx.fillRect(0, 0, width, height);
-          ctx.fillStyle = "#20242b";
-          ctx.font = `500 ${Math.round(16 * zoomScale)}px Inter, sans-serif`;
-          const heading = pageChunksRef.current[0]?.section_heading ?? `Page ${pageNumber}`;
-          ctx.fillText(heading.slice(0, 48), 32, Math.round(52 * zoomScale));
-          ctx.fillStyle = "#303640";
-          ctx.font = `${Math.round(13 * zoomScale)}px Inter, sans-serif`;
-          let cursorY = Math.round(90 * zoomScale);
-          for (const chunk of pageChunksRef.current) {
-            const words = chunk.text.split(/\s+/);
-            let line = "";
-            for (const word of words) {
-              if (`${line} ${word}`.length > 62) {
-                ctx.fillText(line.trim(), 32, cursorY);
-                cursorY += Math.round(20 * zoomScale);
-                line = word;
-              } else {
-                line = `${line} ${word}`.trim();
-              }
-            }
-            if (line.trim()) {
-              ctx.fillText(line.trim(), 32, cursorY);
-              cursorY += Math.round(26 * zoomScale);
-            }
-          }
         }
         const geometry = { width: 612, height: 792 };
         setBaseSize(geometry);
@@ -217,6 +193,7 @@ export function PdfPageCanvas({
           className="absolute left-0 top-0 overflow-hidden"
           data-testid="pdf-text-layer"
           data-align={textRuns.length > 0 ? "glyphs" : "flow"}
+          data-readable={renderStatus === "fallback" ? "true" : "false"}
           style={{
             width: baseSize.width || 612,
             height: baseSize.height || 792,
@@ -230,6 +207,7 @@ export function PdfPageCanvas({
             text={pageChunks.map((chunk) => chunk.text).join(" ")}
             marks={marks}
             overlay
+            readable={renderStatus === "fallback"}
             placedLines={textRuns}
             onAddMark={onAddMark}
             onExplain={(selectedText) =>
