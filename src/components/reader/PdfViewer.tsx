@@ -47,6 +47,7 @@ import {
   PageGridModal,
 } from "@/components/reader/ReaderOverlays";
 import type { ReaderMarginNote } from "@/lib/reader/annotations";
+import { markForPassageQuote } from "@/lib/reader/highlight-anchor";
 import type { ReaderTextMark } from "@/components/reader/PassageText";
 import type { SelectionToolbarState } from "@/components/reader/PassageText";
 import type {
@@ -1777,30 +1778,24 @@ export default function PdfViewer({
             void handleTriggerLens(lens, selectedChunk, exact);
           }}
           onHighlight={() => {
-            if (!selectedChunk || !selectionUi) return;
-            const overlayChunkId =
-              activeDoc?.chunks.find(
-                (chunk) => chunk.page_number === selectedChunk.page_number
-              )?.chunk_id ?? selectedChunk.chunk_id;
-            handleAddMark({
-              chunkId: overlayChunkId,
-              start: selectionUi.start,
-              end: selectionUi.end,
-              kind: "highlight",
-            });
+            if (!selectedChunk || !selectionUi || !activeDoc) return;
+            const mark = markForPassageQuote(
+              activeDoc.chunks,
+              selectedChunk.page_number,
+              selectionUi.text,
+              "highlight"
+            );
+            if (mark) handleAddMark(mark);
           }}
           onUnderline={() => {
-            if (!selectedChunk || !selectionUi) return;
-            const overlayChunkId =
-              activeDoc?.chunks.find(
-                (chunk) => chunk.page_number === selectedChunk.page_number
-              )?.chunk_id ?? selectedChunk.chunk_id;
-            handleAddMark({
-              chunkId: overlayChunkId,
-              start: selectionUi.start,
-              end: selectionUi.end,
-              kind: "underline",
-            });
+            if (!selectedChunk || !selectionUi || !activeDoc) return;
+            const mark = markForPassageQuote(
+              activeDoc.chunks,
+              selectedChunk.page_number,
+              selectionUi.text,
+              "underline"
+            );
+            if (mark) handleAddMark(mark);
           }}
           onClearSelection={() => {
             setSelectedChunk(null);

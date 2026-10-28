@@ -2,29 +2,30 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { CompanionFigure } from "@/components/companion/CompanionFigure";
-import {
-  BooksScene,
-  NotebookScene,
-  PlannerScene,
-  ProgressScene,
-  RevisionScene,
-  SprintScene,
-  VideoScene,
-} from "@/components/hub/HomeIllustrations";
+import { HomeIcon, type HomeIconName } from "@/components/hub/HomeIllustrations";
 import { ReadingSizeControl } from "@/components/reading/ReadingSizeControl";
 import { readCompanionStore, STYLE_COPY, type CompanionStyle } from "@/lib/companion";
+import type { HomeContinuation } from "@/lib/hub/continuation";
 import { STARTER_COMPANIONS } from "@/lib/companion/types";
 
-export interface HomeContinuation {
-  bookTitle: string | null;
-  sprintLabel: string | null;
-  nextBlock: string | null;
-  studiedMinutes: number | null;
-  dailyGoal: number | null;
-}
+export type { HomeContinuation };
 
 const CHARACTER_ORDER: CompanionStyle[] = ["buddy", "teacher", "coach", "guide"];
+
+const COMPANION_ICONS: Record<CompanionStyle, HomeIconName> = {
+  buddy: "buddy",
+  teacher: "teacher",
+  coach: "coach",
+  guide: "guide",
+};
+
+function IconWell({ name }: { name: HomeIconName }) {
+  return (
+    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface">
+      <HomeIcon name={name} />
+    </span>
+  );
+}
 
 const CARDS = [
   {
@@ -32,7 +33,7 @@ const CARDS = [
     title: "My E-Books",
     detail: "Read a PDF. Ask My Book and Transform stay inside the reader.",
     testId: "hub-reader-link",
-    scene: BooksScene,
+    icon: "ebooks",
     tone: "bg-beige-2",
   },
   {
@@ -40,7 +41,7 @@ const CARDS = [
     title: "Video Lectures",
     detail: "Watch a lecture. Notes appear only when a caption track is available.",
     testId: "hub-video-link",
-    scene: VideoScene,
+    icon: "video",
     tone: "bg-surface",
   },
   {
@@ -48,7 +49,7 @@ const CARDS = [
     title: "Study Sprint",
     detail: "Focus with a timer and planned breaks.",
     testId: "hub-sprint-link",
-    scene: SprintScene,
+    icon: "sprint",
     tone: "bg-beige-2",
   },
   {
@@ -56,7 +57,7 @@ const CARDS = [
     title: "Study Planner",
     detail: "Plan your subjects and replan a missed day.",
     testId: "hub-roadmap-link",
-    scene: PlannerScene,
+    icon: "planner",
     tone: "bg-surface",
   },
   {
@@ -64,7 +65,7 @@ const CARDS = [
     title: "Study Progress",
     detail: "Recorded study time, quizzes, notes, and plans.",
     testId: "hub-progress-link",
-    scene: ProgressScene,
+    icon: "progress",
     tone: "bg-selected",
   },
   {
@@ -72,7 +73,7 @@ const CARDS = [
     title: "Test Me & Revision",
     detail: "Quiz a passage, then revise what you missed.",
     testId: "hub-test-link",
-    scene: RevisionScene,
+    icon: "revision",
     tone: "bg-beige-2",
   },
   {
@@ -80,7 +81,7 @@ const CARDS = [
     title: "My Notebook",
     detail: "Highlights, notes, and saved study material.",
     testId: "hub-notes-link",
-    scene: NotebookScene,
+    icon: "notebook",
     tone: "bg-surface",
   },
 ] as const;
@@ -89,10 +90,12 @@ export function StudyHome({
   continuation,
   userId = null,
   activeCompanionStyle = null,
+  record = "ready",
 }: {
   continuation: HomeContinuation;
   userId?: string | null;
   activeCompanionStyle?: CompanionStyle | null;
+  record?: "loading" | "locked" | "ready";
 }) {
   const [activeStyle, setActiveStyle] = useState<CompanionStyle | null>(activeCompanionStyle);
   useEffect(() => {
@@ -133,7 +136,13 @@ export function StudyHome({
       <section aria-label="Today" className="grid gap-3 md:grid-cols-2">
         <div className="rounded-3xl border border-line bg-surface p-5" data-testid="hub-today-plan">
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">Today&apos;s plan</p>
-          {planLines.length > 0 ? (
+          {record === "loading" ? (
+            <p className="mt-3 text-sm text-muted">Reading this account&apos;s study record...</p>
+          ) : record === "locked" ? (
+            <p className="mt-3 text-sm text-muted">
+              This account&apos;s study record is locked on this device. Sign in again to unlock it.
+            </p>
+          ) : planLines.length > 0 ? (
             <ul className="mt-3 space-y-2 text-sm text-ink">
               {planLines.map((line) => (
                 <li key={line}>{line}</li>
@@ -161,12 +170,22 @@ export function StudyHome({
         <div className="rounded-3xl border border-line bg-selected p-5" data-testid="hub-today-progress">
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">Study progress</p>
           <h2 className="mt-2 font-reading text-2xl text-heading">
-            {studied == null ? "Nothing recorded yet" : `${studied} min studied`}
+            {record === "loading"
+              ? "Reading this account's study record..."
+              : record === "locked"
+                ? "Study record locked"
+                : studied == null
+                  ? "Nothing recorded yet"
+                  : `${studied} min studied`}
           </h2>
           <p className="mt-1 text-sm text-muted">
-            {goal == null ? "No daily goal is saved yet." : `Daily goal: ${goal} minutes`}
+            {record === "loading" || record === "locked"
+              ? "Saved progress appears after this account is unlocked."
+              : goal == null
+                ? "No daily goal is saved yet."
+                : `Daily goal: ${goal} minutes`}
           </p>
-          {percent != null ? (
+          {record === "ready" && percent != null ? (
             <div
               className="mt-4 h-2 overflow-hidden rounded-full bg-surface"
               role="progressbar"
@@ -191,7 +210,8 @@ export function StudyHome({
         <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <li className="sm:col-span-2">
             <article className="flex h-full flex-col rounded-3xl border border-line bg-selected p-4">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <IconWell name="tutor" />
                 <div>
                   <h3 className="font-ui text-xl font-semibold text-heading">
                     <Link href="/companion" data-testid="hub-companion-link" className="underline-offset-4 hover:underline">
@@ -218,7 +238,7 @@ export function StudyHome({
                         selected ? "border-accent bg-surface text-heading" : "border-line bg-surface/70 text-ink"
                       }`}
                     >
-                      <CompanionFigure character={starter.character} className="h-14 w-14" />
+                      <IconWell name={COMPANION_ICONS[style]} />
                       <span className="mt-1 font-medium">{STYLE_COPY[style].label}</span>
                     </Link>
                   );
@@ -227,17 +247,14 @@ export function StudyHome({
             </article>
           </li>
           {CARDS.map((card) => {
-            const Scene = card.scene;
             return (
               <li key={card.testId}>
                 <Link
                   href={card.href}
                   data-testid={card.testId}
-                  className={`flex h-full min-h-52 flex-col rounded-3xl border border-line p-4 transition-colors hover:border-beige ${card.tone}`}
+                  className={`flex h-full flex-col rounded-3xl border border-line p-4 transition-colors hover:border-beige ${card.tone}`}
                 >
-                  <div className="h-20 overflow-hidden rounded-2xl">
-                    <Scene />
-                  </div>
+                  <IconWell name={card.icon} />
                   <h3 className="mt-3 font-ui text-lg font-semibold text-heading">{card.title}</h3>
                   <p className="mt-1 text-sm leading-relaxed text-muted">{card.detail}</p>
                 </Link>

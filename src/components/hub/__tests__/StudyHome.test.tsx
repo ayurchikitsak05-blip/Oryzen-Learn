@@ -36,6 +36,22 @@ describe("StudyHome", () => {
     expect(screen.queryByText(/Study Circle/)).toBeNull();
     expect(screen.queryByTestId("hub-ask-link")).toBeNull();
     expect(screen.queryByTestId("hub-transform-link")).toBeNull();
+    for (const [testId, icon] of [
+      ["hub-reader-link", "ebooks"],
+      ["hub-video-link", "video"],
+      ["hub-sprint-link", "sprint"],
+      ["hub-roadmap-link", "planner"],
+      ["hub-progress-link", "progress"],
+      ["hub-test-link", "revision"],
+      ["hub-notes-link", "notebook"],
+      ["hub-companion-buddy", "buddy"],
+      ["hub-companion-teacher", "teacher"],
+      ["hub-companion-coach", "coach"],
+      ["hub-companion-guide", "guide"],
+    ] as const) {
+      expect(screen.getByTestId(testId).querySelector(`[data-icon=${icon}]`)).toBeTruthy();
+    }
+    expect(screen.getByTestId("hub-companion-link").closest("article")?.querySelector("[data-icon=tutor]")).toBeTruthy();
   });
 
   it("shows only recorded minutes against a saved goal", () => {

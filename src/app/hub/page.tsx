@@ -6,19 +6,20 @@ import { CalendarClock, Compass } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
 import AccountMenu from "@/components/auth/AccountMenu";
 import { ExperienceHomeStrip } from "@/components/experience/ExperienceHomeStrip";
-import { StudyHome, type HomeContinuation } from "@/components/hub/StudyHome";
+import { StudyHome } from "@/components/hub/StudyHome";
+import type { HomeContinuation } from "@/lib/hub/continuation";
 import SchedulerDialog from "@/components/study/SchedulerDialog";
 import { useSignedInScope } from "@/components/coach/CoachHost";
 import { modernProfileHeadline, readSavedBodyType, type SavedBodyType } from "@/lib/study/body-type";
+import { readHomeContinuation } from "@/lib/hub/continuation";
+import { ensureAccountVault, isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { getLocalPdfDocument } from "@/lib/reader/storage";
 import { readMarginNotes } from "@/lib/reader/marks";
 import { readLastReaderDocumentId } from "@/lib/reader/fit";
 import { readLocalRoadmap } from "@/lib/roadmap/persist";
 import { daysBetween, localIsoDate } from "@/lib/roadmap/time";
-import { readSprintStore } from "@/lib/sprint/persist";
-import { activeSession, nextRecommendedBlock, studiedMinutesOnDate, todayKey } from "@/lib/sprint/plan";
-import { readDayPlan } from "@/lib/universe/persist";
+import { todayKey } from "@/lib/sprint/plan";
 import { ui } from "@/components/ui/classes";
 
 const EMPTY_CONTINUATION: HomeContinuation = {
@@ -33,47 +34,52 @@ export default function StudyHubPage() {
   const [saved, setSaved] = useState<SavedBodyType | null>(null);
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [continuation, setContinuation] = useState<HomeContinuation>(EMPTY_CONTINUATION);
+  const [record, setRecord] = useState<"loading" | "locked" | "ready">("loading");
   const [examDaysLeft, setExamDaysLeft] = useState<number | null>(null);
   const [hasNote, setHasNote] = useState(false);
   const coachScope = useSignedInScope();
 
   useEffect(() => {
+    let cancelled = false;
+    setRecord("loading");
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
           const user = await fetchSignedInUser();
           const userId = user?.userId ?? null;
+          if (userId) await ensureAccountVault();
+          if (cancelled) return;
           setSaved(readSavedBodyType(userId));
-          const store = readSprintStore(userId);
+          if (userId && !isAccountVaultUnlocked()) {
+            setExamDaysLeft(null);
+            setHasNote(false);
+            setContinuation(EMPTY_CONTINUATION);
+            setRecord("locked");
+            return;
+          }
           const date = todayKey();
-          const plan = readDayPlan(userId);
-          const goal = plan?.dailyGoalMinutes ?? store.dailyTargetMinutes;
-          const next = nextRecommendedBlock(store.sessions, goal, store.preferredDuration, date);
-          const active = activeSession(store.sessions);
           const documentId = readLastReaderDocumentId(userId);
           const document = documentId ? await getLocalPdfDocument(documentId) : null;
           const roadmap = readLocalRoadmap(userId);
-          const examDaysLeft = roadmap ? daysBetween(localIsoDate(), roadmap.intake.examDate) : null;
-          setExamDaysLeft(examDaysLeft);
+          if (cancelled) return;
+          setExamDaysLeft(roadmap ? daysBetween(localIsoDate(), roadmap.intake.examDate) : null);
           setHasNote(readMarginNotes(userId).length > 0);
-          setContinuation({
-            bookTitle: document?.title ?? null,
-            sprintLabel: active
-              ? `StudySprint: ${active.status === "running" ? "in progress" : active.status}`
-              : null,
-            nextBlock: store.sessions.length > 0 || plan ? next.hint : null,
-            studiedMinutes: store.sessions.length > 0 ? studiedMinutesOnDate(store.sessions, date) : null,
-            dailyGoal: store.sessions.length > 0 || plan ? goal : null,
-          });
+          setContinuation(readHomeContinuation(userId, date, document?.title ?? null));
+          setRecord("ready");
         } catch {
+          if (cancelled) return;
           setSaved(null);
           setExamDaysLeft(null);
           setHasNote(false);
           setContinuation(EMPTY_CONTINUATION);
+          setRecord("ready");
         }
       })();
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [coachScope]);
 
   return (
@@ -96,7 +102,7 @@ export default function StudyHubPage() {
       }
     >
       <main className={ui.main}>
-        <StudyHome continuation={continuation} userId={coachScope} />
+        <StudyHome continuation={continuation} userId={coachScope} record={record} />
         <div className="mt-4">
           <ExperienceHomeStrip
             signals={{

@@ -7,6 +7,7 @@ import {
   type DictionaryEntry,
   type DictionaryLookupStatus,
 } from "@/lib/reader/dictionary-lookup";
+import { marksOnSurface, selectionOffsetsInPassage } from "@/lib/reader/highlight-anchor";
 import type { PdfTextRun } from "@/lib/reader/pdf-text-layer";
 
 export type ReaderMarkKind = "highlight" | "underline";
@@ -213,6 +214,9 @@ export default function PassageText({
   const [noteDraft, setNoteDraft] = useState("");
   const [noting, setNoting] = useState(false);
   const chunkMarks = marks.filter((mark) => mark.chunkId === chunkId);
+  const aligned = placedLines && placedLines.length > 0 ? placedLines : null;
+  const source = aligned ? aligned.map((line) => line.text).join(" ") : text;
+  const surfaceMarks = marksOnSurface(text, source, chunkMarks);
 
   useEffect(() => {
     onSelectionChangeRef.current = onSelectionChange;
@@ -253,14 +257,15 @@ export default function PassageText({
     const offsets = plainOffsets(root, range);
     const selected = range.toString().replace(/\s+/g, " ").trim();
     if (!offsets || !selected) return;
+    const anchored = selectionOffsetsInPassage(text, selected, offsets.start, offsets.end, source);
     const rect = range.getBoundingClientRect();
     setNoting(false);
     setNoteDraft("");
     const next = {
       top: rect.top,
       left: rect.left + rect.width / 2,
-      start: offsets.start,
-      end: offsets.end,
+      start: anchored?.start ?? -1,
+      end: anchored?.end ?? -1,
       text: selected,
     };
     setToolbar(next);
@@ -274,7 +279,7 @@ export default function PassageText({
   }, []);
 
   const applyMark = (kind: ReaderMarkKind) => {
-    if (!toolbar) return;
+    if (!toolbar || toolbar.start < 0 || toolbar.end <= toolbar.start) return;
     onAddMark({
       chunkId,
       start: toolbar.start,
@@ -284,9 +289,6 @@ export default function PassageText({
     setToolbar(null);
     window.getSelection()?.removeAllRanges();
   };
-
-  const aligned = placedLines && placedLines.length > 0 ? placedLines : null;
-  const source = aligned ? aligned.map((line) => line.text).join(" ") : text;
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -301,7 +303,7 @@ export default function PassageText({
     });
   }, [aligned, source]);
 
-  const segments = buildSegments(source, chunkMarks);
+  const segments = buildSegments(source, surfaceMarks);
 
   const renderPieces = (segment: (typeof segments)[number]) => {
     const wordPattern = /(\s+|\S+)/g;
