@@ -43,6 +43,7 @@ const lockHooks = new Set<() => void>();
 let state: VaultState | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let vaultEpoch = 0;
+let vaultOpenTask: Promise<boolean> | null = null;
 
 export function registerVaultLockHook(hook: () => void): void {
   lockHooks.add(hook);
@@ -154,15 +155,31 @@ export async function lockAccountVault(): Promise<void> {
   for (const hook of lockHooks) hook();
 }
 
+/** Waits until queued sealed writes have finished. */
+export function flushAccountVault(): Promise<void> {
+  return persistQueue;
+}
+
 /** Drops in-memory copies without writing. Used between tests. */
 export function discardAccountVault(): void {
   vaultEpoch += 1;
   state = null;
   persistQueue = Promise.resolve();
+  vaultOpenTask = null;
   for (const hook of lockHooks) hook();
 }
 
-export async function ensureAccountVault(): Promise<boolean> {
+export function ensureAccountVault(): Promise<boolean> {
+  if (!vaultOpenTask) {
+    const task = openAccountVault().finally(() => {
+      if (vaultOpenTask === task) vaultOpenTask = null;
+    });
+    vaultOpenTask = task;
+  }
+  return vaultOpenTask;
+}
+
+async function openAccountVault(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   const session = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
   if (!session.ok) {

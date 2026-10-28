@@ -1,9 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import type { HighlightLensType } from "@/lib/prakriti/config";
 import type { ReaderStudyLens } from "@/components/reader/StudyWorkspace";
-import { clampToolbarAnchor } from "@/lib/reader/highlight-toolbar";
+import {
+  clampToolbarAnchor,
+  firstLineHeightForPage,
+  placeHighlightToolbar,
+  TOOLBAR_ESTIMATED_HEIGHT,
+} from "@/lib/reader/highlight-toolbar";
 
 export interface HighlightLensActionItem {
   id: HighlightLensType;
@@ -55,15 +60,78 @@ export default function HighlightToolbar({
   left,
 }: HighlightToolbarProps) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const fractionRef = useRef<{ x: number; y: number } | null>(null);
+  const selectionKey = `${top ?? ""}:${left ?? ""}:${selectedText}`;
+  const [toolbarHeight, setToolbarHeight] = useState(TOOLBAR_ESTIMATED_HEIGHT);
+  const [anchor, setAnchor] = useState(() =>
+    clampToolbarAnchor(
+      top,
+      left,
+      typeof window !== "undefined" ? window.innerWidth : 1280,
+      typeof window !== "undefined" ? window.innerHeight : 800
+    )
+  );
+
+  useLayoutEffect(() => {
+    fractionRef.current = null;
+  }, [selectionKey]);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const node = rootRef.current;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const measuredHeight = node?.offsetHeight ?? 0;
+      const height = measuredHeight > 0 ? measuredHeight : toolbarHeight;
+      if (measuredHeight > 0 && Math.abs(measuredHeight - toolbarHeight) > 2) {
+        setToolbarHeight(measuredHeight);
+      }
+      const page = document.querySelector<HTMLElement>('[data-active="true"]');
+      const rect = page?.getBoundingClientRect();
+      if (!page || !rect || rect.height <= 0 || typeof top !== "number" || typeof left !== "number") {
+        setAnchor(clampToolbarAnchor(top, left, viewportWidth, viewportHeight));
+        return;
+      }
+      if (!fractionRef.current) {
+        fractionRef.current = {
+          x: rect.width > 0 ? (left - rect.left) / rect.width : 0.5,
+          y: (top - rect.top) / rect.height,
+        };
+      }
+      const fraction = fractionRef.current;
+      setAnchor(
+        placeHighlightToolbar({
+          selectionTop: rect.top + fraction.y * rect.height,
+          selectionLeft: rect.left + fraction.x * rect.width,
+          pageTop: rect.top,
+          firstLineHeight: firstLineHeightForPage(rect.height),
+          toolbarWidth: node?.offsetWidth || Math.min(352, viewportWidth - 24),
+          toolbarHeight: height,
+          viewportWidth,
+          viewportHeight,
+        })
+      );
+    };
+    place();
+    const host = document.querySelector("[data-testid=pdf-scroll-host]");
+    host?.addEventListener("scroll", place, { passive: true });
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, { passive: true });
+    return () => {
+      host?.removeEventListener("scroll", place);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place);
+    };
+  }, [left, selectionKey, toolbarHeight, top]);
+
   if (!selectedText.trim()) return null;
 
-  const viewportWidth = typeof window !== "undefined" ? window.innerWidth : 1280;
-  const viewportHeight = typeof window !== "undefined" ? window.innerHeight : 800;
-  const anchor = clampToolbarAnchor(top, left, viewportWidth, viewportHeight);
   const positioned = Boolean(anchor);
 
   return (
     <div
+      ref={rootRef}
       id="reader-selection-tools"
       data-testid="multi-lens-highlight-toolbar"
       role="toolbar"

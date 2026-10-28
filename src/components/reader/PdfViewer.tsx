@@ -89,6 +89,7 @@ import {
   nextPinchZoom,
   readLastReaderDocumentId,
   readPersistedReaderView,
+  restoredReaderFit,
   resolveReaderScale,
   scrollForFocalZoom,
   visibleViewerBox,
@@ -677,9 +678,9 @@ export default function PdfViewer({
       pickedDocIdRef.current = chosen.id;
       setActiveDoc(chosen);
       setActivePage(persisted?.page || 1);
-      if (persisted?.fitMode) setFitMode(persisted.fitMode);
-      else setFitMode(DEFAULT_FIT_MODE);
-      if (persisted?.zoom) setCustomZoom(persisted.zoom);
+      const restored = restoredReaderFit(persisted, window.innerWidth);
+      setFitMode(restored.fitMode);
+      if (restored.zoom != null) setCustomZoom(restored.zoom);
       if (bytes && active) setActivePdfBytes(bytes);
     }
     void bootstrapLocalLibrary().catch((error) => {
@@ -767,7 +768,9 @@ export default function PdfViewer({
     setActivePdfBytes(null);
     setActiveDoc(next);
     setActivePage(page);
-    if (persisted?.fitMode) setFitMode(persisted.fitMode);
+    const restored = restoredReaderFit(persisted, window.innerWidth);
+    setFitMode(restored.fitMode);
+    if (restored.zoom != null) setCustomZoom(restored.zoom);
     const bytes = await getLocalPdfBinary(next.id);
     if (pickedDocIdRef.current !== next.id) return;
     if (bytes) setActivePdfBytes(bytes);
@@ -1280,7 +1283,10 @@ export default function PdfViewer({
           notesSaved={notebookStatus === "saved"}
         />
       </Suspense>
-      <div className="flex w-full min-w-0 shrink-0 flex-nowrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1">
+      <div
+        data-testid="reader-toolbar"
+        className="flex w-full min-w-0 max-w-full shrink-0 flex-nowrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1 max-[390px]:flex-wrap max-[390px]:overflow-x-hidden"
+      >
         <label className="btn-secondary cursor-pointer px-2.5 py-1 text-[11px]">
           <FileUp className="h-4 w-4" />
           Open

@@ -21,6 +21,7 @@ import {
 import { decideHydrate } from "@/lib/roadmap/sync";
 import { addDays, localIsoDate } from "@/lib/roadmap/time";
 import type { RoadmapIntake, RoadmapRecord } from "@/lib/roadmap/types";
+import { ensureAccountVault } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import RoadmapOnboarding from "./RoadmapOnboarding";
 import {
@@ -58,12 +59,10 @@ export default function RoadmapApp() {
   );
 
   const hydrate = useCallback(async () => {
+    let scope = "local-anonymous";
+    let local: RoadmapRecord | null = null;
     try {
-    const user = await fetchSignedInUser().catch(() => null);
-    const scope = user?.userId ?? "local-anonymous";
-    setUserId(scope);
-    const local = readLocalRoadmap(scope);
-    const remote = await fetchRemoteRoadmap().catch(
+    const remotePromise = fetchRemoteRoadmap().catch(
       (): RemoteFetchResult => ({
         record: null,
         persist: "local",
@@ -71,6 +70,13 @@ export default function RoadmapApp() {
         error: "Your plan is saved on this device. Try again when you are back online.",
       })
     );
+    const user = await fetchSignedInUser().catch(() => null);
+    scope = user?.userId ?? "local-anonymous";
+    setUserId(scope);
+    setRecord((current) => (current && current.userId !== scope ? null : current));
+    if (user?.userId) await ensureAccountVault().catch(() => false);
+    local = readLocalRoadmap(scope);
+    const remote = await remotePromise;
     const decision = decideHydrate({
       local,
       remote: remote.record,
@@ -85,7 +91,11 @@ export default function RoadmapApp() {
     setSyncRetry(null);
 
     if (decision.kind === "offline") {
-      if (decision.local) setRecord(decision.local);
+      setRecord((current) => {
+        if (decision.local) return decision.local;
+        if (current && current.userId === scope) return current;
+        return null;
+      });
       setSyncPhase("idle");
       setSyncMessage(decision.error);
       setSyncRetry("hydrate");
@@ -139,6 +149,11 @@ export default function RoadmapApp() {
     setSyncMessage(null);
     setLoading(false);
     } catch {
+      setRecord((current) => {
+        if (local) return local;
+        if (current && current.userId === scope) return current;
+        return null;
+      });
       setSyncPhase("idle");
       setSyncMessage("Your plan is saved on this device. Try again when you are back online.");
       setSyncRetry("hydrate");

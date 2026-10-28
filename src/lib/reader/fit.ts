@@ -16,6 +16,27 @@ export const MIN_FIT_ZOOM = 0.05;
 /** Default to Fit Width so body text is large on laptops and tablets. */
 export const DEFAULT_FIT_MODE: ReaderFitMode = "width";
 
+/** Phone widths where a desktop custom zoom would run past the screen. */
+export const NARROW_READER_WIDTH = 390;
+
+/**
+ * A custom zoom saved on a wide screen is restored as Fit Width on a phone
+ * so the page does not overflow the viewport. Zoom still works afterwards.
+ */
+export function restoredReaderFit(
+  persisted: { fitMode?: ReaderFitMode; zoom?: number } | null | undefined,
+  viewportWidth: number
+): { fitMode: ReaderFitMode; zoom: number | null } {
+  if (!persisted?.fitMode) return { fitMode: DEFAULT_FIT_MODE, zoom: null };
+  if (viewportWidth > 0 && viewportWidth <= NARROW_READER_WIDTH && persisted.fitMode === "custom") {
+    return { fitMode: "width", zoom: null };
+  }
+  return {
+    fitMode: persisted.fitMode,
+    zoom: persisted.fitMode === "custom" && typeof persisted.zoom === "number" ? persisted.zoom : null,
+  };
+}
+
 /** Inset already consumed by the page stage padding, in CSS pixels (both sides). */
 export const FIT_WIDTH_PADDING = 8;
 export const FIT_PAGE_PADDING = 8;

@@ -145,6 +145,13 @@ describe("PDF reader empty state", () => {
     expect((view.getByTestId("fit-page-btn") as HTMLButtonElement).disabled).toBe(true);
     expect((view.getByTestId("transform-open") as HTMLButtonElement).disabled).toBe(true);
     expect(view.getByText("Open").closest("label")).toBeTruthy();
+    const toolbar = view.getByTestId("reader-toolbar");
+    expect(toolbar.className).toContain("min-w-0");
+    expect(toolbar.className).toContain("max-w-full");
+    expect(toolbar.className).toContain("max-[390px]:flex-wrap");
+    expect(toolbar.className).toContain("max-[390px]:overflow-x-hidden");
+    expect(view.getByRole("button", { name: "Transform" })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Ask My Book" })).toBeTruthy();
   });
 
   it("opens an uploaded PDF and restores the page controls", async () => {

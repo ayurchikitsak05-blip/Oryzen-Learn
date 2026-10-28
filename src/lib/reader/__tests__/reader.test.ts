@@ -141,6 +141,22 @@ describe("Layer 2: Tablet-First PDF Engine & Local-First Storage Pipeline", () =
       expect(pageScale).toBeGreaterThan(0.85);
     });
 
+    it("opens a phone-width reader at fit width when a desktop zoom was saved", async () => {
+      const { restoredReaderFit } = await import("../fit");
+      expect(restoredReaderFit({ fitMode: "custom", zoom: 2.23 }, 390)).toEqual({
+        fitMode: "width",
+        zoom: null,
+      });
+      expect(restoredReaderFit({ fitMode: "custom", zoom: 2.23 }, 1280)).toEqual({
+        fitMode: "custom",
+        zoom: 2.23,
+      });
+      expect(restoredReaderFit({ fitMode: "page", zoom: 1 }, 390)).toEqual({
+        fitMode: "page",
+        zoom: null,
+      });
+    });
+
     it("persists page, zoom, and fit mode per document", async () => {
       const { writePersistedReaderView, readPersistedReaderView } = await import(
         "../fit"
