@@ -103,6 +103,38 @@ describe("highlight toolbar stays off the first line", () => {
     expect(clearAbove || clearBelow).toBe(true);
   });
 
+  it("clears a long paragraph after the page has scrolled the heading away", () => {
+    const lines = Array.from({ length: 12 }, (_, index) => ({
+      top: 20 + index * 28,
+      bottom: 44 + index * 28,
+      left: 80,
+      right: 900,
+    }));
+    const placed = placeHighlightToolbar({
+      ...toolbar,
+      selectionTop: 30,
+      selectionLeft: 240,
+      pageTop: 16,
+      firstLineHeight: 28,
+      obstacles: lines,
+    });
+    const box = {
+      top: placed.top,
+      bottom: placed.top + toolbar.toolbarHeight,
+      left: placed.left - toolbar.toolbarWidth / 2,
+      right: placed.left + toolbar.toolbarWidth / 2,
+    };
+    const covered = lines.filter(
+      (line) =>
+        box.bottom > line.top + 1 &&
+        box.top < line.bottom - 1 &&
+        box.right > line.left + 1 &&
+        box.left < line.right - 1
+    );
+    expect(covered).toEqual([]);
+    expect(placed.top).toBeGreaterThanOrEqual(lines[lines.length - 1].bottom);
+  });
+
   it("keeps the full toolbar inside a 390px screen", () => {
     const placed = placeHighlightToolbar({
       selectionTop: 280,

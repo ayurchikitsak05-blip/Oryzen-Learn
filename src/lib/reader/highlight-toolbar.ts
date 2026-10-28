@@ -46,8 +46,9 @@ export function placeHighlightToolbar(input: {
             right: input.viewportWidth,
           },
         ];
+  const span = { left: left - half, right: left + half };
   const hits = (top: number) => {
-    const box = { top, bottom: top + toolbarHeight, left: left - half, right: left + half };
+    const box = { top, bottom: top + toolbarHeight, left: span.left, right: span.right };
     return obstacles.some(
       (line) =>
         box.bottom > line.top + 1 &&
@@ -56,24 +57,32 @@ export function placeHighlightToolbar(input: {
         box.left < line.right - 1
     );
   };
-  let top = input.selectionTop - toolbarHeight - 8;
-  if (hits(top) || top < margin) {
-    const firstInk = obstacles[0];
-    const aboveInk = firstInk.top - toolbarHeight - 8;
-    if (aboveInk >= margin && !hits(aboveInk)) {
-      top = aboveInk;
-    } else {
-      top = Math.max(input.selectionTop + 16, firstInk.bottom + 8);
-      for (let guard = 0; guard < 8 && hits(top); guard += 1) {
-        const hit = obstacles.find(
-          (line) => top < line.bottom - 1 && top + toolbarHeight > line.top + 1
-        );
-        if (!hit) break;
-        top = hit.bottom + 8;
-      }
-    }
+  const preferred = input.selectionTop - toolbarHeight - 8;
+  const blocking = obstacles.filter((line) => span.right > line.left + 1 && span.left < line.right - 1);
+  const slots = new Set<number>();
+  const consider = (candidate: number) => {
+    if (candidate >= margin && !hits(candidate)) slots.add(candidate);
+  };
+  consider(preferred);
+  consider(input.selectionTop + 16);
+  for (const line of blocking) {
+    consider(line.top - toolbarHeight - 8);
+    consider(line.bottom + 8);
   }
   const maxTop = Math.max(margin, input.viewportHeight - toolbarHeight - margin);
+  const onScreen = [...slots].filter((candidate) => candidate <= maxTop);
+  const pool = onScreen.length > 0 ? onScreen : [...slots];
+  let top = preferred;
+  if (pool.length > 0 && (hits(preferred) || preferred < margin)) {
+    pool.sort((leftSlot, rightSlot) => {
+      const distance = Math.abs(leftSlot - preferred) - Math.abs(rightSlot - preferred);
+      if (distance !== 0) return distance;
+      const leftAbove = leftSlot + toolbarHeight <= input.selectionTop ? 0 : 1;
+      const rightAbove = rightSlot + toolbarHeight <= input.selectionTop ? 0 : 1;
+      return leftAbove - rightAbove;
+    });
+    top = pool[0];
+  }
   const clamped = Math.min(Math.max(margin, top), maxTop);
   if (!hits(clamped)) top = clamped;
 

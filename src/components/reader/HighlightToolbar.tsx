@@ -120,10 +120,14 @@ export default function HighlightToolbar({
     };
     place();
     const host = document.querySelector("[data-testid=pdf-scroll-host]");
+    const sheet = document.querySelector<HTMLElement>('[data-active="true"]');
     host?.addEventListener("scroll", place, { passive: true });
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => place());
+    if (sheet) observer?.observe(sheet);
     return () => {
+      observer?.disconnect();
       host?.removeEventListener("scroll", place);
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place);
