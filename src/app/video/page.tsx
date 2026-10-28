@@ -248,17 +248,17 @@ export default function ParallelVideoStudioPage() {
                   );
                   const ownerId =
                     ownerIdRef.current ?? (await fetchSignedInUser())?.userId ?? null;
-                  if (ownerId) {
-                    ownerIdRef.current = ownerId;
-                    writeVideoCaptionNotes(ownerId, {
-                      videoId,
-                      url,
-                      title: lecture.title,
-                      notes,
-                    });
-                  }
+                  const saved = ownerId
+                    ? await writeVideoCaptionNotes(ownerId, {
+                        videoId,
+                        url,
+                        title: lecture.title,
+                        notes,
+                      })
+                    : false;
+                  if (ownerId) ownerIdRef.current = ownerId;
                   setTelemetryToast(
-                    ownerId
+                    saved
                       ? "Public captions were attached as timed notes."
                       : "Public captions are on this screen. Sign in to keep them after a refresh."
                   );

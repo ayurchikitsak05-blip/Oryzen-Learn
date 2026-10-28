@@ -66,6 +66,10 @@ export function PdfPageCanvas({
   useEffect(() => {
     let cancelled = false;
     const canvasEl = canvasRef.current;
+    const job: {
+      destroy?: () => Promise<void>;
+      cancel?: () => void;
+    } = {};
 
     async function renderPdfPage() {
       if (!canvasEl || !pdfBytes) {
@@ -80,14 +84,15 @@ export function PdfPageCanvas({
         const dataCopy = new Uint8Array(pdfBytes.byteLength);
         dataCopy.set(pdfBytes);
         const loadingTask = pdfjs.getDocument({ data: dataCopy });
+        job.destroy = () => loadingTask.destroy();
         const pdfDoc = await withTimeout(loadingTask.promise, 4000, "pdf document");
-        if (cancelled) {
-          await loadingTask.destroy();
-          return;
-        }
-        const page = await pdfDoc.getPage(
-          Math.min(Math.max(1, pageNumber), pdfDoc.numPages)
+        if (cancelled) return;
+        const page = await withTimeout(
+          pdfDoc.getPage(Math.min(Math.max(1, pageNumber), pdfDoc.numPages)),
+          4000,
+          "pdf page"
         );
+        if (cancelled) return;
         const base = page.getViewport({ scale: 1 });
         const viewport = page.getViewport({ scale: zoomScale });
         const pixelRatio = Math.min(2.5, Math.max(1, window.devicePixelRatio || 1));
@@ -95,41 +100,45 @@ export function PdfPageCanvas({
         canvasEl.height = Math.max(1, Math.floor(viewport.height * pixelRatio));
         const ctx = canvasEl.getContext("2d");
         if (ctx) {
-          await page.render({
+          const renderTask = page.render({
             canvasContext: ctx,
             canvas: canvasEl,
             viewport,
             transform: pixelRatio === 1 ? undefined : [pixelRatio, 0, 0, pixelRatio, 0, 0],
-          }).promise;
+          });
+          job.cancel = () => renderTask.cancel();
+          await withTimeout(renderTask.promise, 6000, "pdf render");
         }
-        if (!cancelled) {
-          const geometry = { width: base.width, height: base.height };
-          let runs: PdfTextRun[] = [];
-          try {
-            const textContent = await page.getTextContent();
-            const items: RawPdfTextItem[] = [];
-            for (const item of textContent.items) {
-              if (!("str" in item) || !item.str?.trim()) continue;
-              items.push({
-                str: item.str,
-                width: item.width,
-                height: item.height,
-                transform: item.transform,
-              });
-            }
-            const passage = pageChunksRef.current.map((chunk) => chunk.text).join(" ");
-            runs = runsForPassage(runsFromTextItems(items, base.transform), passage);
-          } catch {
-            runs = [];
+        if (cancelled) return;
+        const geometry = { width: base.width, height: base.height };
+        let runs: PdfTextRun[] = [];
+        try {
+          const textContent = await withTimeout(page.getTextContent(), 2500, "pdf text");
+          const items: RawPdfTextItem[] = [];
+          for (const item of textContent.items) {
+            if (!("str" in item) || !item.str?.trim()) continue;
+            items.push({
+              str: item.str,
+              width: item.width,
+              height: item.height,
+              transform: item.transform,
+            });
           }
-          setBaseSize(geometry);
-          setRenderSize({ width: viewport.width, height: viewport.height });
-          setTextRuns(runs);
-          onPageGeometry(pageNumber, geometry);
-          setRenderStatus("ready");
+          const passage = pageChunksRef.current.map((chunk) => chunk.text).join(" ");
+          runs = runsForPassage(runsFromTextItems(items, base.transform), passage);
+        } catch {
+          runs = [];
         }
+        if (cancelled) return;
+        setBaseSize(geometry);
+        setRenderSize({ width: viewport.width, height: viewport.height });
+        setTextRuns(runs);
+        onPageGeometry(pageNumber, geometry);
+        setRenderStatus("ready");
         await loadingTask.destroy();
+        job.destroy = undefined;
       } catch {
+        job.cancel?.();
         if (cancelled || !canvasEl) return;
         const width = Math.round(612 * zoomScale);
         const height = Math.round(792 * zoomScale);
@@ -176,6 +185,8 @@ export function PdfPageCanvas({
     void renderPdfPage();
     return () => {
       cancelled = true;
+      job.cancel?.();
+      void job.destroy?.();
     };
   }, [pageNumber, zoomScale, pdfBytes, passageKey, onPageGeometry]);
 
@@ -201,15 +212,15 @@ export function PdfPageCanvas({
           height: renderSize.height || undefined,
         }}
       />
-      {renderSize.width > 0 && baseSize.width > 0 && pageChunks[0] ? (
+      {pageChunks[0] ? (
         <div
           className="absolute left-0 top-0 overflow-hidden"
           data-testid="pdf-text-layer"
           data-align={textRuns.length > 0 ? "glyphs" : "flow"}
           style={{
-            width: baseSize.width,
-            height: baseSize.height,
-            transform: `scale(${renderSize.width / baseSize.width})`,
+            width: baseSize.width || 612,
+            height: baseSize.height || 792,
+            transform: `scale(${(renderSize.width || Math.round(612 * zoomScale)) / (baseSize.width || 612)})`,
             transformOrigin: "top left",
           }}
         >

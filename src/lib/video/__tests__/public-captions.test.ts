@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { unlockTestVault } from "@/test/unlock-vault";
 import { captionFailureCopy, notesFromTimedTextXml } from "../public-captions";
 import { readVideoCaptionNotes, writeVideoCaptionNotes } from "../caption-notes-store";
 
@@ -9,8 +10,9 @@ describe("public YouTube captions", () => {
     expect(captionFailureCopy("unavailable")).toMatch(/no lecture notes were created/i);
   });
 
-  it("keeps caption notes for the signed-in student and hides another account", () => {
-    writeVideoCaptionNotes("student-a", {
+  it("keeps caption notes for the signed-in student and hides another account", async () => {
+    await unlockTestVault("student-a");
+    const saved = await writeVideoCaptionNotes("student-a", {
       videoId: "abcdefghijk",
       url: "https://www.youtube.com/watch?v=abcdefghijk",
       title: "Current",
@@ -29,8 +31,12 @@ describe("public YouTube captions", () => {
         },
       ],
     });
+    expect(saved).toBe(true);
+    expect(localStorage.getItem("oryzen_video_caption_notes_v1")).toBeNull();
     expect(readVideoCaptionNotes("student-a")[0]?.title).toBe("Current");
+    await unlockTestVault("student-b");
     expect(readVideoCaptionNotes("student-b")).toEqual([]);
+    expect(localStorage.getItem("oryzen_video_caption_notes_v1")).toBeNull();
   });
 
   it("turns timedtext XML into timestamped notes without inventing speech", () => {

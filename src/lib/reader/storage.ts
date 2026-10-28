@@ -12,6 +12,7 @@ import {
   isAccountVaultUnlocked,
   openBytes,
   registerVaultLockHook,
+  resealLegacyVaultBlob,
   sealBytes,
   sealWithRawKey,
   wrapLegacyDataKey,
@@ -323,6 +324,18 @@ async function loadSealedDocuments(): Promise<void> {
       if (record?.id) memoryDocumentStore.set(record.id, record);
     } catch {
       // Another account's sealed book stays unreadable.
+      continue;
+    }
+    const binaryBlob = sealedBinaryFallback.get(id);
+    const binary = binaryBlob ? await openBytes(binaryBlob.iv, binaryBlob.data) : null;
+    if (binary) memoryBinaryStore.set(id, binary);
+    const nextDocument = await resealLegacyVaultBlob(blob.iv, blob.data);
+    const nextBinary = binaryBlob ? await resealLegacyVaultBlob(binaryBlob.iv, binaryBlob.data) : null;
+    if ((nextDocument || nextBinary) && binaryBlob) {
+      await writeSealedPair(
+        { sealed: 1, id, ...(nextDocument ?? blob) },
+        { sealed: 1, id, ...(nextBinary ?? binaryBlob) }
+      );
     }
   }
 }

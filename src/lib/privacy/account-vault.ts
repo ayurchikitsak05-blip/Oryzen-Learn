@@ -28,11 +28,14 @@ export const PRIVATE_BROWSER_BASES = [
   "oryzen_transform_v1",
   "oryzen_lens_feedback_v1",
   "oryzen_study_scheduler_v1",
+  "oryzen_video_caption_notes_v1",
 ] as const;
 
 type VaultState = {
   rawKey: Uint8Array;
   cryptoKey: CryptoKey;
+  previousRawKeys: Uint8Array[];
+  previousKeys: CryptoKey[];
   userId: string;
   memory: Map<string, string>;
 };
@@ -44,6 +47,7 @@ let state: VaultState | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let vaultEpoch = 0;
 let vaultOpenTask: Promise<boolean> | null = null;
+let retiredSlots = new Set<string>();
 
 export function registerVaultLockHook(hook: () => void): void {
   lockHooks.add(hook);
@@ -70,6 +74,35 @@ function bytesCopy(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   return copy;
 }
 
+function cleanSecret(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * The current seal secret stays on the service role until a dedicated secret is
+ * configured. Once that secret exists, the service role becomes a previous key
+ * so books sealed before the change can be opened and sealed again.
+ */
+export function vaultKeyMaterials(env: {
+  dedicated?: string | null;
+  previous?: string | null;
+  serviceRole?: string | null;
+}): { current: string | null; previous: string[] } {
+  const dedicated = cleanSecret(env.dedicated);
+  const serviceRole = cleanSecret(env.serviceRole);
+  const current = dedicated || serviceRole || null;
+  if (!current) return { current: null, previous: [] };
+  const listed = cleanSecret(env.previous)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (dedicated && serviceRole && serviceRole !== dedicated) listed.push(serviceRole);
+  return {
+    current,
+    previous: [...new Set(listed.filter((item) => item !== current))],
+  };
+}
+
 export async function deriveAccountVaultKey(secret: string, userId: string): Promise<Uint8Array> {
   const encoded = new TextEncoder();
   const hmac = await crypto.subtle.importKey(
@@ -94,18 +127,44 @@ export async function sealBytes(plain: Uint8Array): Promise<{ iv: string; data: 
   return { iv: bytesToBase64(iv), data: bytesToBase64(new Uint8Array(cipher)) };
 }
 
-export async function openBytes(iv: string, data: string): Promise<Uint8Array | null> {
-  if (!state) return null;
+async function importAesKey(rawKey: Uint8Array): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", bytesCopy(rawKey), "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+async function decryptAes(key: CryptoKey, iv: string, data: string): Promise<Uint8Array | null> {
   try {
     const plain = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: bytesCopy(base64ToBytes(iv)) },
-      state.cryptoKey,
+      key,
       bytesCopy(base64ToBytes(data))
     );
     return new Uint8Array(plain);
   } catch {
     return null;
   }
+}
+
+export async function openBytes(iv: string, data: string): Promise<Uint8Array | null> {
+  if (!state) return null;
+  const current = await decryptAes(state.cryptoKey, iv, data);
+  if (current) return current;
+  for (const previous of state.previousKeys) {
+    const opened = await decryptAes(previous, iv, data);
+    if (opened) return opened;
+  }
+  return null;
+}
+
+/** Returns a current-key seal when a blob opens only with a previous key. */
+export async function resealLegacyVaultBlob(
+  iv: string,
+  data: string
+): Promise<{ iv: string; data: string } | null> {
+  if (!state || state.previousKeys.length === 0) return null;
+  if (await decryptAes(state.cryptoKey, iv, data)) return null;
+  const opened = await openBytes(iv, data);
+  if (!opened) return null;
+  return sealBytes(opened);
 }
 
 export function readPrivateString(baseKey: string, userId?: string | null): string | null {
@@ -125,21 +184,40 @@ export function removePrivateString(baseKey: string, userId?: string | null): vo
   persistQueue = persistQueue.then(() => persistPrivateRecords()).catch(() => undefined);
 }
 
-export async function unlockAccountVault(rawKey: Uint8Array, userId: string): Promise<void> {
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+  let diff = 0;
+  for (let index = 0; index < left.byteLength; index += 1) {
+    diff |= left[index] ^ right[index];
+  }
+  return diff === 0;
+}
+
+export async function unlockAccountVault(
+  rawKey: Uint8Array,
+  userId: string,
+  previousKeys: Uint8Array[] = []
+): Promise<void> {
   const nextUserId = userId.trim();
   if (!nextUserId || rawKey.byteLength !== 32) {
     throw new Error("A signed-in account is required before private study data can be opened.");
   }
   if (state) await lockAccountVault();
   const keyBytes = bytesCopy(rawKey);
-  const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+  const previousRawKeys = previousKeys
+    .filter((key) => key.byteLength === 32 && !sameBytes(key, keyBytes))
+    .map((key) => bytesCopy(key));
+  const cryptoKey = await importAesKey(keyBytes);
   state = {
     rawKey: keyBytes,
     cryptoKey,
+    previousRawKeys,
+    previousKeys: await Promise.all(previousRawKeys.map((key) => importAesKey(key))),
     userId: nextUserId,
     memory: new Map(),
   };
   await hydratePrivateRecords();
+  await recoverPreviousKeyRecords();
   adoptLegacyPlaintext(nextUserId);
   await persistPrivateRecords();
   removeAdoptedPlaintext(nextUserId);
@@ -164,6 +242,7 @@ export function flushAccountVault(): Promise<void> {
 export function discardAccountVault(): void {
   vaultEpoch += 1;
   state = null;
+  retiredSlots = new Set();
   persistQueue = Promise.resolve();
   vaultOpenTask = null;
   for (const hook of lockHooks) hook();
@@ -198,12 +277,24 @@ async function openAccountVault(): Promise<boolean> {
     await lockAccountVault();
     return false;
   }
-  const vaultBody = (await vault.json()) as { key?: string };
+  const vaultBody = (await vault.json()) as { key?: string; previousKeys?: unknown };
   if (!vaultBody.key) {
     await lockAccountVault();
     return false;
   }
-  await unlockAccountVault(base64ToBytes(vaultBody.key), userId);
+  const previousKeys: Uint8Array[] = [];
+  if (Array.isArray(vaultBody.previousKeys)) {
+    for (const item of vaultBody.previousKeys) {
+      if (typeof item !== "string") continue;
+      try {
+        const bytes = base64ToBytes(item);
+        if (bytes.byteLength === 32) previousKeys.push(bytes);
+      } catch {
+        // A malformed previous key is ignored. The current key still opens new data.
+      }
+    }
+  }
+  await unlockAccountVault(base64ToBytes(vaultBody.key), userId, previousKeys);
   return true;
 }
 
@@ -212,11 +303,10 @@ export function sealedPrivateSnapshot(): string {
   return window.localStorage.getItem(SEALED_PRIVATE_KEY) ?? "";
 }
 
-async function slotFor(purpose: string): Promise<string> {
-  if (!state) return "";
+async function slotForRaw(rawKey: Uint8Array, purpose: string): Promise<string> {
   const hmac = await crypto.subtle.importKey(
     "raw",
-    bytesCopy(state.rawKey),
+    bytesCopy(rawKey),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
@@ -225,6 +315,32 @@ async function slotFor(purpose: string): Promise<string> {
     await crypto.subtle.sign("HMAC", hmac, new TextEncoder().encode(purpose))
   );
   return [...signature.slice(0, 16)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function slotFor(purpose: string): Promise<string> {
+  if (!state) return "";
+  return slotForRaw(state.rawKey, purpose);
+}
+
+async function decryptWithRaw(rawKey: Uint8Array, iv: string, data: string): Promise<Uint8Array | null> {
+  return decryptAes(await importAesKey(rawKey), iv, data);
+}
+
+async function recoverPreviousKeyRecords(): Promise<void> {
+  if (!state || state.previousRawKeys.length === 0 || typeof window === "undefined") return;
+  const records = readSealedArray();
+  for (const rawKey of state.previousRawKeys) {
+    for (const base of PRIVATE_BROWSER_BASES) {
+      if (!state || state.memory.has(base)) continue;
+      const slot = await slotForRaw(rawKey, base);
+      const record = records.find((item) => item.slot === slot);
+      if (!record) continue;
+      const opened = await decryptWithRaw(rawKey, record.iv, record.data);
+      if (!opened) continue;
+      state.memory.set(base, new TextDecoder().decode(opened));
+      retiredSlots.add(slot);
+    }
+  }
 }
 
 async function hydratePrivateRecords(): Promise<void> {
@@ -255,7 +371,9 @@ async function persistPrivateRecords(): Promise<void> {
   const managed = new Set<string>();
   for (const base of PRIVATE_BROWSER_BASES) managed.add(await slotFor(base));
   if (epoch !== vaultEpoch || !state) return;
-  const kept = readSealedArray().filter((record) => !managed.has(record.slot));
+  const retired = retiredSlots;
+  retiredSlots = new Set();
+  const kept = readSealedArray().filter((record) => !managed.has(record.slot) && !retired.has(record.slot));
   for (const [base, value] of state.memory) {
     const sealed = await sealBytes(new TextEncoder().encode(value));
     const slot = await slotFor(base);
@@ -503,7 +621,13 @@ async function recoverJsonQuarantine(): Promise<void> {
       kept.push(record);
       continue;
     }
-    const dataKey = await openWithRawKey(state.rawKey, record.keyIv, record.keyData);
+    let dataKey = await openWithRawKey(state.rawKey, record.keyIv, record.keyData);
+    if (!dataKey) {
+      for (const previous of state.previousRawKeys) {
+        dataKey = await openWithRawKey(previous, record.keyIv, record.keyData);
+        if (dataKey) break;
+      }
+    }
     const payload = dataKey
       ? await openWithRawKey(dataKey, record.payloadIv, record.payloadData)
       : null;

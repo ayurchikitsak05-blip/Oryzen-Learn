@@ -3,10 +3,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import { listSavedPassages, savePassageEntry } from "@/lib/ai/passage-store";
 import {
   authorizedVaultUserId,
+  deriveAccountVaultKey,
   discardAccountVault,
+  flushAccountVault,
   LEGACY_QUARANTINE_KEY,
   lockAccountVault,
+  readPrivateString,
   sealedPrivateSnapshot,
+  unlockAccountVault,
+  vaultKeyMaterials,
+  writePrivateString,
 } from "@/lib/privacy/account-vault";
 import {
   clearAllLocalPdfStorage,
@@ -209,6 +215,68 @@ describe("account vault", () => {
     expect(authorizedVaultUserId("student-b", "student-a")).toBe("student-b");
     expect(authorizedVaultUserId(null, "student-a")).toBeNull();
     expect(authorizedVaultUserId("  ", "student-a")).toBeNull();
+  });
+
+  it("keeps the service role as the only vault secret until a dedicated secret is set", () => {
+    expect(vaultKeyMaterials({ serviceRole: "service-role" })).toEqual({
+      current: "service-role",
+      previous: [],
+    });
+    expect(
+      vaultKeyMaterials({
+        dedicated: "dedicated-secret",
+        previous: "older-secret",
+        serviceRole: "service-role",
+      })
+    ).toEqual({
+      current: "dedicated-secret",
+      previous: ["older-secret", "service-role"],
+    });
+  });
+
+  it("opens notes sealed by a previous key and seals them again with the current key", async () => {
+    const oldKey = await deriveAccountVaultKey("old-service", "student-a");
+    const nextKey = await deriveAccountVaultKey("next-secret", "student-a");
+    await unlockAccountVault(oldKey, "student-a");
+    writePrivateString("oryzen_saved_passages_v1", JSON.stringify([{ highlightedText: HIGHLIGHT }]), "student-a");
+    await flushAccountVault();
+    await lockAccountVault();
+
+    await unlockAccountVault(nextKey, "student-a", [oldKey]);
+    expect(readPrivateString("oryzen_saved_passages_v1", "student-a")).toContain(HIGHLIGHT);
+    await flushAccountVault();
+    await lockAccountVault();
+
+    await unlockAccountVault(nextKey, "student-a");
+    expect(readPrivateString("oryzen_saved_passages_v1", "student-a")).toContain(HIGHLIGHT);
+    await lockAccountVault();
+
+    await unlockAccountVault(oldKey, "student-a");
+    expect(readPrivateString("oryzen_saved_passages_v1", "student-a")).toBeNull();
+  });
+
+  it("re-seals a book when the previous vault key is the one that opens it", async () => {
+    const oldKey = await deriveAccountVaultKey("old-service", "student-a");
+    const nextKey = await deriveAccountVaultKey("next-secret", "student-a");
+    await unlockAccountVault(oldKey, "student-a");
+    await saveLocalPdfDocument({
+      title: TITLE,
+      fileName: "circuit.pdf",
+      pdfBytes: new Uint8Array([37, 80, 68, 70]),
+      pageCount: 1,
+    });
+    await lockAccountVault();
+
+    await unlockAccountVault(nextKey, "student-a", [oldKey]);
+    expect((await listLocalPdfDocuments()).map((book) => book.title)).toContain(TITLE);
+    await lockAccountVault();
+
+    await unlockAccountVault(nextKey, "student-a");
+    expect((await listLocalPdfDocuments()).map((book) => book.title)).toContain(TITLE);
+    await lockAccountVault();
+
+    await unlockAccountVault(oldKey, "student-a");
+    expect(await listLocalPdfDocuments()).toEqual([]);
   });
 
   it("does not place the service role key in the browser client module", () => {

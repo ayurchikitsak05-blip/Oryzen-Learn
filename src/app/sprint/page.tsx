@@ -9,7 +9,7 @@ import { ui } from "@/components/ui/classes";
 export default function SprintPage() {
   const userId = useSignedInScope();
   return (
-    <AppChrome subtitle="StudySprint">
+    <AppChrome subtitle="Study Sprint">
       <main className={ui.main}>
         <SprintStudio userId={userId} />
       </main>
