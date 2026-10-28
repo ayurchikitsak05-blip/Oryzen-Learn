@@ -135,6 +135,38 @@ describe("highlight toolbar stays off the first line", () => {
     expect(placed.top).toBeGreaterThanOrEqual(lines[lines.length - 1].bottom);
   });
 
+  it("moves below the paragraph when the phone toolbar fills the gap above the heading", () => {
+    const chrome = { top: 48, bottom: 220, left: 0, right: 390 };
+    const heading = { top: 236, bottom: 270, left: 16, right: 360 };
+    const body = { top: 284, bottom: 520, left: 16, right: 370 };
+    const placed = placeHighlightToolbar({
+      toolbarWidth: 300,
+      toolbarHeight: 80,
+      viewportWidth: 390,
+      viewportHeight: 844,
+      selectionTop: 250,
+      selectionLeft: 180,
+      pageTop: 220,
+      firstLineHeight: 40,
+      obstacles: [chrome, heading, body],
+    });
+    const box = {
+      top: placed.top,
+      bottom: placed.top + 80,
+      left: placed.left - 150,
+      right: placed.left + 150,
+    };
+    const covered = [chrome, heading, body].filter(
+      (line) =>
+        box.bottom > line.top + 1 &&
+        box.top < line.bottom - 1 &&
+        box.right > line.left + 1 &&
+        box.left < line.right - 1
+    );
+    expect(covered).toEqual([]);
+    expect(placed.top).toBeGreaterThanOrEqual(body.bottom);
+  });
+
   it("keeps the full toolbar inside a 390px screen", () => {
     const placed = placeHighlightToolbar({
       selectionTop: 280,
