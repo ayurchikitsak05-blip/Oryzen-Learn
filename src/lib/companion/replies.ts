@@ -129,6 +129,8 @@ function styleBody(
   return `Hi — I'm ${name}, your study companion. Let’s return to “${title}” and take the next small step together.`;
 }
 
+let replySerial = 0;
+
 export function companionReply(input: {
   question: string;
   prefs: CompanionPrefs;
@@ -146,8 +148,9 @@ export function companionReply(input: {
   else if (/explain|how|why|what is|mean|concept|difficult|hard/i.test(low)) intent = "explain";
   else if (/encourage|stuck|overwhelm|motivat/i.test(low)) intent = "encourage";
 
+  replySerial += 1;
   return {
-    id: `companion-${Date.now().toString(36)}`,
+    id: `companion-${Date.now().toString(36)}-${replySerial.toString(36)}`,
     role: "companion",
     text: `${styleBody(input.prefs.style, input.prefs.name, intent, session, topicFrom(asked) || titleOf(session))} ${COMPANION_MOCK_NOTICE}`,
     mocked: true,

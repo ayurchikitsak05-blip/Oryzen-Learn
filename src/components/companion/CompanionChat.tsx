@@ -35,6 +35,27 @@ const EMPTY_COMPANION_STORE: CompanionStore = {
   activeId: "",
 };
 
+const USER_INPUT_TYPES = new Set([
+  "insertText",
+  "insertFromPaste",
+  "insertFromDrop",
+  "insertLineBreak",
+  "insertCompositionText",
+  "insertFromYank",
+  "deleteContentBackward",
+  "deleteContentForward",
+  "deleteByCut",
+  "deleteByDrag",
+  "historyUndo",
+  "historyRedo",
+]);
+
+let studentTurnSerial = 0;
+
+function normalizeQuestion(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 export function CompanionChat({
   userId,
   fromOnboarding,
@@ -53,6 +74,7 @@ export function CompanionChat({
   const scopeRef = useRef(userId);
   const storeRef = useRef(store);
   const sessionTurnIds = useRef(new Set<string>());
+  const submitGuard = useRef({ busy: false, needsEdit: false, lastQuestion: "" });
   scopeRef.current = userId;
   storeRef.current = store;
   const unfinished = useMemo(
@@ -64,7 +86,10 @@ export function CompanionChat({
     const previousScope = settledScopeRef.current;
     const resolvingAccount = isAnonymousScope(previousScope) && !isAnonymousScope(userId);
     const switchingAccount = !isAnonymousScope(previousScope) && previousScope !== userId;
-    if (switchingAccount) sessionTurnIds.current.clear();
+    if (switchingAccount) {
+      sessionTurnIds.current.clear();
+      submitGuard.current = { busy: false, needsEdit: false, lastQuestion: "" };
+    }
 
     let next = initialStyle ? activateCompanionStyle(initialStyle, userId) : readCompanionStore(userId);
     if (resolvingAccount && sessionTurnIds.current.size > 0) {
@@ -127,31 +152,57 @@ export function CompanionChat({
   };
 
   const ask = () => {
-    const question = draft.replace(/\s+/g, " ").trim();
+    const question = normalizeQuestion(draft);
     if (question.length < 2) return;
-    const student = {
-      id: `student-${Date.now().toString(36)}`,
-      role: "student" as const,
-      text: question,
-      mocked: false,
-      createdAt: new Date().toISOString(),
-    };
-    const reply = companionReply({
-      question,
-      prefs: store.prefs,
-      unfinished,
-    });
-    if (isAnonymousScope(scopeRef.current)) {
-      sessionTurnIds.current.add(student.id);
-      sessionTurnIds.current.add(reply.id);
+    if (submitGuard.current.busy || submitGuard.current.needsEdit) return;
+    submitGuard.current.busy = true;
+    submitGuard.current.needsEdit = true;
+    submitGuard.current.lastQuestion = question;
+    try {
+      studentTurnSerial += 1;
+      const student = {
+        id: `student-${Date.now().toString(36)}-${studentTurnSerial.toString(36)}`,
+        role: "student" as const,
+        text: question,
+        mocked: false,
+        createdAt: new Date().toISOString(),
+      };
+      const reply = companionReply({
+        question,
+        prefs: store.prefs,
+        unfinished,
+      });
+      if (isAnonymousScope(scopeRef.current)) {
+        sessionTurnIds.current.add(student.id);
+        sessionTurnIds.current.add(reply.id);
+      }
+      setStore((current) => {
+        if (current.turns.some((turn) => turn.id === student.id)) return current;
+        return writeCompanionStore(
+          { ...current, turns: [...current.turns, student, reply] },
+          scopeRef.current
+        );
+      });
+      setDraft("");
+    } catch (error) {
+      submitGuard.current.needsEdit = false;
+      submitGuard.current.lastQuestion = "";
+      throw error;
+    } finally {
+      submitGuard.current.busy = false;
     }
-    setStore((current) =>
-      writeCompanionStore(
-        { ...current, turns: [...current.turns, student, reply] },
-        scopeRef.current
-      )
-    );
-    setDraft("");
+  };
+
+  const editDraft = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const next = event.target.value;
+    const inputType = event.nativeEvent instanceof InputEvent ? event.nativeEvent.inputType : "";
+    const restoredLastQuestion =
+      submitGuard.current.needsEdit &&
+      normalizeQuestion(next) === submitGuard.current.lastQuestion &&
+      !USER_INPUT_TYPES.has(inputType);
+    if (restoredLastQuestion) return;
+    submitGuard.current.needsEdit = false;
+    setDraft(next);
   };
 
   if (editing) {
@@ -296,11 +347,22 @@ export function CompanionChat({
           data-testid="companion-input"
           value={draft}
           rows={3}
+          autoComplete="off"
           className={ui.textarea}
           placeholder="Ask for a plan, an explanation, a break, or a quiz."
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={editDraft}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            ask();
+          }}
         />
-        <button type="submit" data-testid="companion-ask" className={ui.primary}>
+        <button
+          type="submit"
+          data-testid="companion-ask"
+          className={ui.primary}
+          disabled={normalizeQuestion(draft).length < 2}
+        >
           Send
         </button>
       </form>
