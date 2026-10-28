@@ -127,7 +127,12 @@ export function StudyHome({ continuation }: { continuation: HomeContinuation }) 
             What would you like to learn today?
           </h1>
         </div>
-        <ReadingSizeControl />
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/personalize" data-testid="hub-personalize" className="btn-secondary text-sm">
+            Personalize your space
+          </Link>
+          <ReadingSizeControl />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

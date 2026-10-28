@@ -187,6 +187,9 @@ export function UniverseStudio({
         </button>
       </section>
 
+      <Link href="/personalize" className={`${ui.secondary} inline-flex`} data-testid="universe-personalize">
+        Personalize your space
+      </Link>
       <button
         type="button"
         data-testid="universe-advanced-toggle"

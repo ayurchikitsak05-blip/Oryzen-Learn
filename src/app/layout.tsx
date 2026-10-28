@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Literata, Playfair_Display } from "next/font/google";
+import ExperienceProvider from "@/components/experience/ExperienceProvider";
 import StudyRhythmProvider from "@/components/rhythm/StudyRhythmProvider";
+import { EXPERIENCE_BOOT_SCRIPT } from "@/lib/experience/persist";
 import { READING_SIZE_BOOT_SCRIPT } from "@/lib/reading/prefs";
 import { RHYTHM_BOOT_SCRIPT } from "@/lib/rhythm/persist";
 import "./globals.css";
@@ -53,7 +55,13 @@ export default function RootLayout({
           id="oryzen-reading-size-boot"
           dangerouslySetInnerHTML={{ __html: READING_SIZE_BOOT_SCRIPT }}
         />
-        <StudyRhythmProvider>{children}</StudyRhythmProvider>
+        <script
+          id="oryzen-experience-boot"
+          dangerouslySetInnerHTML={{ __html: EXPERIENCE_BOOT_SCRIPT }}
+        />
+        <StudyRhythmProvider>
+          <ExperienceProvider>{children}</ExperienceProvider>
+        </StudyRhythmProvider>
       </body>
     </html>
   );

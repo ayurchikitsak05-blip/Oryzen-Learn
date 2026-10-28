@@ -403,6 +403,81 @@ h3,
   50% { transform: rotate(4deg); }
 }
 
+/* Visual experiences sit on top of Prakriti themes only after a student chooses one.
+   An existing saved theme keeps the current look until that choice. */
+html[data-experience="focus"] {
+  --bg: #f7f4ee;
+  --bg-secondary: #f1ebe3;
+  --card: #fffdfb;
+  --beige-primary: #d5e4d6;
+  --beige-secondary: #e7efe6;
+  --selected: #e3efe4;
+  --heading: #1e2420;
+  --body: #2c3330;
+  --text-secondary: #5c6560;
+  --borders: #ddd6cc;
+  --accent: #3d6b4f;
+  --focus-ring: #3d6b4f;
+  --success: #2f5d3a;
+  --success-bg: #eef5ef;
+  color-scheme: light;
+}
+html[data-experience="studio"] {
+  --bg: #f8f4fb;
+  --bg-secondary: #f6efe8;
+  --card: #fffafd;
+  --beige-primary: #e7d8f2;
+  --beige-secondary: #f8e4d6;
+  --selected: #e3f3ee;
+  --heading: #2a2433;
+  --body: #3a3344;
+  --text-secondary: #6a6174;
+  --borders: #e4d8ea;
+  --accent: #4c3d6e;
+  --focus-ring: #4c3d6e;
+  --success: #2e6b5a;
+  --success-bg: #e8f3ee;
+  color-scheme: light;
+}
+html[data-experience="momentum"] {
+  --bg: #0f1c2e;
+  --bg-secondary: #15263c;
+  --card: #18293f;
+  --beige-primary: #24486a;
+  --beige-secondary: #1c3a56;
+  --selected: #1a4552;
+  --heading: #f3f7fb;
+  --body: #d5deea;
+  --text-secondary: #a9b7c9;
+  --borders: #2c425c;
+  --accent: #7ec8ff;
+  --focus-ring: #7ec8ff;
+  --danger: #f0b4b4;
+  --danger-bg: #3a2428;
+  --success: #9ed9b8;
+  --success-bg: #1a3330;
+  color-scheme: dark;
+}
+html[data-experience="studio"][data-decor="on"] body {
+  background-image:
+    radial-gradient(ellipse at 0% 0%, color-mix(in srgb, #e7d8f2 70%, transparent) 0%, transparent 46%),
+    radial-gradient(ellipse at 100% 100%, color-mix(in srgb, #f8e4d6 65%, transparent) 0%, transparent 42%);
+}
+html[data-experience="momentum"] body {
+  background-image: none;
+}
+html[data-experience="focus"] body {
+  background-image:
+    radial-gradient(ellipse at 8% 0%, color-mix(in srgb, #d5e4d6 50%, transparent) 0%, transparent 42%),
+    radial-gradient(ellipse at 100% 100%, color-mix(in srgb, #e7efe6 55%, transparent) 0%, transparent 36%);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-experience] .experience-rise {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* Phone reader controls wrap in the viewport. A utility-order conflict kept them on one overflowing row. */
 @media (max-width: 390px) {
   [data-testid="reader-toolbar"] {

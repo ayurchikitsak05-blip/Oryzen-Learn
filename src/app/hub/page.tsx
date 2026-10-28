@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CalendarClock, Compass } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
 import AccountMenu from "@/components/auth/AccountMenu";
+import { ExperienceHomeStrip } from "@/components/experience/ExperienceHomeStrip";
 import { StudyHome, type HomeContinuation } from "@/components/hub/StudyHome";
 import SchedulerDialog from "@/components/study/SchedulerDialog";
 import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
@@ -12,7 +13,10 @@ import { useSignedInScope } from "@/components/coach/CoachHost";
 import { modernProfileHeadline, readSavedBodyType, type SavedBodyType } from "@/lib/study/body-type";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { getLocalPdfDocument } from "@/lib/reader/storage";
+import { readMarginNotes } from "@/lib/reader/marks";
 import { readLastReaderDocumentId } from "@/lib/reader/fit";
+import { readLocalRoadmap } from "@/lib/roadmap/persist";
+import { daysBetween, localIsoDate } from "@/lib/roadmap/time";
 import { readSprintStore } from "@/lib/sprint/persist";
 import { activeSession, nextRecommendedBlock, studiedMinutesOnDate, todayKey } from "@/lib/sprint/plan";
 import { readDayPlan } from "@/lib/universe/persist";
@@ -30,6 +34,8 @@ export default function StudyHubPage() {
   const [saved, setSaved] = useState<SavedBodyType | null>(null);
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [continuation, setContinuation] = useState<HomeContinuation>(EMPTY_CONTINUATION);
+  const [examDaysLeft, setExamDaysLeft] = useState<number | null>(null);
+  const [hasNote, setHasNote] = useState(false);
   const coachScope = useSignedInScope();
 
   useEffect(() => {
@@ -47,6 +53,10 @@ export default function StudyHubPage() {
           const active = activeSession(store.sessions);
           const documentId = readLastReaderDocumentId(userId);
           const document = documentId ? await getLocalPdfDocument(documentId) : null;
+          const roadmap = readLocalRoadmap(userId);
+          const examDaysLeft = roadmap ? daysBetween(localIsoDate(), roadmap.intake.examDate) : null;
+          setExamDaysLeft(examDaysLeft);
+          setHasNote(readMarginNotes(userId).length > 0);
           setContinuation({
             bookTitle: document?.title ?? null,
             sprintLabel: active
@@ -58,6 +68,8 @@ export default function StudyHubPage() {
           });
         } catch {
           setSaved(null);
+          setExamDaysLeft(null);
+          setHasNote(false);
           setContinuation(EMPTY_CONTINUATION);
         }
       })();
@@ -86,6 +98,18 @@ export default function StudyHubPage() {
     >
       <main className={ui.main}>
         <StudyHome continuation={continuation} />
+        <div className="mt-4">
+          <ExperienceHomeStrip
+            signals={{
+              hasBook: Boolean(continuation.bookTitle),
+              hasNote,
+              hasSprint: Boolean(continuation.sprintLabel),
+              hasRoadmap: continuation.dailyGoal != null || examDaysLeft != null,
+              studiedMinutes: continuation.studiedMinutes,
+            }}
+            examDaysLeft={examDaysLeft}
+          />
+        </div>
 
         {saved ? (
           <section
