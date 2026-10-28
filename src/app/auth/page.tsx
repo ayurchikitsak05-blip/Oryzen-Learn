@@ -1,10 +1,10 @@
 "use client";
 
 import React, { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Smartphone, Tablet } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
-import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { tabClass, ui } from "@/components/ui/classes";
 import { createClient } from "@/lib/supabase/client";
 import { detectDeviceCategory } from "@/lib/supabase/device-lock";
@@ -272,7 +272,11 @@ function AuthScreen() {
       nav="marketing"
       subtitle="Your personal learning environment"
       maxWidthClass="max-w-lg"
-      actions={<StudyRhythmButton label="Rhythm" />}
+      actions={
+        <Link href="/personalize" className={ui.ghost}>
+          Personalize
+        </Link>
+      }
     >
       <main className="mx-auto flex w-full max-w-lg flex-col px-4 py-8">
         <section className={ui.cardPad}>

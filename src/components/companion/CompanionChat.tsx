@@ -8,16 +8,19 @@ import { ui } from "@/components/ui/classes";
 import {
   COMPANION_MOCK_NOTICE,
   DEFAULT_COMPANION_PREFS,
+  activateCompanionStyle,
   appendCompanionTurn,
   companionReply,
   createCompanionMember,
   openingCompanionTurn,
   readCompanionStore,
+  STYLE_COPY,
   switchCompanion,
   writeCompanionPrefs,
   writeCompanionStore,
   type CompanionPrefs,
   type CompanionStore,
+  type CompanionStyle,
 } from "@/lib/companion";
 import { activeSession, quizHref, readSprintStore, saveSprintNote } from "@/lib/sprint";
 
@@ -32,9 +35,11 @@ const EMPTY_COMPANION_STORE: CompanionStore = {
 export function CompanionChat({
   userId,
   fromOnboarding,
+  initialStyle = null,
 }: {
   userId: string;
   fromOnboarding?: boolean;
+  initialStyle?: CompanionStyle | null;
 }) {
   const [store, setStore] = useState<CompanionStore>(EMPTY_COMPANION_STORE);
   const [draft, setDraft] = useState("");
@@ -47,12 +52,12 @@ export function CompanionChat({
   );
 
   useEffect(() => {
-    const next = readCompanionStore(userId);
+    const next = initialStyle ? activateCompanionStyle(initialStyle, userId) : readCompanionStore(userId);
     setStore(next);
     setEditing((wasEditing) =>
       wasEditing && !next.prefs.onboarded ? true : !next.prefs.onboarded
     );
-  }, [userId]);
+  }, [userId, initialStyle]);
 
   const savePrefs = (prefs: CompanionPrefs) => {
     if (adding) {
@@ -118,9 +123,9 @@ export function CompanionChat({
       <div className="flex items-center gap-3">
         <CompanionFigure character={store.prefs.character} />
         <div>
-          <p className={ui.eyebrow}>AI Study Companion</p>
+          <p className={ui.eyebrow}>Take My Study</p>
           <h2 className={`${ui.heading} text-xl`}>{store.prefs.name}</h2>
-          <p className="text-xs text-muted">{store.prefs.style} · text only</p>
+          <p className="text-xs text-muted">{STYLE_COPY[store.prefs.style].label} · text only</p>
         </div>
         <button
           type="button"

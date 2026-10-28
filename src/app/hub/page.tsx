@@ -8,7 +8,6 @@ import AccountMenu from "@/components/auth/AccountMenu";
 import { ExperienceHomeStrip } from "@/components/experience/ExperienceHomeStrip";
 import { StudyHome, type HomeContinuation } from "@/components/hub/StudyHome";
 import SchedulerDialog from "@/components/study/SchedulerDialog";
-import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { useSignedInScope } from "@/components/coach/CoachHost";
 import { modernProfileHeadline, readSavedBodyType, type SavedBodyType } from "@/lib/study/body-type";
 import { fetchSignedInUser } from "@/lib/supabase/session";
@@ -97,7 +96,7 @@ export default function StudyHubPage() {
       }
     >
       <main className={ui.main}>
-        <StudyHome continuation={continuation} />
+        <StudyHome continuation={continuation} userId={coachScope} />
         <div className="mt-4">
           <ExperienceHomeStrip
             signals={{
@@ -131,7 +130,9 @@ export default function StudyHubPage() {
               </div>
             </div>
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-              <StudyRhythmButton />
+              <Link href="/personalize" className={`${ui.secondary} shrink-0`}>
+                Personalize
+              </Link>
               <Link href="/body-type" className={`${ui.secondary} shrink-0`}>
                 Explore My Learning Profile
               </Link>
@@ -154,9 +155,8 @@ export default function StudyHubPage() {
               </div>
             </div>
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-              <StudyRhythmButton />
-              <Link href="/universe" className={`${ui.secondary} shrink-0`}>
-                Open My Study Universe
+              <Link href="/personalize" className={`${ui.secondary} shrink-0`}>
+                Personalize your space
               </Link>
             </div>
           </section>

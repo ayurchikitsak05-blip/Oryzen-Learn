@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Map } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
-import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { ui } from "@/components/ui/classes";
 import { defaultIntake } from "@/lib/roadmap/defaults";
 import { emptyStudyRhythmHook } from "@/lib/roadmap/hooks";
@@ -320,9 +320,16 @@ export default function RoadmapApp() {
             : "Saved on this device for this local demo.";
 
   return (
-    <AppChrome subtitle="My Study Roadmap" actions={<StudyRhythmButton label="Rhythm" />}>
+    <AppChrome
+      subtitle="Study Planner"
+      actions={
+        <Link href="/personalize" className={ui.ghost}>
+          Personalize
+        </Link>
+      }
+    >
       <main className={ui.main}>
-        <p className={ui.eyebrow}>My Study Roadmap</p>
+        <p className={ui.eyebrow}>Study Planner</p>
         <div className="mt-3 flex items-start gap-3">
           <span className={ui.chip}>
             <Map className="h-5 w-5" aria-hidden="true" />

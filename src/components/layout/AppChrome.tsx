@@ -3,15 +3,15 @@
 import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Archive, BookOpen, House, PenLine, Sparkles, UserRound } from "lucide-react";
+import { Archive, BookOpen, ChartColumn, House, PenLine, UserRound } from "lucide-react";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
 import OwnerDemoBanner from "@/components/demo/OwnerDemoBanner";
 import { ensureAccountVault } from "@/lib/privacy/account-vault";
 
 const APP_LINKS = [
   { href: "/hub", label: "Learning Space", mobileLabel: "Home", icon: House },
-  { href: "/universe", label: "Universe", icon: Sparkles },
   { href: "/reader", label: "Read", icon: BookOpen },
+  { href: "/progress", label: "Progress", icon: ChartColumn },
   { href: "/vaults", label: "Library", icon: Archive },
   { href: "/notes", label: "Notebook", mobileLabel: "Notes", icon: PenLine },
   { href: "/auth?form=1", label: "Account", icon: UserRound, match: "/auth" },

@@ -1579,7 +1579,7 @@ export default function PdfViewer({
                 className="max-w-sm rounded-2xl border border-dashed border-line bg-canvas-2 px-6 py-10 text-center text-sm leading-relaxed text-muted"
                 data-testid="pdf-empty-state"
               >
-                Open a document to start reading.
+                Open a document to start reading. Ask My Book and Transform My Book are available after a PDF is open.
               </p>
             ) : (
               <>

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ReadingSizeControl } from "@/components/reading/ReadingSizeControl";
+import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { FocusSoundPanel } from "@/components/universe/FocusSoundPanel";
 import { READINESS_FEELINGS, READINESS_NOTE, readinessSuggestion, type ReadinessFeeling } from "@/lib/experience/check-in";
 import {
@@ -146,6 +147,14 @@ export function PersonalizeSpace() {
         <Link href="/universe" className="btn-secondary text-sm">
           Adjust Prakriti colors in Study Universe
         </Link>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-line bg-surface p-3" data-testid="personalize-rhythm">
+        <h2 className="font-reading text-xl text-heading">Study Rhythm</h2>
+        <p className="text-sm text-ink">
+          Theme, session length, and encouragement live in these settings. They do not change your books or notes.
+        </p>
+        <StudyRhythmButton />
       </section>
 
       <section className="space-y-3 rounded-2xl border border-line bg-surface p-3">

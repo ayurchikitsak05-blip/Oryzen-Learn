@@ -5,6 +5,7 @@ import {
   COMPANION_STORAGE_KEY,
   COMPANION_STYLES,
   DEFAULT_COMPANION_PREFS,
+  STARTER_COMPANIONS,
   type CompanionCharacter,
   type CompanionMember,
   type CompanionPrefs,
@@ -168,6 +169,43 @@ export function writeCompanionPrefs(
     : [memberFromPrefs(nextPrefs), ...current.collection];
   const activeId = active?.id ?? collection[0]?.id ?? "";
   return writeCompanionStore({ ...current, prefs: nextPrefs, collection, activeId }, userId);
+}
+
+export function activateCompanionStyle(
+  style: CompanionStyle,
+  userId?: string | null
+): CompanionStore {
+  const current = readCompanionStore(userId);
+  const existing = current.collection.find((member) => member.style === style);
+  if (
+    existing &&
+    current.activeId === existing.id &&
+    current.prefs.onboarded &&
+    current.prefs.style === style
+  ) {
+    return current;
+  }
+  const member = existing ?? STARTER_COMPANIONS.find((item) => item.style === style) ?? STARTER_COMPANIONS[0];
+  const collection = current.collection.some((item) => item.id === member.id)
+    ? current.collection
+    : [...current.collection, member];
+  const prefs: CompanionPrefs = {
+    version: 1,
+    name: member.name,
+    style: member.style,
+    character: member.character,
+    onboarded: true,
+  };
+  return writeCompanionStore(
+    {
+      ...current,
+      prefs,
+      collection,
+      activeId: member.id,
+      turns: [openingCompanionTurn(prefs, null)],
+    },
+    userId
+  );
 }
 
 export function switchCompanion(memberId: string, userId?: string | null): CompanionStore {

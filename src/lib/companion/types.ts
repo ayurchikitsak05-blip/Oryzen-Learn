@@ -46,19 +46,19 @@ export const DEFAULT_COMPANION_PREFS: CompanionPrefs = {
 
 export const STYLE_COPY: Record<CompanionStyle, { label: string; hint: string }> = {
   buddy: {
-    label: "Friendly Buddy",
+    label: "Buddy",
     hint: "Warm, informal, and beside you while you work.",
   },
   coach: {
-    label: "Motivational Coach",
+    label: "Coach",
     hint: "Brief prompts, one next step, and a check on the clock.",
   },
   teacher: {
-    label: "Structured Teacher",
+    label: "Teacher",
     hint: "Clearer explanations, a question to check understanding, then the next task.",
   },
   guide: {
-    label: "Calm Guide",
+    label: "Guide",
     hint: "Unhurried, plain language, and space to pause.",
   },
 };

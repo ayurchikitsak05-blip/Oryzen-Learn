@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createSprintSession } from "@/lib/sprint/engine";
 import { companionReply, COMPANION_MOCK_NOTICE, repliesDifferByStyle } from "../replies";
 import {
+  activateCompanionStyle,
   companionStorageKey,
   createCompanionMember,
   readCompanionStore,
@@ -72,5 +73,15 @@ describe("AI Study Companion", () => {
     createCompanionMember({ name: "Luna", style: "guide", character: "kite" }, "user-a");
     expect(readCompanionStore("user-a").prefs.name).toBe("Luna");
     expect(readCompanionStore("user-a").collection.some((member) => member.name === "Luna")).toBe(true);
+  });
+
+  it("selects an existing starter style without a second companion store", async () => {
+    await unlockTestVault("user-a");
+    const selected = activateCompanionStyle("teacher", "user-a");
+    expect(selected.prefs.style).toBe("teacher");
+    expect(selected.prefs.name).toBe("Ira");
+    expect(readCompanionStore("user-a").activeId).toBe("teacher");
+    const again = activateCompanionStyle("teacher", "user-a");
+    expect(again.turns).toEqual(selected.turns);
   });
 });

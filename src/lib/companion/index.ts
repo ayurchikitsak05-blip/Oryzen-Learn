@@ -1,4 +1,5 @@
 export {
+  activateCompanionStyle,
   appendCompanionTurn,
   companionStorageKey,
   createCompanionMember,

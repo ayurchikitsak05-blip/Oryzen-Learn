@@ -42,8 +42,10 @@ export function CompanionSetup({
       }}
     >
       <div>
-        <p className={ui.eyebrow}>{fromOnboarding ? "Set up your companion" : "Companion"}</p>
-        <h2 className={`${ui.heading} mt-2 text-2xl`}>Meet your study companion</h2>
+        <p className={ui.eyebrow}>Take My Study</p>
+        <h2 className={`${ui.heading} mt-2 text-2xl`}>
+          {fromOnboarding ? "Choose who studies with you" : "Choose a companion"}
+        </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           Choose a name, a text style, and a simple illustration. This is a study tool, not a
           person, and it does not have feelings.

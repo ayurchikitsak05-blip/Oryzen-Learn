@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import StudyRhythmButton from "@/components/rhythm/StudyRhythmButton";
 import { ui } from "@/components/ui/classes";
 import { lockAccountVault } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
@@ -37,7 +36,9 @@ export default function AccountMenu() {
   if (!signedIn) {
     return (
       <div className="flex items-center gap-1">
-        <StudyRhythmButton label="Rhythm" className={ui.ghost} />
+        <Link href="/personalize" className={ui.ghost}>
+          Personalize
+        </Link>
         <Link href="/auth?form=1" className={ui.secondary}>
           Sign in
         </Link>
@@ -47,7 +48,9 @@ export default function AccountMenu() {
 
   return (
     <div className="flex items-center gap-1">
-      <StudyRhythmButton label="Rhythm" className={ui.ghost} />
+      <Link href="/personalize" className={ui.ghost}>
+        Personalize
+      </Link>
       <button type="button" onClick={() => void signOut()} className={ui.ghost}>
         Sign out
       </button>
