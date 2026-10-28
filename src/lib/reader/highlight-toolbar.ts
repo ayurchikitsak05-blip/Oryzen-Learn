@@ -10,6 +10,13 @@ export function firstLineHeightForPage(pageHeight: number): number {
   return Math.max(44, Math.min(160, pageHeight * 0.12));
 }
 
+export interface ToolbarObstacle {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
 export function placeHighlightToolbar(input: {
   selectionTop: number;
   selectionLeft: number;
@@ -19,31 +26,57 @@ export function placeHighlightToolbar(input: {
   toolbarHeight: number;
   viewportWidth: number;
   viewportHeight: number;
+  obstacles?: readonly ToolbarObstacle[];
 }): { top: number; left: number } {
   const margin = TOOLBAR_VIEW_MARGIN;
   const toolbarHeight = Math.max(44, input.toolbarHeight);
   const toolbarWidth = Math.max(120, input.toolbarWidth);
-  const firstLineTop = input.pageTop;
-  const firstLineBottom = input.pageTop + Math.max(0, input.firstLineHeight);
-  const overlapsFirstLine = (top: number) => {
-    const bottom = top + toolbarHeight;
-    return bottom > firstLineTop + 0.5 && top < firstLineBottom - 0.5;
-  };
-  const above = input.selectionTop - toolbarHeight - 8;
-  const belowFirstLine = firstLineBottom + 8;
-  let top = above;
-  if (overlapsFirstLine(top) || top < margin) {
-    top = Math.max(input.selectionTop + 16, belowFirstLine);
-  }
-  if (overlapsFirstLine(top)) top = belowFirstLine;
-  const maxTop = Math.max(margin, input.viewportHeight - toolbarHeight - margin);
-  const clamped = Math.min(Math.max(margin, top), maxTop);
-  if (!overlapsFirstLine(clamped)) top = clamped;
-
   const half = toolbarWidth / 2;
   const minLeft = margin + half;
   const maxLeft = Math.max(minLeft, input.viewportWidth - margin - half);
   const left = Math.min(maxLeft, Math.max(minLeft, input.selectionLeft));
+  const obstacles =
+    input.obstacles && input.obstacles.length > 0
+      ? [...input.obstacles].sort((a, b) => a.top - b.top)
+      : [
+          {
+            top: input.pageTop,
+            bottom: input.pageTop + Math.max(0, input.firstLineHeight),
+            left: 0,
+            right: input.viewportWidth,
+          },
+        ];
+  const hits = (top: number) => {
+    const box = { top, bottom: top + toolbarHeight, left: left - half, right: left + half };
+    return obstacles.some(
+      (line) =>
+        box.bottom > line.top + 1 &&
+        box.top < line.bottom - 1 &&
+        box.right > line.left + 1 &&
+        box.left < line.right - 1
+    );
+  };
+  let top = input.selectionTop - toolbarHeight - 8;
+  if (hits(top) || top < margin) {
+    const firstInk = obstacles[0];
+    const aboveInk = firstInk.top - toolbarHeight - 8;
+    if (aboveInk >= margin && !hits(aboveInk)) {
+      top = aboveInk;
+    } else {
+      top = Math.max(input.selectionTop + 16, firstInk.bottom + 8);
+      for (let guard = 0; guard < 8 && hits(top); guard += 1) {
+        const hit = obstacles.find(
+          (line) => top < line.bottom - 1 && top + toolbarHeight > line.top + 1
+        );
+        if (!hit) break;
+        top = hit.bottom + 8;
+      }
+    }
+  }
+  const maxTop = Math.max(margin, input.viewportHeight - toolbarHeight - margin);
+  const clamped = Math.min(Math.max(margin, top), maxTop);
+  if (!hits(clamped)) top = clamped;
+
   return { top, left };
 }
 

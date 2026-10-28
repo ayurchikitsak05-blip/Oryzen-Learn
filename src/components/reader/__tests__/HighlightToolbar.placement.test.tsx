@@ -48,17 +48,34 @@ describe("highlight toolbar placement", () => {
       />
     );
     const toolbar = view.getByTestId("multi-lens-highlight-toolbar");
-    const firstTop = Number.parseFloat(toolbar.style.top);
-    expect(firstTop).toBeGreaterThanOrEqual(180 + firstLineHeightForPage(800));
+    const readTop = () => Number.parseFloat(toolbar.style.top);
+    const missesBand = (pageTop: number, pageHeight: number) => {
+      const top = readTop();
+      const band = firstLineHeightForPage(pageHeight);
+      return top + 44 <= pageTop || top >= pageTop + band - 1;
+    };
+    expect(missesBand(180, 800)).toBe(true);
 
     box = rect(30, 800);
     fireEvent.scroll(host);
-    const scrolledTop = Number.parseFloat(toolbar.style.top);
-    expect(scrolledTop).toBeGreaterThanOrEqual(30 + firstLineHeightForPage(800));
+    expect(missesBand(30, 800)).toBe(true);
 
     box = rect(180, 1500);
     fireEvent.scroll(window);
-    const zoomedTop = Number.parseFloat(toolbar.style.top);
-    expect(zoomedTop).toBeGreaterThanOrEqual(180 + firstLineHeightForPage(1500));
+    expect(missesBand(180, 1500)).toBe(true);
+
+    const heading = document.createElement("span");
+    heading.setAttribute("data-testid", "pdf-text-run");
+    heading.textContent = "CHAPTER 6 WORK AND ENERGY";
+    page.appendChild(heading);
+    heading.getBoundingClientRect = () => rect(280, 80, 640);
+    const body = document.createElement("span");
+    body.setAttribute("data-testid", "pdf-text-run");
+    body.textContent = "In physics, work is done only when a force moves an object.";
+    page.appendChild(body);
+    body.getBoundingClientRect = () => rect(372, 28, 700);
+    fireEvent.scroll(host);
+    const aboveHeading = readTop();
+    expect(aboveHeading + 80).toBeLessThanOrEqual(280);
   });
 });

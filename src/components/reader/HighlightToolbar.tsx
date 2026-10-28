@@ -100,6 +100,10 @@ export default function HighlightToolbar({
         };
       }
       const fraction = fractionRef.current;
+      const obstacles = [...page.querySelectorAll<HTMLElement>("[data-testid=pdf-text-run]")]
+        .map((run) => run.getBoundingClientRect())
+        .filter((box) => box.height > 4 && box.width > 8)
+        .map((box) => ({ top: box.top, bottom: box.bottom, left: box.left, right: box.right }));
       setAnchor(
         placeHighlightToolbar({
           selectionTop: rect.top + fraction.y * rect.height,
@@ -110,6 +114,7 @@ export default function HighlightToolbar({
           toolbarHeight: height,
           viewportWidth,
           viewportHeight,
+          obstacles,
         })
       );
     };

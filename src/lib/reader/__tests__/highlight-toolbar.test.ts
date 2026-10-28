@@ -25,7 +25,7 @@ describe("highlight toolbar anchor", () => {
 describe("highlight toolbar stays off the first line", () => {
   const toolbar = { toolbarWidth: 320, toolbarHeight: 88, viewportWidth: 1280, viewportHeight: 900 };
 
-  it("moves below the first line when the selection is the heading", () => {
+  it("moves off the first line when the selection is the heading", () => {
     const pageTop = 160;
     const firstLineHeight = firstLineHeightForPage(900);
     const placed = placeHighlightToolbar({
@@ -35,8 +35,10 @@ describe("highlight toolbar stays off the first line", () => {
       pageTop,
       firstLineHeight,
     });
-    expect(placed.top).toBeGreaterThanOrEqual(pageTop + firstLineHeight);
-    expect(placed.top + toolbar.toolbarHeight).toBeGreaterThan(pageTop + firstLineHeight);
+    const bottom = placed.top + toolbar.toolbarHeight;
+    const clearAbove = bottom <= pageTop + 1;
+    const clearBelow = placed.top >= pageTop + firstLineHeight - 1;
+    expect(clearAbove || clearBelow).toBe(true);
   });
 
   it("keeps a mid-page selection's toolbar above the selection and below the first line", () => {
@@ -66,6 +68,24 @@ describe("highlight toolbar stays off the first line", () => {
     expect(placed.top).toBeGreaterThanOrEqual(40 + firstLineHeight);
   });
 
+  it("sits in the gap above a tall heading instead of covering the line beneath it", () => {
+    const heading = { top: 280, bottom: 360, left: 80, right: 760 };
+    const body = { top: 372, bottom: 420, left: 80, right: 980 };
+    const placed = placeHighlightToolbar({
+      ...toolbar,
+      toolbarHeight: 72,
+      selectionTop: 310,
+      selectionLeft: 240,
+      pageTop: 120,
+      firstLineHeight: 160,
+      obstacles: [heading, body],
+    });
+    const bottom = placed.top + 72;
+    expect(bottom).toBeLessThanOrEqual(heading.top);
+    expect(placed.top).toBeGreaterThanOrEqual(12);
+    expect(bottom).toBeLessThanOrEqual(body.top);
+  });
+
   it("clears a taller first line after zoom", () => {
     const pageTop = 150;
     const firstLineHeight = firstLineHeightForPage(1500);
@@ -77,7 +97,10 @@ describe("highlight toolbar stays off the first line", () => {
       pageTop,
       firstLineHeight,
     });
-    expect(placed.top).toBeGreaterThanOrEqual(pageTop + firstLineHeight);
+    const bottom = placed.top + toolbar.toolbarHeight;
+    const clearAbove = bottom <= pageTop + 1;
+    const clearBelow = placed.top >= pageTop + firstLineHeight - 1;
+    expect(clearAbove || clearBelow).toBe(true);
   });
 
   it("keeps the full toolbar inside a 390px screen", () => {

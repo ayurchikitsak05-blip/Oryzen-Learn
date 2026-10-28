@@ -402,3 +402,19 @@ h3,
   0%, 100% { transform: rotate(-4deg); }
   50% { transform: rotate(4deg); }
 }
+
+/* Phone reader controls wrap in the viewport. A utility-order conflict kept them on one overflowing row. */
+@media (max-width: 390px) {
+  [data-testid="reader-toolbar"] {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+  [data-testid="pdf-reading-canvas"] {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+}
