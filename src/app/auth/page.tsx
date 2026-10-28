@@ -359,7 +359,7 @@ function AuthScreen() {
                         placeholder="student@university.edu"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className={`${inputClass} pr-4 pl-11`}
+                        className={`${inputClass} has-leading-icon`}
                       />
                     </div>
                   </div>
@@ -437,7 +437,7 @@ function AuthScreen() {
                       placeholder="student@university.edu"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={`${inputClass} pr-4 pl-11`}
+                      className={`${inputClass} has-leading-icon`}
                     />
                   </div>
                 </div>
@@ -493,7 +493,7 @@ function AuthScreen() {
                       placeholder="student@university.edu"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={`${inputClass} pr-4 pl-11`}
+                      className={`${inputClass} has-leading-icon`}
                     />
                   </div>
                 </div>

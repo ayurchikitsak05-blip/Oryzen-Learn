@@ -172,4 +172,17 @@ describe("PDF reader empty state", () => {
     expect((view.getByRole("button", { name: "Ask My Book" }) as HTMLButtonElement).disabled).toBe(false);
     expect(view.getByTestId("reader-page-indicator").textContent).toMatch(/1 \/ 1/);
   });
+
+  it("does not call a locked library a bad file", async () => {
+    const view = render(<PdfViewer />);
+    await view.findByTestId("pdf-empty-state");
+    const input = view.container.querySelector('input[type="file"]');
+    if (!(input instanceof HTMLInputElement)) throw new Error("Missing file input");
+    const file = new File([new Uint8Array([37, 80, 68, 70])], "circuit.pdf", { type: "application/pdf" });
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => {
+      expect(view.getByTestId("reader-upload-status").textContent).toMatch(/sign in to keep this book/i);
+    });
+    expect(view.getByTestId("reader-upload-status").textContent).not.toMatch(/format/i);
+  });
 });

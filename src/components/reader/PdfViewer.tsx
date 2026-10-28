@@ -110,7 +110,7 @@ import {
   writeMarginNotes,
   writeTextMarks,
 } from "@/lib/reader/marks";
-import { ensureAccountVault, lockAccountVault } from "@/lib/privacy/account-vault";
+import { ensureAccountVault, isAccountVaultUnlocked, lockAccountVault } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import {
   SAMPLE_CHAPTER_FILE,
@@ -782,6 +782,10 @@ export default function PdfViewer({
     uploadLockRef.current = true;
     setUploadStatus("Opening your document…");
     try {
+      if (!isAccountVaultUnlocked()) {
+        const user = await fetchSignedInUser();
+        if (user?.userId) await ensureAccountVault();
+      }
       const buffer = await file.arrayBuffer();
       const bytes = new Uint8Array(buffer);
       const title = file.name.replace(/\.pdf$/i, "");
@@ -815,8 +819,13 @@ export default function PdfViewer({
         );
       }
       setUploadToken((count) => count + 1);
-    } catch {
-      setUploadStatus("We couldn't upload this file. Please check the format and try again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      setUploadStatus(
+        /sign in is required/i.test(message)
+          ? "Sign in to keep this book on this device, then try again."
+          : "We couldn't upload this file. Please check the format and try again."
+      );
       setUploadToken((count) => count + 1);
     } finally {
       uploadLockRef.current = false;

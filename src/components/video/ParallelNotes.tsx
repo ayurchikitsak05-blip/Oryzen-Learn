@@ -17,6 +17,7 @@ export interface ParallelNotesProps {
   onSeekToTimestamp: (seconds: number, badge: string) => void;
   onModifyNote: (noteId: string, action: NoteModificationAction) => void;
   onSaveNote?: (note: TimestampedLectureNote) => void;
+  emptyMessage?: string | null;
   theme: PrakritiThemePalette;
 }
 
@@ -27,6 +28,7 @@ export default function ParallelNotes({
   onSeekToTimestamp,
   onModifyNote,
   onSaveNote,
+  emptyMessage,
   theme,
 }: ParallelNotesProps) {
   const [revealAllMode, setRevealAllMode] = useState<boolean>(false);
@@ -70,9 +72,12 @@ export default function ParallelNotes({
 
       <div className="space-y-4">
         {notes.length === 0 && (
-          <p className="rounded-2xl border border-dashed border-line px-4 py-6 text-sm leading-relaxed text-muted">
-            No notes yet for this lecture. Sample lectures include demo notes.
-            A video you add does not receive a made-up transcript.
+          <p
+            data-testid="video-notes-empty"
+            className="rounded-2xl border border-dashed border-line px-4 py-6 text-sm leading-relaxed text-muted"
+          >
+            {emptyMessage ??
+              "No notes yet for this lecture. Sample lectures include demo notes. A video you add does not receive a made-up transcript."}
           </p>
         )}
         {revealedNotes.map((note) => {
@@ -120,9 +125,11 @@ export default function ParallelNotes({
                 {note.studyNoteMarkdown}
               </div>
 
-              <p className="rounded-2xl bg-beige-2 px-4 py-3 text-xs leading-relaxed text-muted">
-                {note.highYieldKeyPoint}
-              </p>
+              {note.highYieldKeyPoint ? (
+                <p className="rounded-2xl bg-beige-2 px-4 py-3 text-xs leading-relaxed text-muted">
+                  {note.highYieldKeyPoint}
+                </p>
+              ) : null}
 
               <NoteModToolbar
                 noteId={note.id}

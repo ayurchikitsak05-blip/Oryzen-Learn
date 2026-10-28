@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import VideoPlayer from "@/components/video/VideoPlayer";
 import ParallelNotes from "@/components/video/ParallelNotes";
 import StudySidePanel from "@/components/study/StudySidePanel";
@@ -22,6 +22,9 @@ import {
 } from "@/lib/ai/adaptive-memory";
 import { notebookSaveMessage, saveToNotebook } from "@/lib/notes/save-to-notebook";
 import type { TimestampedLectureNote } from "@/lib/video/sync-engine";
+import { captionFailureCopy } from "@/lib/video/public-captions";
+import { readVideoCaptionNotes, writeVideoCaptionNotes } from "@/lib/video/caption-notes-store";
+import { fetchSignedInUser } from "@/lib/supabase/session";
 
 export default function ParallelVideoStudioPage() {
   const [activeDosha, setActiveDosha] = useState<Dosha>("Vata");
@@ -33,6 +36,38 @@ export default function ParallelVideoStudioPage() {
   );
   const [currentTimeSeconds, setCurrentTimeSeconds] = useState<number>(258);
   const [telemetryToast, setTelemetryToast] = useState<string | null>(null);
+  const [captionNotice, setCaptionNotice] = useState<{ lectureId: string; text: string } | null>(
+    null
+  );
+  const ownerIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetchSignedInUser().then((user) => {
+      if (!active || !user?.userId) return;
+      ownerIdRef.current = user.userId;
+      const saved = readVideoCaptionNotes(user.userId);
+      if (saved.length === 0) return;
+      setLectures((prev) => {
+        const known = new Set(prev.map((row) => row.youtubeVideoId));
+        const restored = saved
+          .filter((item) => !known.has(item.videoId))
+          .map((item) => ({
+            ...createStudentLecture({
+              sourceType: "youtube" as const,
+              youtubeVideoId: item.videoId,
+              youtubeUrl: item.url,
+              title: item.title,
+            }),
+            notes: item.notes,
+          }));
+        return restored.length > 0 ? [...prev, ...restored] : prev;
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const profile = calculatePrakritiProfile(
     activeDosha === "Vata"
@@ -192,25 +227,46 @@ export default function ParallelVideoStudioPage() {
               );
               setActiveLectureId(lecture.id);
               void fetch(`/api/video/captions?v=${encodeURIComponent(videoId)}`)
-                .then((response) => response.json())
-                .then((payload: { notes?: VideoLectureRecord["notes"]; reason?: string }) => {
-                  if (!payload.notes?.length) {
-                    setTelemetryToast(
-                      "This video has no public caption track, so notes stay empty. ORYZEN does not invent a transcript."
-                    );
+                .then(async (response) => {
+                  if (!response.ok) throw new Error("caption_http");
+                  return response.json() as Promise<{
+                    notes?: VideoLectureRecord["notes"];
+                    reason?: "ok" | "no_public_captions" | "unsupported";
+                  }>;
+                })
+                .then(async (payload) => {
+                  const notes = payload.notes ?? [];
+                  if (notes.length === 0) {
+                    const text = captionFailureCopy(payload.reason ?? "no_public_captions");
+                    setCaptionNotice({ lectureId: lecture.id, text });
+                    setTelemetryToast(text);
                     return;
                   }
+                  setCaptionNotice(null);
                   setLectures((prev) =>
-                    prev.map((row) =>
-                      row.id === lecture.id ? { ...row, notes: payload.notes ?? [] } : row
-                    )
+                    prev.map((row) => (row.id === lecture.id ? { ...row, notes } : row))
                   );
-                  setTelemetryToast("Public captions were attached as timed notes.");
+                  const ownerId =
+                    ownerIdRef.current ?? (await fetchSignedInUser())?.userId ?? null;
+                  if (ownerId) {
+                    ownerIdRef.current = ownerId;
+                    writeVideoCaptionNotes(ownerId, {
+                      videoId,
+                      url,
+                      title: lecture.title,
+                      notes,
+                    });
+                  }
+                  setTelemetryToast(
+                    ownerId
+                      ? "Public captions were attached as timed notes."
+                      : "Public captions are on this screen. Sign in to keep them after a refresh."
+                  );
                 })
                 .catch(() => {
-                  setTelemetryToast(
-                    "This video has no public caption track, so notes stay empty. ORYZEN does not invent a transcript."
-                  );
+                  const text = captionFailureCopy("unavailable");
+                  setCaptionNotice({ lectureId: lecture.id, text });
+                  setTelemetryToast(text);
                 });
             }}
             onLocalFileSelected={(fileName) => {
@@ -237,6 +293,9 @@ export default function ParallelVideoStudioPage() {
             }}
             onModifyNote={handleModifyNote}
             onSaveNote={(note) => void handleSaveNote(note)}
+            emptyMessage={
+              captionNotice?.lectureId === activeLecture.id ? captionNotice.text : null
+            }
             theme={theme}
           />
         </div>

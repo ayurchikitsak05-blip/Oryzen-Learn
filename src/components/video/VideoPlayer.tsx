@@ -53,7 +53,80 @@ export default function VideoPlayer({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   const htmlVideoRef = useRef<HTMLVideoElement | null>(null);
+  const youtubeFrameRef = useRef<HTMLIFrameElement | null>(null);
   const lastTrackedTimeRef = useRef<number>(currentTimeSeconds);
+  const reportedTimeRef = useRef<number>(currentTimeSeconds);
+  const applyingPlayerTimeRef = useRef(false);
+  const preferredVideoIdRef = useRef<string | null>(null);
+
+  const commandYouTube = (func: string, args: unknown[] = []) => {
+    youtubeFrameRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: "command", func, args }),
+      "https://www.youtube.com"
+    );
+  };
+
+  useEffect(() => {
+    const nextId = extractYouTubeVideoId(youtubeUrlOrId ?? "");
+    if (!nextId) return;
+    if (preferredVideoIdRef.current && preferredVideoIdRef.current !== nextId) return;
+    preferredVideoIdRef.current = null;
+    if (nextId === activeYouTubeId) return;
+    setActiveYouTubeId(nextId);
+    setUrlInput(youtubeUrlOrId ?? nextId);
+    setIsPlaying(false);
+  }, [activeYouTubeId, youtubeUrlOrId]);
+
+  useEffect(() => {
+    if (sourceMode !== "youtube") return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== "https://www.youtube.com") return;
+      let payload: unknown = event.data;
+      if (typeof payload === "string") {
+        try {
+          payload = JSON.parse(payload) as unknown;
+        } catch {
+          return;
+        }
+      }
+      if (!payload || typeof payload !== "object") return;
+      const data = payload as {
+        event?: string;
+        info?: { currentTime?: number } | number;
+      };
+      if (data.event === "onStateChange" && typeof data.info === "number") {
+        if (data.info === 1) setIsPlaying(true);
+        if (data.info === 0 || data.info === 2) setIsPlaying(false);
+        return;
+      }
+      if (data.event !== "infoDelivery" || !data.info || typeof data.info === "number") return;
+      if (typeof data.info.currentTime !== "number") return;
+      const next = Math.min(durationSeconds, Math.max(0, Math.floor(data.info.currentTime)));
+      if (Math.abs(next - reportedTimeRef.current) < 1) return;
+      reportedTimeRef.current = next;
+      lastTrackedTimeRef.current = next;
+      applyingPlayerTimeRef.current = true;
+      onTimeUpdate(next);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [durationSeconds, onTimeUpdate, sourceMode]);
+
+  useEffect(() => {
+    if (sourceMode !== "youtube") return;
+    if (applyingPlayerTimeRef.current) {
+      applyingPlayerTimeRef.current = false;
+      lastTrackedTimeRef.current = currentTimeSeconds;
+      return;
+    }
+    if (Math.abs(currentTimeSeconds - reportedTimeRef.current) < 1.5) {
+      lastTrackedTimeRef.current = currentTimeSeconds;
+      return;
+    }
+    reportedTimeRef.current = currentTimeSeconds;
+    lastTrackedTimeRef.current = currentTimeSeconds;
+    commandYouTube("seekTo", [currentTimeSeconds, true]);
+  }, [currentTimeSeconds, sourceMode]);
 
   useEffect(() => {
     if (
@@ -63,11 +136,11 @@ export default function VideoPlayer({
     ) {
       htmlVideoRef.current.currentTime = currentTimeSeconds;
     }
-    lastTrackedTimeRef.current = currentTimeSeconds;
+    if (sourceMode === "local_mp4") lastTrackedTimeRef.current = currentTimeSeconds;
   }, [currentTimeSeconds, sourceMode]);
 
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || sourceMode !== "local_mp4") return;
     const interval = window.setInterval(() => {
       const next = Math.min(durationSeconds, lastTrackedTimeRef.current + 1);
       lastTrackedTimeRef.current = next;
@@ -77,7 +150,7 @@ export default function VideoPlayer({
       }
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [isPlaying, durationSeconds, onTimeUpdate]);
+  }, [isPlaying, durationSeconds, onTimeUpdate, sourceMode]);
 
   useEffect(() => {
     return () => {
@@ -87,13 +160,19 @@ export default function VideoPlayer({
     };
   }, [localVideoObjectUrl]);
 
-  const handleLoadYouTubeUrl = (e: React.FormEvent) => {
+  const handleLoadYouTubeUrl = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const id = extractYouTubeVideoId(urlInput);
+    const field = e.currentTarget.querySelector("input");
+    const raw = field instanceof HTMLInputElement ? field.value : urlInput;
+    const id = extractYouTubeVideoId(raw);
     if (id) {
+      preferredVideoIdRef.current = id;
       setSourceMode("youtube");
       setActiveYouTubeId(id);
-      onChangeYouTubeUrl?.(urlInput, id);
+      setUrlInput(raw.trim());
+      reportedTimeRef.current = 0;
+      lastTrackedTimeRef.current = 0;
+      onChangeYouTubeUrl?.(raw.trim(), id);
       onTimeUpdate(0);
     }
   };
@@ -120,6 +199,8 @@ export default function VideoPlayer({
       onRewindFriction?.(prev, clamped);
     }
     lastTrackedTimeRef.current = clamped;
+    reportedTimeRef.current = clamped;
+    if (sourceMode === "youtube") commandYouTube("seekTo", [clamped, true]);
     onTimeUpdate(clamped);
   };
 
@@ -189,14 +270,23 @@ export default function VideoPlayer({
       <div className="relative aspect-video overflow-hidden rounded-2xl bg-heading">
         {sourceMode === "youtube" ? (
           <iframe
+            key={activeYouTubeId}
+            ref={youtubeFrameRef}
             data-testid="youtube-iframe-player"
             title="Lecture player"
-            src={`https://www.youtube.com/embed/${activeYouTubeId}?enablejsapi=1&start=${Math.floor(
-              currentTimeSeconds
-            )}`}
+            src={`https://www.youtube.com/embed/${activeYouTubeId}?enablejsapi=1`}
             className="h-full w-full border-0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
+            onLoad={() => {
+              youtubeFrameRef.current?.contentWindow?.postMessage(
+                JSON.stringify({ event: "listening", id: "oryzen-lecture", channel: "widget" }),
+                "https://www.youtube.com"
+              );
+              if (reportedTimeRef.current > 0) {
+                commandYouTube("seekTo", [reportedTimeRef.current, true]);
+              }
+            }}
           />
         ) : localVideoObjectUrl ? (
           <video
@@ -223,7 +313,11 @@ export default function VideoPlayer({
           <button
             type="button"
             data-testid="video-play-pause-btn"
-            onClick={() => setIsPlaying((p) => !p)}
+            onClick={() => {
+              const next = !isPlaying;
+              setIsPlaying(next);
+              if (sourceMode === "youtube") commandYouTube(next ? "playVideo" : "pauseVideo");
+            }}
             className="btn-primary text-xs"
           >
             {isPlaying ? (
