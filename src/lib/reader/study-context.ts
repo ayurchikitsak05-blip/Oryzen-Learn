@@ -34,7 +34,7 @@ function fold(text: string): string {
 export function passageBelongsToPage(passage: string, pageText: string): boolean {
   const needle = fold(passage);
   const haystack = fold(pageText);
-  if (needle.length < 8 || !haystack) return false;
+  if (!needle || !haystack) return false;
   return haystack.includes(needle);
 }
 
@@ -74,38 +74,34 @@ export function resolveStudySnapshot(input: {
   chunk: StudyChunkRef | null;
   overrideText?: string | null;
   lens: string;
+  /** A passage the student just selected on this page. Kept verbatim. */
+  exactSelection?: boolean;
 }): { ok: true; snapshot: StudySnapshot } | { ok: false; reason: "missing_passage" } {
   const pageChunks = chunksForDocument(input.chunks, input.documentId).filter(
     (chunk) => chunk.page_number === input.pageNumber
   );
   const pageText = pageChunks.map((chunk) => chunk.text).join("\n");
-  if (!pageText.trim()) return { ok: false, reason: "missing_passage" };
-
   const override = compact(input.overrideText ?? "");
+  if (!override) return { ok: false, reason: "missing_passage" };
+  if (!pageText.trim() && !input.exactSelection) return { ok: false, reason: "missing_passage" };
+  if (pageText.trim() && !passageBelongsToPage(override, pageText) && !input.exactSelection) {
+    return { ok: false, reason: "missing_passage" };
+  }
+
   const chunkOnPage =
     input.chunk &&
-    input.chunk.document_id === input.documentId &&
+    (input.chunk.document_id === input.documentId || pageChunks.some((item) => item.chunk_id === input.chunk?.chunk_id)) &&
     input.chunk.page_number === input.pageNumber
       ? input.chunk
       : null;
 
-  let selected = "";
-  let chunk: StudyChunkRef | null = null;
-  if (override && passageBelongsToPage(override, pageText)) {
-    selected = override;
-    chunk =
-      pageChunks.find((item) => fold(item.text).includes(fold(override))) ??
-      chunkOnPage ??
-      pageChunks[0] ??
-      null;
-  } else if (chunkOnPage && passageBelongsToPage(chunkOnPage.text, pageText)) {
-    selected = compact(chunkOnPage.text);
-    chunk = chunkOnPage;
-  } else if (pageChunks[0]) {
-    selected = compact(pageChunks[0].text);
-    chunk = pageChunks[0];
-  }
-  if (!chunk || !selected) return { ok: false, reason: "missing_passage" };
+  const chunk =
+    pageChunks.find((item) => fold(item.text).includes(fold(override))) ??
+    (chunkOnPage && pageChunks.some((item) => item.chunk_id === chunkOnPage.chunk_id) ? chunkOnPage : null) ??
+    pageChunks[0] ??
+    null;
+  if (!chunk) return { ok: false, reason: "missing_passage" };
+  const selected = override;
   return {
     ok: true,
     snapshot: {
@@ -136,16 +132,9 @@ export function acceptSelectionText(
   documentId: string,
   pageNumber: number
 ): string | null {
+  void chunk;
   const pageText = pageTextFor(chunks, documentId, pageNumber);
   const selection = compact(selectionText);
-  if (selection && passageBelongsToPage(selection, pageText)) return selection;
-  if (
-    chunk &&
-    chunk.document_id === documentId &&
-    chunk.page_number === pageNumber &&
-    passageBelongsToPage(chunk.text, pageText)
-  ) {
-    return compact(chunk.text);
-  }
-  return null;
+  if (!selection || !passageBelongsToPage(selection, pageText)) return null;
+  return selection;
 }

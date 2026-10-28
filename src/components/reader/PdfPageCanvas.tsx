@@ -187,19 +187,6 @@ export function PdfPageCanvas({
       data-page-width={renderSize.width || undefined}
       data-page-height={renderSize.height || undefined}
       className="relative inline-block max-w-none shrink-0"
-      onClick={(event) => {
-        if (!isActivePage || pageChunks.length === 0) return;
-        const selection = window.getSelection();
-        if (selection && !selection.isCollapsed) return;
-        const rect = event.currentTarget.getBoundingClientRect();
-        onSelection(pageChunks[0], {
-          top: event.clientY || rect.top + 24,
-          left: event.clientX || rect.left + rect.width / 2,
-          start: 0,
-          end: pageChunks[0].text.length,
-          text: pageChunks[0].text,
-        });
-      }}
     >
       <span className="sr-only">
         Page {pageNumber}
@@ -246,12 +233,13 @@ export function PdfPageCanvas({
             onAddNote={(quote, note) =>
               onAddNote(quote, note, resolveChunk(pageChunks, quote))
             }
-            onSelectionChange={(selection) =>
-              onSelection(
-                resolveChunk(pageChunks, selection?.text ?? pageChunks[0].text),
-                selection
-              )
-            }
+            onSelectionChange={(selection) => {
+              if (!selection?.text.trim()) {
+                onSelection(pageChunks[0], null);
+                return;
+              }
+              onSelection(resolveChunk(pageChunks, selection.text), selection);
+            }}
           />
           </div>
         </div>

@@ -190,7 +190,7 @@ export default function HighlightToolbar({
             onClick={onHighlight}
             className={chipClass(false)}
           >
-            Highlight
+            Save Highlight
           </button>
         ) : null}
         {onUnderline ? (

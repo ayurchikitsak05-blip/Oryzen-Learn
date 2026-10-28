@@ -37,6 +37,7 @@ export function StudyWorkspace({
   onPickMcq,
   onRetry,
   onClose,
+  onSaveGenerated,
 }: {
   open: boolean;
   isMobile: boolean;
@@ -57,6 +58,7 @@ export function StudyWorkspace({
   onPickMcq: (questionIndex: number, optionIndex: number) => void;
   onRetry: () => void;
   onClose: () => void;
+  onSaveGenerated?: () => void;
 }) {
   const [width, setWidth] = useState(340);
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -74,6 +76,7 @@ export function StudyWorkspace({
 
   const body = (
     <div
+      id="study-result-workspace"
       data-testid="study-result-workspace"
       className="flex h-full min-h-0 flex-col bg-surface"
     >
@@ -191,6 +194,16 @@ export function StudyWorkspace({
               onPickMcq={onPickMcq}
               onRetry={onRetry}
             />
+            {onSaveGenerated && (lens === "illustrative" || lens === "story") ? (
+              <button
+                type="button"
+                data-testid="save-generated-output"
+                onClick={onSaveGenerated}
+                className="btn-secondary text-xs"
+              >
+                {lens === "story" ? "Save story" : "Save illustration"}
+              </button>
+            ) : null}
             {lens && lens !== "save_passage" ? (
               <StudyFeedbackChips
                 lens={lens}

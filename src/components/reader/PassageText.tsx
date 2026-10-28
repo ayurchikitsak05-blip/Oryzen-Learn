@@ -225,7 +225,16 @@ export default function PassageText({
       if (rootRef.current?.contains(target)) return;
       const popup = document.getElementById("reader-word-lookup");
       const tools = document.getElementById("reader-selection-tools");
-      if (popup?.contains(target) || tools?.contains(target)) return;
+      const study = document.getElementById("study-result-workspace") ?? document.querySelector("[data-testid=study-result-workspace]");
+      const readerTools = document.querySelector("[data-testid=reader-toolbar]");
+      if (
+        popup?.contains(target) ||
+        tools?.contains(target) ||
+        study?.contains(target) ||
+        readerTools?.contains(target)
+      ) {
+        return;
+      }
       setLookup(null);
       setToolbar(null);
       onSelectionChangeRef.current?.(null);
@@ -234,18 +243,15 @@ export default function PassageText({
     return () => document.removeEventListener("mousedown", closeOnOutside);
   }, []);
 
-  const handleMouseUp = () => {
+  const readSelectionRef = useRef<() => void>(() => undefined);
+  readSelectionRef.current = () => {
     const selection = window.getSelection();
     const root = rootRef.current;
-    if (!selection || selection.isCollapsed || !root) {
-      return;
-    }
-    if (!root.contains(selection.anchorNode) || !root.contains(selection.focusNode)) {
-      return;
-    }
+    if (!selection || selection.isCollapsed || !root) return;
+    if (!root.contains(selection.anchorNode) || !root.contains(selection.focusNode)) return;
     const range = selection.getRangeAt(0);
     const offsets = plainOffsets(root, range);
-    const selected = range.toString().trim();
+    const selected = range.toString().replace(/\s+/g, " ").trim();
     if (!offsets || !selected) return;
     const rect = range.getBoundingClientRect();
     setNoting(false);
@@ -258,8 +264,14 @@ export default function PassageText({
       text: selected,
     };
     setToolbar(next);
-    onSelectionChange?.(next);
+    onSelectionChangeRef.current?.(next);
   };
+
+  useEffect(() => {
+    const onChange = () => readSelectionRef.current();
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, []);
 
   const applyMark = (kind: ReaderMarkKind) => {
     if (!toolbar) return;
@@ -309,11 +321,10 @@ export default function PassageText({
           tabIndex={0}
           onClick={(event) => {
             const current = window.getSelection();
-            if (current && !current.isCollapsed) return;
+            if ((current && !current.isCollapsed) || toolbar) return;
             if (!lookupWord) return;
             event.stopPropagation();
             const rect = event.currentTarget.getBoundingClientRect();
-            setToolbar(null);
             setLookup({
               word: lookupWord,
               top: rect.top,
@@ -352,14 +363,14 @@ export default function PassageText({
     <>
       <div
         ref={rootRef}
-        onMouseUp={handleMouseUp}
+        onMouseUp={() => readSelectionRef.current()}
         onTouchEnd={(event) => {
           if (event.touches.length > 0 || event.changedTouches.length > 1) return;
-          handleMouseUp();
+          window.setTimeout(() => readSelectionRef.current(), 40);
         }}
         className={
           aligned
-            ? "relative h-full w-full font-sans text-transparent selection:bg-selected selection:text-heading"
+            ? "relative h-full w-full select-text font-sans text-transparent selection:bg-selected selection:text-heading"
             : overlay
               ? "font-reading-family h-full w-full text-[11px] leading-tight text-transparent selection:bg-selected selection:text-heading"
               : "text-sm leading-relaxed"

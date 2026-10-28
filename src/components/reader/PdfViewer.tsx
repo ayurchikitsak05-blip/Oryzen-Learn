@@ -890,6 +890,32 @@ export default function PdfViewer({
     throw new Error(json?.error ?? "My Notebook could not save this passage.");
   };
 
+  const saveGeneratedOutput = async () => {
+    if (!activeDoc || !selectedChunk || !aiResult) return;
+    const selected = (studySource ?? lensText ?? "").trim();
+    if (!selected) {
+      setAiError("Select text first.");
+      return;
+    }
+    const markdown = aiResult.payload.markdown_body?.trim();
+    if (!markdown) {
+      setAiError("There is no illustration or story to save yet.");
+      return;
+    }
+    try {
+      await persistSavedPassage(
+        activeDoc,
+        selectedChunk,
+        selected,
+        markdown,
+        aiResult.payload.citations ?? []
+      );
+    } catch (error) {
+      setNotebookStatus(null);
+      setAiError(error instanceof Error ? error.message : "This response could not be saved.");
+    }
+  };
+
   const snapshotReading = () => {
     readingContextRef.current = {
       page: activePage,
@@ -930,6 +956,7 @@ export default function PdfViewer({
       chunk: chunk ?? null,
       overrideText: selectedOverride,
       lens,
+      exactSelection: Boolean(selectedOverride?.trim()),
     });
     if (!resolved.ok) return null;
     const matched =
@@ -1095,9 +1122,22 @@ export default function PdfViewer({
       return;
     }
     if (!activeDoc || aiLoading) return;
-    const bound = resolveOpenPassage(lens, chunk, selectedOverride ?? lensText);
+    const manual = (selectedOverride ?? lensText ?? "").trim();
+    if (!manual) {
+      setAiError("Select text first.");
+      setActiveLens(lens);
+      setAiResult(null);
+      setAiLoading(false);
+      setWorkspaceOpen(true);
+      return;
+    }
+    const bound = resolveOpenPassage(lens, chunk, manual);
     if (!bound) {
-      setAiError("Select a passage before exploring it.");
+      setAiError("Select text first.");
+      setActiveLens(lens);
+      setAiResult(null);
+      setAiLoading(false);
+      setWorkspaceOpen(true);
       return;
     }
     const snapshot = bound.snapshot;
@@ -1120,16 +1160,8 @@ export default function PdfViewer({
     setNotebookStatus(null);
     setAiLoading(true);
     setWorkspaceOpen(true);
-    setSelectionUi(null);
 
     try {
-      const nearbyChunks = sourceDocument.chunks.filter(
-        (item) => Math.abs(item.page_number - snapshot.pageNumber) <= 2
-      );
-      const activePageText = nearbyChunks
-        .filter((item) => item.page_number === snapshot.pageNumber)
-        .map((item) => item.text)
-        .join("\n");
       const res = await fetch("/api/ai/lens", {
         method: "POST",
         credentials: "same-origin",
@@ -1143,8 +1175,8 @@ export default function PdfViewer({
           selectionBoundingBox: studyChunk.bounding_box,
           lensType: lens,
           prakritiDosha: resolvedPrakritiDosha,
-          activePageText,
-          candidateChunks: nearbyChunks,
+          activePageText: snapshot.selectedText,
+          candidateChunks: [],
         }),
         signal: controller.signal,
       });
@@ -1502,12 +1534,18 @@ export default function PdfViewer({
         </p>
       ) : null}
 
+      {documentReady && !lensText?.trim() && !workspaceOpen ? (
+        <p data-testid="select-text-first" className="px-3 pt-1 text-xs text-muted">
+          Select text first to explain, illustrate, tell a story, revise, or save a highlight.
+        </p>
+      ) : null}
+
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <div
           ref={canvasHostRef}
           data-testid="pdf-scroll-host"
           className="relative min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain"
-          style={{ touchAction: "pan-x pan-y" }}
+          style={{ touchAction: "auto" }}
         >
           <div
             data-testid="pdf-page-stage"
@@ -1563,19 +1601,28 @@ export default function PdfViewer({
                   onAddNote={handleAddMarginNote}
                   onSelection={(chunk, selection) => {
                     if (!activeDoc) return;
+                    const manual = selection?.text?.replace(/\s+/g, " ").trim() ?? "";
+                    if (!manual) {
+                      if (workspaceOpen) return;
+                      setSelectedChunk(null);
+                      setLensText(null);
+                      setStudySource(null);
+                      setSelectionUi(null);
+                      return;
+                    }
                     const page = chunk.page_number || activePage;
-                    const accepted = acceptSelectionText(
-                      selection?.text ?? "",
+                    const onPage = acceptSelectionText(
+                      manual,
                       chunk,
                       activeDoc.chunks,
                       activeDoc.id,
                       page
                     );
-                    if (!accepted) return;
+                    const accepted = onPage ?? manual;
                     const owner =
                       activeDoc.chunks.find(
                         (item) =>
-                          item.page_number === page && item.text.includes(accepted.slice(0, 48))
+                          item.page_number === page && item.text.toLowerCase().includes(accepted.slice(0, 48).toLowerCase())
                       ) ?? chunk;
                     if (!owner) return;
                     if (aiLoading || lensAbortRef.current) {
@@ -1634,7 +1681,10 @@ export default function PdfViewer({
           result={aiResult}
           lens={activeLens}
           selectedMcqOptions={selectedMcqOptions}
-          selectedText={studySource?.trim() || lensText?.trim() || selectedChunk?.text}
+          selectedText={studySource?.trim() || lensText?.trim() || ""}
+          onSaveGenerated={
+            activeLens === "illustrative" || activeLens === "story" ? saveGeneratedOutput : undefined
+          }
           askDraft={askDraft}
           askTurns={askTurns}
           askEmptyHint={askEmptyHint}
@@ -1688,15 +1738,17 @@ export default function PdfViewer({
               void handleAskMyBook(askLastQuestionRef.current || askDraft);
               return;
             }
-            if (activeLens && selectedChunk) void handleTriggerLens(activeLens, selectedChunk);
+            if (activeLens && selectedChunk) {
+              void handleTriggerLens(activeLens, selectedChunk, lensText ?? undefined);
+            }
           }}
           onClose={closeWorkspace}
         />
       </div>
 
-      {selectionUi && selectedChunk && !workspaceOpen ? (
+      {selectionUi && lensText?.trim() && selectedChunk && !workspaceOpen ? (
         <HighlightToolbar
-          selectedText={lensText?.trim() || selectedChunk.text}
+          selectedText={lensText.trim()}
           pageNumber={selectedChunk.page_number}
           sectionHeading={selectedChunk.section_heading}
           activeLens={activeLens}
@@ -1704,7 +1756,17 @@ export default function PdfViewer({
           top={selectionUi.top}
           left={selectionUi.left}
           recommendedLensIds={recommendedStudyLenses(resolvedPrakritiDosha)}
-          onSelectLens={(lens) => void handleTriggerLens(lens, selectedChunk, lensText ?? undefined)}
+          onSelectLens={(lens) => {
+            const exact = (lensText ?? "").trim();
+            if (!exact) {
+              setAiError("Select text first.");
+              setActiveLens(lens);
+              setAiResult(null);
+              setWorkspaceOpen(true);
+              return;
+            }
+            void handleTriggerLens(lens, selectedChunk, exact);
+          }}
           onHighlight={() => {
             if (!selectedChunk || !selectionUi) return;
             const overlayChunkId =
@@ -1734,6 +1796,7 @@ export default function PdfViewer({
           onClearSelection={() => {
             setSelectedChunk(null);
             setLensText(null);
+            setStudySource(null);
             setSelectionUi(null);
             setActiveLens(null);
           }}

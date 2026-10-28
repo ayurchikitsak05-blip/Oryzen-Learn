@@ -71,32 +71,33 @@ describe("study context stays on the open textbook", () => {
       pageNumber: 1,
       chunks: [stored],
       chunk: { ...newtonChunk, document_id: "newton-first-law" },
-      overrideText: NEWTON,
+      overrideText: "length times width",
       lens: "illustrative",
     });
     if (!resolved.ok) throw new Error("missing passage");
     expect(resolved.snapshot.documentId).toBe("saved-rect-id");
-    expect(resolved.snapshot.selectedText).toMatch(/length times width/i);
+    expect(resolved.snapshot.selectedText).toBe("length times width");
     expect(resolved.snapshot.selectedText).not.toMatch(/constant velocity/i);
+    const foreign = resolveStudySnapshot({
+      documentId: "saved-rect-id",
+      documentHash: "hash-rect",
+      pageNumber: 1,
+      chunks: [stored],
+      chunk: { ...newtonChunk, document_id: "newton-first-law" },
+      overrideText: NEWTON,
+      lens: "illustrative",
+    });
+    expect(foreign.ok).toBe(false);
   });
 
-  it("uses the rectangle page after a Newton highlight is still in memory", () => {
-    const resolved = snapshotFor("rect-doc", 1, NEWTON, rectangleChunk);
-    expect(resolved.ok).toBe(true);
-    if (!resolved.ok) return;
-    expect(resolved.snapshot.selectedText).toMatch(/length times width/i);
-    expect(resolved.snapshot.selectedText).not.toMatch(/constant velocity/i);
-    expect(resolved.snapshot.documentId).toBe("rect-doc");
-    expect(resolved.snapshot.chunkId).toBe("rect-p1-c1");
-  });
-
-  it("uses the Newton page after a rectangle highlight is still in memory", () => {
-    const resolved = snapshotFor("newton-doc", 1, RECTANGLE, newtonChunk);
-    expect(resolved.ok).toBe(true);
-    if (!resolved.ok) return;
-    expect(resolved.snapshot.selectedText).toMatch(/constant velocity/i);
-    expect(resolved.snapshot.selectedText).not.toMatch(/length times width/i);
-    expect(resolved.snapshot.documentId).toBe("newton-doc");
+  it("does not replace a foreign highlight with the open page", () => {
+    expect(snapshotFor("rect-doc", 1, NEWTON, rectangleChunk).ok).toBe(false);
+    expect(snapshotFor("newton-doc", 1, RECTANGLE, newtonChunk).ok).toBe(false);
+    const phrase = snapshotFor("rect-doc", 1, "40 square centimetres", rectangleChunk);
+    expect(phrase.ok).toBe(true);
+    if (!phrase.ok) return;
+    expect(phrase.snapshot.selectedText).toBe("40 square centimetres");
+    expect(phrase.snapshot.selectedText).not.toBe(RECTANGLE);
   });
 
   it("keeps the latest highlight and the latest study mode", () => {
@@ -136,22 +137,23 @@ describe("study context stays on the open textbook", () => {
         selectedText: NEWTON,
       })
     ).toBe(false);
-    const pageTwo = snapshotFor("rect-doc", 2, null, null, "illustrative");
+    expect(snapshotFor("rect-doc", 2, null, null, "illustrative").ok).toBe(false);
+    const pageTwo = snapshotFor("rect-doc", 2, "48 square centimetres", rectanglePage2, "illustrative");
     expect(pageTwo.ok).toBe(true);
     if (!pageTwo.ok) return;
-    expect(pageTwo.snapshot.selectedText).toMatch(/48 square centimetres/i);
+    expect(pageTwo.snapshot.selectedText).toBe("48 square centimetres");
   });
 
   it("accepts a highlight on the open page and ignores the other book", () => {
     expect(passageBelongsToPage("length times width", RECTANGLE)).toBe(true);
     expect(passageBelongsToPage(NEWTON, RECTANGLE)).toBe(false);
-    expect(acceptSelectionText(NEWTON, rectangleChunk, library, "rect-doc", 1)).toMatch(
-      /length times width/i
+    expect(acceptSelectionText(NEWTON, rectangleChunk, library, "rect-doc", 1)).toBeNull();
+    expect(acceptSelectionText("8 cm and the width is 5 cm", rectangleChunk, library, "rect-doc", 1)).toBe(
+      "8 cm and the width is 5 cm"
     );
-    expect(acceptSelectionText("8 cm and the width is 5 cm", rectangleChunk, library, "rect-doc", 1)).toMatch(
-      /8 cm/
-    );
-    expect(acceptSelectionText(RECTANGLE, newtonChunk, library, "newton-doc", 1)).toBe(NEWTON);
+    expect(acceptSelectionText("net force", newtonChunk, library, "newton-doc", 1)).toBe("net force");
+    expect(acceptSelectionText("", newtonChunk, library, "newton-doc", 1)).toBeNull();
+    expect(acceptSelectionText(RECTANGLE, newtonChunk, library, "newton-doc", 1)).toBeNull();
   });
 
   it("does not apply a cached study result from another textbook or passage", async () => {
@@ -236,14 +238,16 @@ describe("study context stays on the open textbook", () => {
     let requestId = 0;
     const issued = order.map((documentId) => {
       requestId += 1;
+      const phrase = documentId === "newton-doc" ? "constant velocity" : "length times width";
       const resolved = resolveStudySnapshot({
         documentId,
         documentHash: documentId,
         pageNumber: 1,
         chunks: library,
         chunk: documentId === "newton-doc" ? rectangleChunk : newtonChunk,
-        overrideText: documentId === "newton-doc" ? RECTANGLE : NEWTON,
+        overrideText: phrase,
         lens: "illustrative",
+        exactSelection: true,
       });
       if (!resolved.ok) throw new Error("missing passage");
       live = {
@@ -255,13 +259,14 @@ describe("study context stays on the open textbook", () => {
       return { id: requestId, snapshot: resolved.snapshot };
     });
     const currentId = requestId;
-    expect(issued[0].snapshot.selectedText).toMatch(/constant velocity/i);
-    expect(issued[1].snapshot.selectedText).toMatch(/length times width/i);
+    expect(issued[0].snapshot.selectedText).toBe("constant velocity");
+    expect(issued[1].snapshot.selectedText).toBe("length times width");
+    expect(issued[2].snapshot.selectedText).toBe("constant velocity");
     expect(issued[0].id).not.toBe(currentId);
     expect(issued[1].id).not.toBe(currentId);
     expect(studySnapshotIsCurrent(issued[1].snapshot, live)).toBe(false);
     expect(studySnapshotIsCurrent(issued[2].snapshot, live)).toBe(true);
-    expect(live.selectedText).toMatch(/constant velocity/i);
+    expect(live.selectedText).toBe("constant velocity");
   });
 
   it("keeps saved notes and reading progress when the study selection is dropped", async () => {
@@ -292,7 +297,7 @@ describe("study context stays on the open textbook", () => {
       "student-a"
     );
     const dropped = snapshotFor("rect-doc", 1, null, null);
-    expect(dropped.ok).toBe(true);
+    expect(dropped.ok).toBe(false);
     expect(listSavedPassages("newton-doc", "student-a")[0]?.highlightedText).toMatch(/constant velocity/i);
     expect(listSavedPassages("newton-doc", "student-b")).toHaveLength(0);
     expect(readPersistedReaderView("newton-doc", "student-a")?.page).toBe(2);
