@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Archive, BookOpen, ChartColumn, House, PenLine, UserRound } from "lucide-react";
@@ -37,8 +37,14 @@ export default function AppChrome({
   nav?: "app" | "marketing";
   maxWidthClass?: string;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
+  const [navReady, setNavReady] = useState(false);
+  const navPath = navReady ? pathname : "";
   const showAppNav = nav === "app";
+
+  useEffect(() => {
+    setNavReady(true);
+  }, []);
 
   useEffect(() => {
     if (!showAppNav) return;
@@ -46,7 +52,7 @@ export default function AppChrome({
   }, [showAppNav]);
 
   return (
-    <div className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink ${showAppNav ? "pb-20 md:pb-0" : ""}`}>
+    <div className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink ${showAppNav ? "pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}>
       <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-canvas/92 backdrop-blur-md">
         <div
           className={`mx-auto flex min-h-12 w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1 md:flex-nowrap md:px-4 lg:gap-2 lg:px-6 ${maxWidthClass}`}
@@ -59,7 +65,7 @@ export default function AppChrome({
                   key={link.href}
                   href={link.href}
                   className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-xl px-1 text-[13px] lg:px-3 lg:text-sm ${
-                    isActive(pathname, link.href)
+                    isActive(navPath, link.href)
                       ? "bg-selected text-heading"
                       : "text-muted hover:bg-beige-2 hover:text-heading"
                   }`}
@@ -83,7 +89,7 @@ export default function AppChrome({
           <ul className="grid grid-cols-6">
             {APP_LINKS.map((link) => {
               const Icon = link.icon;
-              const active = isActive(pathname, link.href, "match" in link ? link.match : undefined);
+              const active = isActive(navPath, link.href, "match" in link ? link.match : undefined);
               const mobileLabel = "mobileLabel" in link ? link.mobileLabel : link.label;
               return (
                 <li key={link.href}>

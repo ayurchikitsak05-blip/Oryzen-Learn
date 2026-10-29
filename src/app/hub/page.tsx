@@ -31,7 +31,8 @@ export default function StudyHubPage() {
   const [saved, setSaved] = useState<SavedBodyType | null>(null);
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [continuation, setContinuation] = useState<HomeContinuation>(EMPTY_CONTINUATION);
-  const [record, setRecord] = useState<"loading" | "locked" | "ready">("loading");
+  const [record, setRecord] = useState<"loading" | "opening" | "locked" | "ready">("loading");
+  const [vaultAttempt, setVaultAttempt] = useState(0);
   const coachScope = useSignedInScope();
 
   useEffect(() => {
@@ -42,10 +43,24 @@ export default function StudyHubPage() {
         try {
           const user = await fetchSignedInUser();
           const userId = user?.userId ?? null;
-          if (userId) await ensureAccountVault();
           if (cancelled) return;
           setSaved(readSavedBodyType(userId));
-          if (userId && !isAccountVaultUnlocked()) {
+          if (!userId) {
+            const date = todayKey();
+            const documentId = readLastReaderDocumentId(userId);
+            const document = documentId ? await getLocalPdfDocument(documentId) : null;
+            if (cancelled) return;
+            setContinuation(readHomeContinuation(userId, date, document?.title ?? null));
+            setRecord("ready");
+            return;
+          }
+          const slow = window.setTimeout(() => {
+            if (!cancelled) setRecord((current) => (current === "loading" ? "opening" : current));
+          }, 4000);
+          const opened = await ensureAccountVault().catch(() => false);
+          window.clearTimeout(slow);
+          if (cancelled) return;
+          if (!opened || !isAccountVaultUnlocked()) {
             setContinuation(EMPTY_CONTINUATION);
             setRecord("locked");
             return;
@@ -60,7 +75,7 @@ export default function StudyHubPage() {
           if (cancelled) return;
           setSaved(null);
           setContinuation(EMPTY_CONTINUATION);
-          setRecord("ready");
+          setRecord("locked");
         }
       })();
     }, 0);
@@ -68,7 +83,7 @@ export default function StudyHubPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [coachScope]);
+  }, [coachScope, vaultAttempt]);
 
   return (
     <AppChrome
@@ -96,7 +111,12 @@ export default function StudyHubPage() {
           nextBlock={continuation.nextBlock}
         />
         <div className="mt-4">
-          <StudyHome continuation={continuation} userId={coachScope} record={record} />
+          <StudyHome
+            continuation={continuation}
+            userId={coachScope}
+            record={record}
+            onRetry={record === "locked" ? () => setVaultAttempt((current) => current + 1) : undefined}
+          />
         </div>
 
         {saved ? (

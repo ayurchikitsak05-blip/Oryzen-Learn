@@ -35,7 +35,7 @@ export function CompanionSetup({
         event.preventDefault();
         onSave({
           version: 1,
-          name: name.replace(/\s+/g, " ").trim() || "Nia",
+          name: name.replace(/\s+/g, " ").trim() || CHARACTER_COPY[character].label,
           style,
           character,
           onboarded: true,

@@ -47,17 +47,8 @@ export function ExperiencePreview({ id }: { id: ExperienceId }) {
     return (
       <div data-testid="experience-preview-studio" className="mt-3 rounded-xl border border-line bg-canvas p-2 text-ink">
         <div className="flex items-center gap-2">
-          <svg viewBox="0 0 48 48" className="h-10 w-10 shrink-0" aria-hidden="true">
-            <ellipse cx="24" cy="30" rx="8" ry="12" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            <path d="M24 18c6 0 10 6 8 12M24 18c-6 0-10 6-8 12" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            <path d="M24 30v8" stroke="currentColor" strokeWidth="1.6" />
-          </svg>
-          <svg viewBox="0 0 48 48" className="h-10 w-10 shrink-0" aria-hidden="true">
-            <circle cx="24" cy="24" r="12" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            <circle cx="19" cy="22" r="1.4" fill="currentColor" />
-            <circle cx="29" cy="22" r="1.4" fill="currentColor" />
-            <path d="M19 28c2 2 8 2 10 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
+          <img src="/companions/leaf.jpg" alt="" className="h-12 w-12 rounded-full object-cover" />
+          <img src="/companions/pet-none.jpg" alt="" className="h-12 w-12 rounded-full object-cover" />
           <p className="text-xs leading-snug">Companion portrait and a study pet that does not speak.</p>
         </div>
         <ul className="mt-2 grid grid-cols-3 gap-1 text-[10px] font-medium text-heading">

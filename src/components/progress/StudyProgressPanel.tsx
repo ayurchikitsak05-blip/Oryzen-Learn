@@ -13,7 +13,7 @@ import { readSprintStore } from "@/lib/sprint/persist";
 import { readVideoCaptionNotes } from "@/lib/video/caption-notes-store";
 import { readDayPlan } from "@/lib/universe/persist";
 import { fetchSignedInUser } from "@/lib/supabase/session";
-import { isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
+import { ensureAccountVault, isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
 import {
   EMPTY_STUDY_PROGRESS,
   studyProgressIsEmpty,
@@ -22,7 +22,7 @@ import {
 } from "@/lib/progress/snapshot";
 import { ui } from "@/components/ui/classes";
 
-type ProgressStatus = "loading" | "signed-out" | "locked" | "ready";
+type ProgressStatus = "loading" | "signed-out" | "opening" | "locked" | "ready";
 
 function uniqueMisses(values: readonly string[]): string[] {
   const seen = new Set<string>();
@@ -40,6 +40,7 @@ function uniqueMisses(values: readonly string[]): string[] {
 export function StudyProgressPanel({ userId }: { userId: string }) {
   const [status, setStatus] = useState<ProgressStatus>("loading");
   const [facts, setFacts] = useState<StudyProgressFacts>(EMPTY_STUDY_PROGRESS);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,14 +48,21 @@ export function StudyProgressPanel({ userId }: { userId: string }) {
       void (async () => {
         try {
           const user = await fetchSignedInUser();
-          const unlocked = isAccountVaultUnlocked();
-          if (!user && !unlocked) {
+          if (!user && !isAccountVaultUnlocked()) {
             if (!cancelled) setStatus("signed-out");
             return;
           }
-          if (user && !unlocked) {
-            if (!cancelled) setStatus("locked");
-            return;
+          if (user?.userId) {
+            const slow = window.setTimeout(() => {
+              if (!cancelled) setStatus((current) => (current === "loading" ? "opening" : current));
+            }, 4000);
+            const opened = await ensureAccountVault().catch(() => false);
+            window.clearTimeout(slow);
+            if (cancelled) return;
+            if (!opened || !isAccountVaultUnlocked()) {
+              setStatus("locked");
+              return;
+            }
           }
           const scope = user?.userId ?? userId;
           const date = todayKey();
@@ -91,7 +99,7 @@ export function StudyProgressPanel({ userId }: { userId: string }) {
         } catch {
           if (!cancelled) {
             setFacts(EMPTY_STUDY_PROGRESS);
-            setStatus("ready");
+            setStatus("locked");
           }
         }
       })();
@@ -100,7 +108,7 @@ export function StudyProgressPanel({ userId }: { userId: string }) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [userId]);
+  }, [userId, attempt]);
 
   const lines = studyProgressLines(facts);
 
@@ -122,10 +130,20 @@ export function StudyProgressPanel({ userId }: { userId: string }) {
         </p>
       ) : null}
 
-      {status === "locked" ? (
-        <p data-testid="study-progress-empty" className={ui.empty}>
-          This account&apos;s study record is locked on this device. Sign in again to unlock it.
-        </p>
+      {status === "opening" || status === "locked" ? (
+        <div data-testid="study-progress-empty" className={ui.empty}>
+          <p>
+            This account is signed in, but the private study record is still locked on this device.{" "}
+            {status === "opening"
+              ? "It is still opening. Recorded study appears after it opens."
+              : "Recorded study stays hidden."}
+          </p>
+          {status === "locked" ? (
+            <button type="button" className="btn-secondary mt-3 text-sm" onClick={() => setAttempt((current) => current + 1)}>
+              Try again
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {status === "ready" && studyProgressIsEmpty(facts) ? (

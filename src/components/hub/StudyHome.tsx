@@ -92,11 +92,13 @@ export function StudyHome({
   userId = null,
   activeCompanionStyle = null,
   record = "ready",
+  onRetry,
 }: {
   continuation: HomeContinuation;
   userId?: string | null;
   activeCompanionStyle?: CompanionStyle | null;
-  record?: "loading" | "locked" | "ready";
+  record?: "loading" | "opening" | "locked" | "ready";
+  onRetry?: () => void;
 }) {
   const [activeStyle, setActiveStyle] = useState<CompanionStyle | null>(activeCompanionStyle);
   useEffect(() => {
@@ -139,10 +141,20 @@ export function StudyHome({
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">Today&apos;s plan</p>
           {record === "loading" ? (
             <p className="mt-3 text-sm text-muted">Reading this account&apos;s study record...</p>
-          ) : record === "locked" ? (
-            <p className="mt-3 text-sm text-muted">
-              This account&apos;s study record is locked on this device. Sign in again to unlock it.
-            </p>
+          ) : record === "opening" || record === "locked" ? (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-muted">
+                This account is signed in, but the private study record is still locked on this device.{" "}
+                {record === "opening"
+                  ? "It is still opening. Saved plans stay hidden until it opens."
+                  : "Saved plans stay hidden until it opens."}
+              </p>
+              {record === "locked" && onRetry ? (
+                <button type="button" className="btn-secondary text-xs" onClick={onRetry}>
+                  Try again
+                </button>
+              ) : null}
+            </div>
           ) : planLines.length > 0 ? (
             <ul className="mt-3 space-y-2 text-sm text-ink">
               {planLines.map((line) => (
@@ -173,14 +185,14 @@ export function StudyHome({
           <h2 className="mt-2 font-reading text-2xl text-heading">
             {record === "loading"
               ? "Reading this account's study record..."
-              : record === "locked"
+              : record === "opening" || record === "locked"
                 ? "Study record locked"
                 : studied == null
                   ? "Nothing recorded yet"
                   : `${studied} min studied`}
           </h2>
           <p className="mt-1 text-sm text-muted">
-            {record === "loading" || record === "locked"
+            {record === "loading" || record === "opening" || record === "locked"
               ? "Saved progress appears after this account is unlocked."
               : goal == null
                 ? "No daily goal is saved yet."
@@ -241,7 +253,8 @@ export function StudyHome({
                     >
                       <CompanionFigure character={starter.character} still className="h-12 w-12" />
                       <IconWell name={COMPANION_ICONS[style]} />
-                      <span className="mt-1 font-medium">{STYLE_COPY[style].label}</span>
+                      <span className="mt-1 font-medium">{starter.name}</span>
+                      <span className="text-[10px] text-muted">{STYLE_COPY[style].label}</span>
                     </Link>
                   );
                 })}

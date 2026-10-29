@@ -38,7 +38,7 @@ export interface CompanionStore {
 
 export const DEFAULT_COMPANION_PREFS: CompanionPrefs = {
   version: 1,
-  name: "Nia",
+  name: "Aarav",
   style: "buddy",
   character: "leaf",
   onboarded: false,
@@ -64,18 +64,32 @@ export const STYLE_COPY: Record<CompanionStyle, { label: string; hint: string }>
 };
 
 export const STARTER_COMPANIONS: CompanionMember[] = [
-  { id: "buddy", name: "Nia", style: "buddy", character: "leaf" },
-  { id: "teacher", name: "Ira", style: "teacher", character: "stone" },
-  { id: "coach", name: "Kai", style: "coach", character: "lamp" },
-  { id: "guide", name: "Sora", style: "guide", character: "kite" },
+  { id: "buddy", name: "Aarav", style: "buddy", character: "leaf" },
+  { id: "teacher", name: "Meera", style: "teacher", character: "stone" },
+  { id: "coach", name: "Kabir", style: "coach", character: "lamp" },
+  { id: "guide", name: "Tara", style: "guide", character: "kite" },
 ];
 
 export const CHARACTER_COPY: Record<
   CompanionCharacter,
   { label: string; hint: string }
 > = {
-  leaf: { label: "Leaf", hint: "A light, moving leaf." },
-  lamp: { label: "Lamp", hint: "A quiet study lamp." },
-  stone: { label: "Stone", hint: "A steady river stone." },
-  kite: { label: "Kite", hint: "A small paper kite." },
+  leaf: { label: "Aarav", hint: "Warm, informal, and beside you while you work." },
+  lamp: { label: "Kabir", hint: "Brief prompts, one next step, and a check on the clock." },
+  stone: { label: "Meera", hint: "Clearer explanations, then the next task." },
+  kite: { label: "Tara", hint: "Unhurried, plain language, and space to pause." },
 };
+
+const PREVIOUS_COMPANION_NAMES: Record<CompanionCharacter, string> = {
+  leaf: "Nia",
+  lamp: "Kai",
+  stone: "Ira",
+  kite: "Sora",
+};
+
+export function companionDisplayName(character: CompanionCharacter, name: string): string {
+  const cleaned = name.replace(/\s+/g, " ").trim().slice(0, 24);
+  const official = CHARACTER_COPY[character].label;
+  if (!cleaned || cleaned === PREVIOUS_COMPANION_NAMES[character]) return official;
+  return cleaned;
+}

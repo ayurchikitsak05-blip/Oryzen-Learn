@@ -13,6 +13,7 @@ import { evaluateLearning, type LearningEvaluation } from "@/lib/experience/rewa
 import type { ExperienceId } from "@/lib/experience/types";
 import { readLearningWorld, writeLearningWorld, type LearningWorld } from "@/lib/experience/world";
 import { readCompanionStore, STARTER_COMPANIONS, STYLE_COPY, type CompanionStyle } from "@/lib/companion";
+import { badgeArt, CollectibleImage, gardenArt, petArt, stickerArt } from "@/components/experience/collectible-art";
 import { ensureAccountVault, isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { daysBetween, localIsoDate } from "@/lib/roadmap/time";
@@ -20,6 +21,7 @@ import { daysBetween, localIsoDate } from "@/lib/roadmap/time";
 export interface StudioSnapshot {
   userId: string | null;
   locked: boolean;
+  vault: "opening" | "open" | "blocked";
   record: LearningRecord;
   evaluation: LearningEvaluation;
   world: LearningWorld;
@@ -36,6 +38,7 @@ function snapshotFromStorage(): StudioSnapshot {
   return {
     userId: prefs?.ownerId ?? null,
     locked: true,
+    vault: "opening",
     record: EMPTY_LEARNING_RECORD,
     evaluation,
     world: readLearningWorld(null, evaluation),
@@ -46,11 +49,38 @@ function snapshotFromStorage(): StudioSnapshot {
   };
 }
 
+function snapshotFor(
+  userId: string | null,
+  locked: boolean,
+  vault: StudioSnapshot["vault"],
+  record: LearningRecord,
+): StudioSnapshot {
+  const today = localIsoDate();
+  const evaluation = evaluateLearning(record, today);
+  const world = locked ? readLearningWorld(null, evaluation) : readLearningWorld(userId, evaluation);
+  const prefs = experienceVisibleTo(userId);
+  const companion = readCompanionStore(userId);
+  return {
+    userId,
+    locked,
+    vault,
+    record,
+    evaluation,
+    world: { ...world, ownerId: userId },
+    experience: prefs?.experience ?? (prefs ? null : "preserve"),
+    rewards: prefs?.rewards !== false,
+    companionStyle: companion.prefs.style,
+    examDaysLeft: record.roadmap ? daysBetween(today, record.roadmap.examDate) : null,
+  };
+}
+
 export function useStudioSnapshot(): {
   snapshot: StudioSnapshot | null;
   save: (next: LearningWorld) => void;
+  retryVault: () => void;
 } {
   const [snapshot, setSnapshot] = useState<StudioSnapshot | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,49 +90,28 @@ export function useStudioSnapshot(): {
     void (async () => {
       const user = await fetchSignedInUser().catch(() => null);
       const userId = user?.userId ?? null;
-      if (userId) {
-        await Promise.race([
-          ensureAccountVault().catch(() => undefined),
-          new Promise((resolve) => window.setTimeout(resolve, 2000)),
-        ]);
+      const paint = async (vault: StudioSnapshot["vault"]) => {
+        const locked = vault !== "open";
+        const record = locked
+          ? EMPTY_LEARNING_RECORD
+          : await readLearningRecord(userId).catch(() => EMPTY_LEARNING_RECORD);
+        if (!cancelled) setSnapshot(snapshotFor(userId, locked, vault, record));
+      };
+      if (!userId) {
+        await paint("open");
+        return;
       }
+      if (!cancelled) setSnapshot((current) => current ?? snapshotFor(userId, true, "opening", EMPTY_LEARNING_RECORD));
+      const opened = await ensureAccountVault().catch(() => false);
       if (cancelled) return;
-      const locked = Boolean(userId) && !isAccountVaultUnlocked();
-      let recordTimedOut = false;
-      const record = locked
-        ? EMPTY_LEARNING_RECORD
-        : await Promise.race([
-            readLearningRecord(userId).catch(() => EMPTY_LEARNING_RECORD),
-            new Promise<LearningRecord>((resolve) => {
-              window.setTimeout(() => {
-                recordTimedOut = true;
-                resolve(EMPTY_LEARNING_RECORD);
-              }, 2000);
-            }),
-          ]);
-      if (cancelled) return;
-      const today = localIsoDate();
-      const evaluation = evaluateLearning(record, today);
-      const world = locked ? readLearningWorld(null, evaluation) : readLearningWorld(userId, evaluation);
-      const prefs = experienceVisibleTo(userId);
-      const companion = readCompanionStore(userId);
-      setSnapshot({
-        userId,
-        locked: locked || recordTimedOut,
-        record,
-        evaluation,
-        world: { ...world, ownerId: userId },
-        experience: prefs?.experience ?? (prefs ? null : "preserve"),
-        rewards: prefs?.rewards !== false,
-        companionStyle: companion.prefs.style,
-        examDaysLeft: record.roadmap ? daysBetween(today, record.roadmap.examDate) : null,
-      });
+      if (opened && isAccountVaultUnlocked()) await paint("open");
+      else await paint("blocked");
     })();
     return () => {
       cancelled = true;
       window.clearTimeout(giveUp);
     };
-  }, []);
+  }, [attempt]);
 
   const save = (next: LearningWorld) => {
     setSnapshot((current) => {
@@ -112,7 +121,7 @@ export function useStudioSnapshot(): {
     });
   };
 
-  return { snapshot, save };
+  return { snapshot, save, retryVault: () => setAttempt((current) => current + 1) };
 }
 
 function formatWhen(value: string | null, earned: boolean): string {
@@ -142,17 +151,27 @@ export function StudioNav() {
   );
 }
 
-function LockedNote({ locked }: { locked: boolean }) {
-  if (!locked) return null;
+function LockedNote({ snapshot, onRetry }: { snapshot: StudioSnapshot; onRetry: () => void }) {
+  if (snapshot.vault === "open" || !snapshot.userId) return null;
+  if (snapshot.vault === "opening") {
+    return (
+      <p className="rounded-2xl border border-line bg-surface px-3 py-2 text-sm text-ink" role="status">
+        This account is signed in, but the private study record is still locked on this device. It is still opening. A pet name or sticker placement stays blocked until it opens.
+      </p>
+    );
+  }
   return (
-    <p className="rounded-2xl border border-line bg-surface px-3 py-2 text-sm text-ink" role="status">
-      This account&apos;s study record is locked on this device. Sign in again before stickers or the study room can be saved.
-    </p>
+    <div className="rounded-2xl border border-line bg-surface px-3 py-2 text-sm text-ink" role="status">
+      <p>The private study record could not be opened on this device. A pet name or sticker placement stays blocked.</p>
+      <button type="button" className="btn-secondary mt-2 text-xs" onClick={onRetry}>
+        Try again
+      </button>
+    </div>
   );
 }
 
 export function StickerStudio() {
-  const { snapshot, save } = useStudioSnapshot();
+  const { snapshot, save, retryVault } = useStudioSnapshot();
   const [category, setCategory] = useState("all");
   if (!snapshot) return <p className="text-sm text-muted">Reading this account&apos;s study record...</p>;
   const categories = ["all", ...new Set(snapshot.evaluation.stickers.map((item) => item.category))];
@@ -166,7 +185,7 @@ export function StickerStudio() {
         </p>
       </header>
       <StudioNav />
-      <LockedNote locked={snapshot.locked} />
+      <LockedNote snapshot={snapshot} onRetry={retryVault} />
       <div className="flex flex-wrap gap-2" role="group" aria-label="Sticker collections">
         {categories.map((item) => (
           <button
@@ -184,7 +203,7 @@ export function StickerStudio() {
           const favorite = snapshot.world.favoriteStickerId === sticker.id;
           return (
             <li key={sticker.id} data-testid={`sticker-${sticker.id}`} className="rounded-3xl border border-line bg-surface p-3">
-              <StickerMark earned={sticker.earned} category={sticker.category} />
+              <CollectibleImage src={stickerArt(sticker.id)} label={sticker.title} earned={sticker.earned} />
               <h2 className="mt-2 font-ui text-lg text-heading">{sticker.title}</h2>
               <p className="text-sm text-ink">{sticker.detail}</p>
               <p className="mt-1 text-xs text-muted">{formatWhen(sticker.earnedAt, sticker.earned)}</p>
@@ -207,7 +226,7 @@ export function StickerStudio() {
 }
 
 export function BadgeGallery() {
-  const { snapshot } = useStudioSnapshot();
+  const { snapshot, retryVault } = useStudioSnapshot();
   if (!snapshot) return <p className="text-sm text-muted">Reading this account&apos;s study record...</p>;
   return (
     <div data-testid="badge-gallery" className="space-y-4">
@@ -216,11 +235,11 @@ export function BadgeGallery() {
         <p className="max-w-2xl text-sm text-ink">Each badge uses a saved note, chapter, quiz, or plan block. A locked badge is not a missed streak.</p>
       </header>
       <StudioNav />
-      <LockedNote locked={snapshot.locked} />
+      <LockedNote snapshot={snapshot} onRetry={retryVault} />
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {snapshot.evaluation.badges.map((badge) => (
           <li key={badge.id} data-testid={`badge-${badge.id}`} className={`rounded-3xl border p-3 ${badge.earned ? "border-accent bg-selected" : "border-line bg-surface"}`}>
-            <BadgeMark earned={badge.earned} />
+            <CollectibleImage src={badgeArt(badge.id)} label={badge.title} earned={badge.earned} />
             <h2 className="mt-2 font-ui text-lg text-heading">{badge.title}</h2>
             <p className="text-sm text-ink">{badge.detail}</p>
             <p className="mt-1 text-xs text-muted">{badge.earned ? "Unlocked" : "Locked"} · {formatWhen(badge.earnedAt, badge.earned)}</p>
@@ -232,7 +251,7 @@ export function BadgeGallery() {
 }
 
 export function StudyRoom() {
-  const { snapshot, save } = useStudioSnapshot();
+  const { snapshot, save, retryVault } = useStudioSnapshot();
   if (!snapshot) return <p className="text-sm text-muted">Reading this account&apos;s study record...</p>;
   const starter = STARTER_COMPANIONS.find((member) => member.style === snapshot.companionStyle) ?? STARTER_COMPANIONS[0];
   const earnedStickers = snapshot.evaluation.stickers.filter((item) => item.earned);
@@ -249,8 +268,8 @@ export function StudyRoom() {
         </p>
       </header>
       <StudioNav />
-      <LockedNote locked={snapshot.locked} />
-      <RoomScene world={snapshot.world} companionStyle={snapshot.companionStyle} stickers={earnedStickers.filter((item) => snapshot.world.placedStickerIds.includes(item.id)).map((item) => item.title)} />
+      <LockedNote snapshot={snapshot} onRetry={retryVault} />
+      <RoomScene world={snapshot.world} companionStyle={snapshot.companionStyle} stickers={earnedStickers.filter((item) => snapshot.world.placedStickerIds.includes(item.id)).map((item) => ({ id: item.id, title: item.title }))} />
       <div className="grid gap-3 lg:grid-cols-2">
         <fieldset className="space-y-2 rounded-3xl border border-line bg-surface p-3">
           <legend className="font-ui text-lg text-heading">Room</legend>
@@ -337,12 +356,29 @@ export function KnowledgeGarden() {
       </header>
       <StudioNav />
       {garden.length === 0 ? (
-        <p data-testid="garden-empty" className="rounded-3xl border border-line bg-surface p-4 text-sm text-ink">The garden is still soil. It grows when a book, note, highlight, revision, or chapter is saved.</p>
+        <div data-testid="garden-empty" className="space-y-3 rounded-3xl border border-line bg-surface p-4">
+          <p className="text-sm text-ink">The garden is still soil. It grows when a book, note, highlight, revision, or chapter is saved. Missed days do not remove anything.</p>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {(
+              [
+                ["plant", "Reading grows a plant"],
+                ["flower", "Revision grows a flower"],
+                ["stone", "A chapter adds a stone"],
+                ["path", "A finished block adds a path"],
+              ] as const
+            ).map(([kind, label]) => (
+              <li key={kind} className="text-center">
+                <CollectibleImage src={gardenArt(kind, 0)} label={label} earned={false} />
+                <p className="mt-2 text-xs text-muted">{label}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : (
         <ul data-testid="garden-bed" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {garden.map((element) => (
+          {garden.map((element, index) => (
             <li key={element.id} className="flex min-h-28 flex-col items-center justify-center rounded-3xl border border-line bg-selected p-3 text-center">
-              <GardenMark kind={element.kind} />
+              <CollectibleImage src={gardenArt(element.kind, index)} label={element.label} />
               <span className="mt-2 text-sm text-heading">{element.label}</span>
             </li>
           ))}
@@ -521,33 +557,45 @@ function FocusDashboard({
 function StudioDashboard({ snapshot }: { snapshot: StudioSnapshot }) {
   const starter = STARTER_COMPANIONS.find((member) => member.style === snapshot.companionStyle);
   const earned = snapshot.rewards ? snapshot.evaluation.stickers.filter((item) => item.earned).length : 0;
+  const lockedCount = snapshot.rewards ? snapshot.evaluation.stickers.filter((item) => !item.earned).length : 0;
+  const places = [
+    ["/studio", "Sticker Studio", "Collectible artwork from saved study"],
+    ["/studio/badges", "Badges", "Eight achievements and the date earned"],
+    ["/studio/room", "Study Room", "Room, desk, pet, and companion"],
+    ["/studio/garden", "Knowledge Garden", "Plants and flowers from real study"],
+    ["/studio/passport", "Passport", "Chapters, revisions, and stamps"],
+    ["/studio/museum", "Memory Museum", "Notes and earlier versus later quizzes"],
+  ] as const;
   return (
     <section data-testid="dashboard-studio" className="overflow-hidden rounded-[2rem] border border-line bg-surface">
       <div className="grid gap-4 p-4 md:grid-cols-[auto_1fr] md:p-5">
-        <CompanionFigure character={starter?.character ?? "leaf"} still className="h-24 w-24" />
+        <CompanionFigure character={starter?.character ?? "leaf"} still className="h-36 w-36" />
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted">Studio</p>
           <h2 className="font-reading text-3xl text-heading">{starter?.name ?? "Companion"} is with this desk</h2>
-          <p className="mt-1 text-sm text-ink">
+          <p className="mt-1 max-w-xl text-sm text-ink">
             {snapshot.rewards
-              ? `${earned} stickers are earned from saved study. Collectibles stay optional.`
+              ? `${earned} stickers earned from saved study. ${lockedCount} stay visible with their earning condition. Collectibles stay optional.`
               : "Collectibles are turned off. Reading, notes, and the plan stay available."}
           </p>
+          <div className="mt-3 flex flex-wrap gap-2" aria-label="Companion portraits">
+            {STARTER_COMPANIONS.map((member) => (
+              <Link key={member.id} href={`/companion?style=${member.style}`} className="flex flex-col items-center gap-1">
+                <CompanionFigure character={member.character} still className="h-14 w-14" />
+                <span className="text-[10px] font-medium text-heading">{member.name}</span>
+                <span className="text-[10px] text-muted">{STYLE_COPY[member.style].label}</span>
+              </Link>
+            ))}
+          </div>
           <StudyPet world={snapshot.world} milestone={snapshot.evaluation.badges.some((badge) => badge.earned)} />
         </div>
       </div>
       {snapshot.rewards ? (
-        <div className="grid grid-cols-2 gap-2 border-t border-line p-3 sm:grid-cols-3">
-          {[
-            ["/studio", "Sticker Studio"],
-            ["/studio/badges", "Badges"],
-            ["/studio/room", "Study Room"],
-            ["/studio/garden", "Garden"],
-            ["/studio/passport", "Passport"],
-            ["/studio/museum", "Museum"],
-          ].map(([href, label]) => (
-            <Link key={href} href={href} className="min-h-16 rounded-2xl bg-beige-2 px-3 py-2 text-sm font-medium text-heading">
-              {label}
+        <div className="grid grid-cols-1 gap-2 border-t border-line p-3 sm:grid-cols-2 lg:grid-cols-3">
+          {places.map(([href, label, detail]) => (
+            <Link key={href} href={href} className="min-h-20 rounded-2xl bg-beige-2 px-3 py-3">
+              <span className="block text-sm font-medium text-heading">{label}</span>
+              <span className="mt-1 block text-xs leading-snug text-ink">{detail}</span>
             </Link>
           ))}
         </div>
@@ -694,35 +742,6 @@ function ChoiceRow({
   );
 }
 
-function StickerMark({ earned, category }: { earned: boolean; category: string }) {
-  return (
-    <svg viewBox="0 0 64 64" className="h-14 w-14" role="img" aria-label={earned ? `${category} sticker` : `Locked ${category} sticker`}>
-      <rect x="6" y="8" width="52" height="48" rx="14" fill={earned ? "var(--selected)" : "var(--bg-secondary)"} stroke="var(--heading)" />
-      <path d="M20 34h24M32 22v24" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BadgeMark({ earned }: { earned: boolean }) {
-  return (
-    <svg viewBox="0 0 64 64" className="h-14 w-14" role="img" aria-label={earned ? "Unlocked badge" : "Locked badge"}>
-      <circle cx="32" cy="28" r="16" fill={earned ? "var(--beige-primary)" : "var(--bg-secondary)"} stroke="var(--heading)" />
-      <path d="M24 42l8 12 8-12" fill="var(--selected)" stroke="var(--heading)" />
-    </svg>
-  );
-}
-
-function GardenMark({ kind }: { kind: "plant" | "flower" | "stone" | "path" }) {
-  return (
-    <svg viewBox="0 0 64 64" className="h-16 w-16" role="img" aria-label={kind}>
-      {kind === "plant" ? <path d="M32 50V28M32 34c-10-2-14-12-8-16 8 2 10 10 8 16zM32 40c10-2 14-12 8-16-8 2-10 10-8 16z" fill="var(--beige-primary)" stroke="var(--heading)" /> : null}
-      {kind === "flower" ? <g><circle cx="32" cy="28" r="6" fill="var(--accent)" /><circle cx="22" cy="24" r="6" fill="var(--beige-primary)" /><circle cx="42" cy="24" r="6" fill="var(--beige-primary)" /><path d="M32 34v16" stroke="var(--heading)" /></g> : null}
-      {kind === "stone" ? <ellipse cx="32" cy="36" rx="16" ry="10" fill="var(--beige-secondary)" stroke="var(--heading)" /> : null}
-      {kind === "path" ? <path d="M10 46c12-10 32-10 44 0" fill="none" stroke="var(--heading)" strokeWidth="4" /> : null}
-    </svg>
-  );
-}
-
 function RoomScene({
   world,
   companionStyle,
@@ -730,7 +749,7 @@ function RoomScene({
 }: {
   world: LearningWorld;
   companionStyle: CompanionStyle;
-  stickers: string[];
+  stickers: { id: string; title: string }[];
 }) {
   const starter = STARTER_COMPANIONS.find((member) => member.style === companionStyle);
   const sky = world.background === "dusk" ? "var(--heading)" : world.background === "meadow" ? "var(--success-bg)" : "var(--bg-secondary)";
@@ -740,7 +759,12 @@ function RoomScene({
         <div>
           <p className="text-xs text-muted">Wall: {world.wall}</p>
           <ul className="mt-2 flex min-h-10 flex-wrap gap-2">
-            {stickers.length === 0 ? <li className="text-sm text-ink">No stickers placed.</li> : stickers.map((label) => <li key={label} className="rounded-full bg-surface px-2 py-1 text-xs text-heading">{label}</li>)}
+            {stickers.length === 0 ? <li className="text-sm text-ink">No stickers placed.</li> : stickers.map((sticker) => (
+              <li key={sticker.id} className="text-center">
+                <CollectibleImage src={stickerArt(sticker.id)} label={sticker.title} />
+                <p className="mt-1 text-xs text-heading">{sticker.title}</p>
+              </li>
+            ))}
           </ul>
           <div className={`mt-6 rounded-t-3xl border border-line px-4 py-6 ${world.desk === "books" ? "bg-beige-2" : "bg-surface"}`}>
             <p className="text-sm text-heading">Desk · {world.desk}</p>
@@ -758,18 +782,15 @@ function RoomScene({
 
 function StudyPet({ world, milestone }: { world: LearningWorld; milestone: boolean }) {
   return (
-    <div data-testid="study-pet" className="mt-2 flex items-center gap-2">
-      <svg viewBox="0 0 64 48" className="h-12 w-16" role="img" aria-label="Study pet">
-        <ellipse cx="32" cy="30" rx="18" ry="12" fill="var(--beige-primary)" stroke="var(--heading)" />
-        <circle cx="22" cy="18" r="6" fill="var(--beige-primary)" stroke="var(--heading)" />
-        <circle cx="42" cy="18" r="6" fill="var(--beige-primary)" stroke="var(--heading)" />
-        <circle cx="26" cy="30" r="1.4" fill="var(--heading)" />
-        <circle cx="38" cy="30" r="1.4" fill="var(--heading)" />
-        {world.petAccessory === "ribbon" ? <path d="M24 16h16" stroke="var(--accent)" strokeWidth="3" /> : null}
-        {world.petAccessory === "satchel" ? <rect x="40" y="28" width="10" height="8" rx="2" fill="var(--selected)" stroke="var(--heading)" /> : null}
-        {milestone ? <path d="M50 8l1.5 3 3 .4-2.2 2.1.6 3L50 15l-3 1.5.6-3-2.2-2.1 3-.4z" fill="var(--accent)" /> : null}
-      </svg>
-      <p className="text-sm text-heading">{world.petName || "Study pet"}</p>
+    <div data-testid="study-pet" className="mt-3 flex items-center gap-3">
+      <img src={petArt(world.petAccessory)} alt="" data-pet-accessory={world.petAccessory} className="h-16 w-16 rounded-full object-cover" />
+      <div>
+        <p className="text-sm text-heading">{world.petName || "Study pet"}</p>
+        <p className="text-xs text-muted">
+          {world.petAccessory !== "none" ? `Accessory: ${world.petAccessory}. ` : ""}
+          {milestone ? "A saved badge is on this account." : "A small companion. It does not speak."}
+        </p>
+      </div>
     </div>
   );
 }

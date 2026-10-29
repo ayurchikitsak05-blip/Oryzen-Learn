@@ -49,10 +49,10 @@ describe("CompanionChat", () => {
     });
 
     fireEvent.click(view.getByTestId("companion-edit"));
-    fireEvent.change(view.getByTestId("companion-name"), { target: { value: "Kai" } });
+    fireEvent.change(view.getByTestId("companion-name"), { target: { value: "Dev" } });
     fireEvent.click(view.getByTestId("companion-style-coach"));
     fireEvent.click(view.getByTestId("companion-save"));
-    expect(view.getByTestId("companion-chat").textContent).toMatch(/Kai/);
+    expect(view.getByTestId("companion-chat").textContent).toMatch(/Dev/);
     expect(view.getByTestId("companion-thread").textContent).toMatch(/One clear next step/);
     expect(view.getByTestId("companion-thread").textContent).not.toMatch(/a study companion, not a person/);
     expect(readCompanionStore("student-a").prefs.style).toBe("coach");

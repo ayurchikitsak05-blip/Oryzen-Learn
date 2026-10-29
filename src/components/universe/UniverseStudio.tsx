@@ -469,7 +469,7 @@ function AddCompanionForm({
       onSubmit={(event) => {
         event.preventDefault();
         onAdd({
-          name: name.replace(/\s+/g, " ").trim() || "Nia",
+          name: name.replace(/\s+/g, " ").trim() || CHARACTER_COPY[character].label,
           style,
           character,
         });

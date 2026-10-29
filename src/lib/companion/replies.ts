@@ -169,22 +169,22 @@ export function openingCompanionTurn(prefs: CompanionPrefs, unfinished?: SprintS
 export function repliesDifferByStyle(question: string, session?: SprintSession | null): boolean {
   const buddy = companionReply({
     question,
-    prefs: { version: 1, name: "Nia", style: "buddy", character: "leaf", onboarded: true },
+    prefs: { version: 1, name: "Aarav", style: "buddy", character: "leaf", onboarded: true },
     unfinished: session,
   }).text;
   const coach = companionReply({
     question,
-    prefs: { version: 1, name: "Kai", style: "coach", character: "lamp", onboarded: true },
+    prefs: { version: 1, name: "Kabir", style: "coach", character: "lamp", onboarded: true },
     unfinished: session,
   }).text;
   const teacher = companionReply({
     question,
-    prefs: { version: 1, name: "Ira", style: "teacher", character: "stone", onboarded: true },
+    prefs: { version: 1, name: "Meera", style: "teacher", character: "stone", onboarded: true },
     unfinished: session,
   }).text;
   const guide = companionReply({
     question,
-    prefs: { version: 1, name: "Sora", style: "guide", character: "kite", onboarded: true },
+    prefs: { version: 1, name: "Tara", style: "guide", character: "kite", onboarded: true },
     unfinished: session,
   }).text;
   return buddy !== coach && coach !== teacher && buddy !== teacher && guide !== buddy && guide !== coach && guide !== teacher;

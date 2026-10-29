@@ -1,5 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import AppChrome from "@/components/layout/AppChrome";
 
@@ -10,6 +12,10 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/privacy/account-vault", () => ({
   ensureAccountVault: vi.fn(async () => true),
+}));
+
+vi.mock("@/lib/supabase/session", () => ({
+  fetchSignedInUser: vi.fn(async () => null),
 }));
 
 describe("signed-in header", () => {
@@ -44,5 +50,29 @@ describe("signed-in header", () => {
     expect(screen.getByRole("link", { name: /Personalize/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Oryzen Learn/ })).toBeTruthy();
+  });
+
+  it("hydrates the mobile navigation without a markup mismatch", async () => {
+    const element = (
+      <AppChrome subtitle="Studio">
+        <main>Studio</main>
+      </AppChrome>
+    );
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(element);
+    document.body.appendChild(host);
+    const errors: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      errors.push(args.map((item) => String(item)).join(" "));
+    };
+    await act(async () => {
+      hydrateRoot(host, element);
+    });
+    console.error = original;
+    host.remove();
+    const hydration = errors.filter((line) => /hydrat|did not match|server rendered/i.test(line));
+    expect(hydration).toEqual([]);
+    expect(host.innerHTML).not.toContain("data-cursor-ref");
   });
 });

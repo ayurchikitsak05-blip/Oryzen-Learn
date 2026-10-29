@@ -1,6 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { petArt } from "../collectible-art";
 import { ExperienceBoard } from "../LearningStudio";
 import { ExperiencePreview } from "../PersonalizeSpace";
 import { EMPTY_LEARNING_RECORD } from "@/lib/experience/record";
@@ -13,6 +14,7 @@ function snapshot(experience: StudioSnapshot["experience"]): StudioSnapshot {
   return {
     userId: "student-a",
     locked: false,
+    vault: "open",
     record: EMPTY_LEARNING_RECORD,
     evaluation,
     world: defaultLearningWorld("student-a"),
@@ -36,7 +38,9 @@ describe("experience dashboards", () => {
       <ExperienceBoard snapshot={snapshot("studio")} studiedMinutes={null} dailyGoal={null} nextBlock={null} />
     );
     expect(studio.getByTestId("dashboard-studio").textContent).toMatch(/Sticker Studio/);
-    expect(studio.getByTestId("study-pet")).toBeTruthy();
+    expect(studio.getByTestId("study-pet").querySelector("img")?.getAttribute("src")).toBe(petArt("none"));
+    expect(petArt("ribbon")).not.toBe(petArt("none"));
+    expect(petArt("satchel")).not.toBe(petArt("ribbon"));
     studio.unmount();
 
     render(

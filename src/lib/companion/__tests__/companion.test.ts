@@ -27,7 +27,7 @@ describe("AI Study Companion", () => {
     });
     const teacher = companionReply({
       question: "How do I explain this?",
-      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Ira", style: "teacher", onboarded: true },
+      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Meera", style: "teacher", character: "stone", onboarded: true },
       unfinished,
     });
     expect(teacher.mocked).toBe(true);
@@ -37,20 +37,20 @@ describe("AI Study Companion", () => {
 
     const coach = companionReply({
       question: "Plan my session",
-      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Kai", style: "coach", onboarded: true },
+      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Kabir", style: "coach", character: "lamp", onboarded: true },
       unfinished,
     });
     expect(coach.text).toMatch(/25 minutes|StudySprint|next step/i);
 
     const resume = companionReply({
       question: "What did I leave unfinished?",
-      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Nia", style: "buddy", onboarded: true },
+      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Aarav", style: "buddy", character: "leaf", onboarded: true },
       unfinished,
     });
     expect(resume.text).toMatch(/Solve ax \+ b = 0|Resume/i);
     const guide = companionReply({
       question: "How do I explain this?",
-      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Sora", style: "guide", onboarded: true },
+      prefs: { ...DEFAULT_COMPANION_PREFS, name: "Tara", style: "guide", character: "kite", onboarded: true },
       unfinished,
     });
     expect(guide.text).toMatch(/When you are ready|calm study companion/i);
@@ -107,9 +107,47 @@ describe("AI Study Companion", () => {
     await unlockTestVault("user-a");
     const selected = activateCompanionStyle("teacher", "user-a");
     expect(selected.prefs.style).toBe("teacher");
-    expect(selected.prefs.name).toBe("Ira");
+    expect(selected.prefs.name).toBe("Meera");
+    expect(selected.prefs.character).toBe("stone");
     expect(readCompanionStore("user-a").activeId).toBe("teacher");
     const again = activateCompanionStyle("teacher", "user-a");
     expect(again.turns).toEqual(selected.turns);
+  });
+
+  it("shows the new names while keeping companion ids and saved turns", async () => {
+    await unlockTestVault("user-a");
+    writeCompanionStore(
+      {
+        version: 1,
+        prefs: { version: 1, name: "Sora", style: "guide", character: "kite", onboarded: true },
+        turns: [
+          {
+            id: "kept-turn",
+            role: "companion",
+            text: "Sora here — a calm study companion.",
+            mocked: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+        collection: [{ id: "guide", name: "Sora", style: "guide", character: "kite" }],
+        activeId: "guide",
+      },
+      "user-a"
+    );
+    const saved = readCompanionStore("user-a");
+    expect(saved.prefs.name).toBe("Tara");
+    expect(saved.prefs.character).toBe("kite");
+    expect(saved.prefs.style).toBe("guide");
+    expect(saved.activeId).toBe("guide");
+    expect(saved.collection[0]?.id).toBe("guide");
+    expect(saved.turns).toEqual([
+      {
+        id: "kept-turn",
+        role: "companion",
+        text: "Sora here — a calm study companion.",
+        mocked: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
   });
 });

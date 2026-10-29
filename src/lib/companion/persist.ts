@@ -4,6 +4,7 @@ import {
   COMPANION_CHARACTERS,
   COMPANION_STORAGE_KEY,
   COMPANION_STYLES,
+  companionDisplayName,
   DEFAULT_COMPANION_PREFS,
   STARTER_COMPANIONS,
   type CompanionCharacter,
@@ -34,12 +35,13 @@ function asCharacter(value: unknown): CompanionCharacter {
 export function sanitizeCompanionPrefs(value: unknown): CompanionPrefs {
   if (!value || typeof value !== "object") return { ...DEFAULT_COMPANION_PREFS };
   const raw = value as Partial<CompanionPrefs>;
-  const name = typeof raw.name === "string" ? raw.name.replace(/\s+/g, " ").trim() : "";
+  const character = asCharacter(raw.character);
+  const name = typeof raw.name === "string" ? raw.name : "";
   return {
     version: 1,
-    name: name.slice(0, 24) || DEFAULT_COMPANION_PREFS.name,
+    name: companionDisplayName(character, name),
     style: asStyle(raw.style),
-    character: asCharacter(raw.character),
+    character,
     onboarded: Boolean(raw.onboarded),
   };
 }
@@ -71,14 +73,12 @@ function sanitizeMember(value: unknown): CompanionMember | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<CompanionMember>;
   if (typeof raw.id !== "string" || !raw.id.trim()) return null;
+  const character = asCharacter(raw.character);
   return {
     id: raw.id.trim().slice(0, 40),
-    name: (typeof raw.name === "string" ? raw.name : DEFAULT_COMPANION_PREFS.name)
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 24) || DEFAULT_COMPANION_PREFS.name,
+    name: companionDisplayName(character, typeof raw.name === "string" ? raw.name : ""),
     style: asStyle(raw.style),
-    character: asCharacter(raw.character),
+    character,
   };
 }
 
@@ -239,13 +239,12 @@ export function createCompanionMember(
   userId?: string | null
 ): CompanionStore {
   const current = readCompanionStore(userId);
-  const name =
-    input.name.replace(/\s+/g, " ").trim().slice(0, 24) || DEFAULT_COMPANION_PREFS.name;
+  const character = asCharacter(input.character);
   const member: CompanionMember = {
     id: `member-${Date.now().toString(36)}`,
-    name,
+    name: companionDisplayName(character, input.name),
     style: asStyle(input.style),
-    character: asCharacter(input.character),
+    character,
   };
   const prefs: CompanionPrefs = {
     version: 1,

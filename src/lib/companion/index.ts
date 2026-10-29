@@ -17,6 +17,7 @@ export {
 export { COMPANION_MOCK_NOTICE, companionReply, openingCompanionTurn, repliesDifferByStyle } from "./replies";
 export {
   CHARACTER_COPY,
+  companionDisplayName,
   COMPANION_CHARACTERS,
   COMPANION_STORAGE_KEY,
   COMPANION_STYLES,
