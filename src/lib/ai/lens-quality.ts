@@ -169,20 +169,36 @@ function clauseHasLabelWord(clause: string, label: string): boolean {
 }
 
 function targetMatchesClause(clause: string, label: string): boolean {
-  if (labelHasWord(label, nearestContentWord(clause, "after"))) return true;
+  const head = contentWordsInOrder(clause)[0];
+  const words = new Set(labelWords(label));
   const digits = clause.match(/\d+(?:\.\d+)?/g) ?? [];
-  return digits.some((digit) => label.includes(digit));
+  const hasDigit = digits.some((digit) => label.includes(digit));
+  // Dropping the clause's lead result word yields a plausible but incomplete target
+  // (e.g. "the leaf" for "glucose to form in the leaf").
+  if (head && head.length >= 4 && !words.has(head) && !hasDigit) return false;
+  if (labelHasWord(label, nearestContentWord(clause, "after"))) return true;
+  return hasDigit;
 }
 
 function quantitiesPreserved(label: string, clause: string): boolean {
   const numbers = clause.match(/\d+(?:\.\d+)?/g) ?? [];
   if (numbers.some((number) => !label.includes(number))) return false;
-  const units =
+  // Only treat unit words as quantities when tied to a number so "Newton's law"
+  // is not mistaken for the force unit "newton".
+  const measured =
     clause.match(
-      /\b(?:amperes?|coulombs?|volts?|ohms?|watts?|joules?|newtons?|percent|centimetres?|centimeters?|metres?|meters?)\b/gi
+      /\d+(?:\.\d+)?\s*(?:amperes?|coulombs?|volts?|ohms?|watts?|joules?|newtons?|percent|%|centimetres?|centimeters?|metres?|meters?|cm|mm|m|A)\b/gi
     ) ?? [];
   const haystack = label.toLowerCase();
-  return units.every((unit) => haystack.includes(unit.toLowerCase().replace(/s$/, "").slice(0, 5)));
+  return measured.every((hit) => {
+    const unit = hit
+      .replace(/^\d+(?:\.\d+)?\s*/, "")
+      .toLowerCase()
+      .replace(/s$/, "")
+      .slice(0, 5);
+    const value = hit.match(/\d+(?:\.\d+)?/)?.[0];
+    return haystack.includes(unit) || Boolean(value && haystack.includes(value));
+  });
 }
 
 function transformationPreserved(label: string, clause: string): boolean {
@@ -340,9 +356,9 @@ export function edgeRelationIsSupported(
     if (lawAndForce || lawAndMotion) return false;
     return directed(/\bequals\b|\bequal to\b|\bis\b|\bare\b|=/i, "subject");
   }
-  if (/^(same as|weighs the same as|balances|balance)$/.test(relation)) {
+  if (/^(same as|weighs? the same as|balances|balance)$/.test(relation)) {
     return directed(
-      /\bweighs the same as\b|\bis the same (?:weight )?as\b|\bsame as\b|\bbalances\b/i,
+      /\bweighs? the same as\b|\bis the same (?:weight )?as\b|\bsame as\b|\bbalances\b/i,
       "subject"
     );
   }
@@ -419,6 +435,47 @@ type GroundedDiagram = {
   edges: Array<{ from?: string; to?: string; label?: string }>;
 };
 
+function normalizeLabelKey(label: string): string {
+  return label.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Collapse duplicate node labels and repeated edges so a diagram cannot look
+ * denser than the passage by restating the same element twice.
+ */
+export function dedupeStudyDiagram<D extends GroundedDiagram>(diagram: D): D {
+  const alias = new Map<string, string>();
+  const idByLabel = new Map<string, string>();
+  const nodes: Array<{ id?: string; label: string }> = [];
+  for (const [index, node] of diagram.nodes.entries()) {
+    const key = normalizeLabelKey(node.label);
+    const existingId = idByLabel.get(key);
+    const rawId = (node.id ?? "").trim() || `n${index}`;
+    if (existingId) {
+      alias.set(rawId, existingId);
+      continue;
+    }
+    idByLabel.set(key, rawId);
+    alias.set(rawId, rawId);
+    nodes.push({ ...node, id: rawId });
+  }
+  const seenEdges = new Set<string>();
+  const edges: Array<{ from?: string; to?: string; label?: string }> = [];
+  for (const edge of diagram.edges) {
+    const from = edge.from ? alias.get(edge.from) ?? edge.from : edge.from;
+    const to = edge.to ? alias.get(edge.to) ?? edge.to : edge.to;
+    const label = (edge.label ?? "").trim().toLowerCase();
+    const key = `${from ?? ""}→${to ?? ""}:${label}`;
+    if (seenEdges.has(key)) continue;
+    seenEdges.add(key);
+    edges.push({ ...edge, from, to });
+  }
+  if (nodes.length === diagram.nodes.length && edges.length === diagram.edges.length) {
+    return diagram;
+  }
+  return { ...diagram, nodes, edges };
+}
+
 const TITLE_STRUCTURE = new Set([
   "what",
   "this",
@@ -474,8 +531,10 @@ export function retainGroundedDiagrams<
   },
 >(payload: T, sourceText: string): T {
   const illustrative = payload.illustrative;
-  const keep = <D extends GroundedDiagram>(diagram?: D) =>
-    diagram && diagramExplainsSource(diagram, sourceText) ? diagram : undefined;
+  const keep = <D extends GroundedDiagram>(diagram?: D) => {
+    if (!diagram || !diagramExplainsSource(diagram, sourceText)) return undefined;
+    return dedupeStudyDiagram(diagram);
+  };
   const flowchart = keep(illustrative?.flowchart) ?? keep(payload.diagram);
   const mindMap = keep(illustrative?.mindMap);
   const conceptDiagram = keep(illustrative?.conceptDiagram);
@@ -595,7 +654,7 @@ function explicitUnlessDiagram(source: string): {
 function explicitBalanceComparison(source: string): CompletingDiagram | null {
   for (const sentence of passageSentences(source)) {
     const match = sentence.match(
-      /(?:when\s+|only when\s+)?(.+?)\s+(?:weighs the same as|is the same weight as|is the same as|balances)\s+(.+?)(?:[.?!]|$)/i
+      /(?:when\s+|only when\s+)?(.+?)\s+(?:weighs? the same as|is the same weight as|is the same as|balances)\s+(.+?)(?:[.?!]|$)/i
     );
     if (!match?.[1] || !match[2]) continue;
     let left = match[1]
@@ -930,9 +989,7 @@ function includeWorkedResult(
   source: string,
   worked: MeasuredArea | null
 ): CompletingDiagram {
-  if (!worked || labelHasNumber(diagram, worked.areaValue) || diagram.nodes.length >= 6) {
-    return diagram;
-  }
+  if (!worked || labelHasNumber(diagram, worked.areaValue)) return diagram;
   const current = withNodeIds(diagram);
   const existing = current.nodes.find((node) =>
     edgeRelationIsSupported(node.label, worked.area, "equals", source)
@@ -940,6 +997,7 @@ function includeWorkedResult(
   const subject = existing ?? { id: "area-subject", label: "the area" };
   if (!edgeRelationIsSupported(subject.label, worked.area, "equals", source)) return diagram;
   const nodes = existing ? current.nodes : [...current.nodes, subject];
+  // Crowded formula-only graphs are replaced by the worked flowchart below.
   if (nodes.length >= 6) return diagram;
   const next = {
     ...current,
@@ -947,6 +1005,23 @@ function includeWorkedResult(
     edges: [...current.edges, { from: subject.id ?? "area-subject", to: "worked-result", label: "equals" }],
   };
   return acceptedDiagram(next, source) ?? diagram;
+}
+
+function diagramStatesQuantity(diagram: CompletingDiagram | undefined, value: string): boolean {
+  return Boolean(diagram && labelHasNumber(diagram, value));
+}
+
+function coversExplicitCauses(
+  diagram: CompletingDiagram | undefined,
+  cause: { flowchart: CompletingDiagram } | null
+): boolean {
+  if (!cause) return true;
+  if (!diagram) return false;
+  const labels = diagram.nodes.map((node) => node.label.toLowerCase()).join(" ");
+  return cause.flowchart.nodes.every((node) => {
+    const head = contentWordsInOrder(node.label)[0];
+    return Boolean(head && labels.includes(head));
+  });
 }
 
 function includeMeasuredFactors(
@@ -1079,6 +1154,14 @@ export function completeExplicitDiagrams<
   } else if (worked) {
     flowchart = includeMeasuredFactors(includeWorkedResult(flowchart, source, worked), source, worked);
   }
+  // One-sided cause graphs are plausible but omit sibling comparisons the page states.
+  if (
+    cause &&
+    flowchart?.edges.some((edge) => /^causes?$/i.test(edge.label ?? "")) &&
+    !coversExplicitCauses(flowchart, cause)
+  ) {
+    flowchart = cause.flowchart;
+  }
 
   if (!mindMap) {
     mindMap =
@@ -1089,6 +1172,13 @@ export function completeExplicitDiagrams<
       undefined;
   } else if (worked) {
     mindMap = includeWorkedResult(mindMap, source, worked);
+  }
+  if (
+    cause?.mindMap &&
+    mindMap?.edges.some((edge) => /^causes?$/i.test(edge.label ?? "")) &&
+    !coversExplicitCauses(mindMap, cause)
+  ) {
+    mindMap = cause.mindMap;
   }
 
   if (!conceptDiagram) {
@@ -1105,6 +1195,40 @@ export function completeExplicitDiagrams<
       undefined;
   } else if (worked) {
     conceptDiagram = includeWorkedResult(conceptDiagram, source, worked);
+  }
+  if (
+    cause &&
+    conceptDiagram?.edges.some((edge) => /^causes?$/i.test(edge.label ?? "")) &&
+    !coversExplicitCauses(conceptDiagram, cause)
+  ) {
+    conceptDiagram = cause.conceptDiagram;
+  }
+
+  // Formula-only diagrams that stay crowded must still surface the worked numbers.
+  if (
+    worked &&
+    !diagramStatesQuantity(flowchart, worked.areaValue) &&
+    !diagramStatesQuantity(mindMap, worked.areaValue) &&
+    !diagramStatesQuantity(conceptDiagram, worked.areaValue)
+  ) {
+    flowchart = workedFlowchart(source, formula, worked) ?? flowchart;
+    if (!mindMap) {
+      mindMap = identityDiagram(source, formula, worked, "mind_map", "What this quantity equals") ?? mindMap;
+    } else {
+      mindMap = includeWorkedResult(mindMap, source, worked);
+    }
+    if (!conceptDiagram) {
+      conceptDiagram =
+        identityDiagram(
+          source,
+          formula,
+          worked,
+          "concept_diagram",
+          "The identity the page states"
+        ) ?? conceptDiagram;
+    } else {
+      conceptDiagram = includeWorkedResult(conceptDiagram, source, worked);
+    }
   }
 
   if (!flowchart && !mindMap && !conceptDiagram && !illustrative?.analogy) return payload;
@@ -1136,6 +1260,131 @@ export function groundIllustrativeDiagrams<
   const completed = retainGroundedDiagrams(completeExplicitDiagrams(grounded, sourceText), sourceText);
   const title = groundedHeading(completed.title, sourceText);
   return title === completed.title ? completed : { ...completed, title };
+}
+
+/** Quantities the passage states with units — diagrams must not silently drop these. */
+export function statedSourceQuantities(source: string): string[] {
+  const found: string[] = [];
+  const patterns = [
+    /(\d+(?:\.\d+)?)\s*((?:square\s+)?(?:centimetres?|centimeters?|metres?|meters?|cm|mm|m)(?:\s*(?:\^?2|²))?)/gi,
+    /(\d+(?:\.\d+)?)\s*(amperes?|coulombs?|volts?|ohms?|watts?|joules?|newtons?|percent|%|A)\b/gi,
+  ];
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      const value = match[1];
+      if (value && !found.includes(value)) found.push(value);
+    }
+  }
+  return found;
+}
+
+function countDuplicateNodes(diagram: GroundedDiagram | undefined): number {
+  if (!diagram) return 0;
+  const seen = new Set<string>();
+  let duplicates = 0;
+  for (const node of diagram.nodes) {
+    const key = normalizeLabelKey(node.label);
+    if (seen.has(key)) duplicates += 1;
+    else seen.add(key);
+  }
+  return duplicates;
+}
+
+export type IllustrativeAccuracyVerdict =
+  | "complete"
+  | "incomplete"
+  | "unsupported"
+  | "withheld"
+  | "analogy_only";
+
+export type IllustrativeAccuracyReport = {
+  verdict: IllustrativeAccuracyVerdict;
+  missingQuantities: string[];
+  duplicateNodes: number;
+  hasFlowchart: boolean;
+  hasMindMap: boolean;
+  hasConcept: boolean;
+  hasAnalogy: boolean;
+};
+
+/**
+ * Distinguishes grounded-complete diagrams from visually plausible gaps:
+ * missing measured quantities, duplicate nodes, analogy-only, or withheld structure.
+ */
+export function evaluateIllustrativeAccuracy(
+  payload: {
+    illustrative?: {
+      flowchart?: GroundedDiagram;
+      mindMap?: GroundedDiagram;
+      conceptDiagram?: GroundedDiagram;
+      analogy?: unknown;
+    };
+    missingStructure?: string[];
+  },
+  sourceText: string
+): IllustrativeAccuracyReport {
+  const grounded = groundIllustrativeDiagrams(payload, sourceText);
+  const illustrative = grounded.illustrative;
+  const diagrams = [
+    illustrative?.flowchart,
+    illustrative?.mindMap,
+    illustrative?.conceptDiagram,
+  ].filter(Boolean) as GroundedDiagram[];
+  const hasAnalogy = Boolean(illustrative?.analogy);
+  const hasFlowchart = Boolean(illustrative?.flowchart);
+  const hasMindMap = Boolean(illustrative?.mindMap);
+  const hasConcept = Boolean(illustrative?.conceptDiagram);
+  const duplicateNodes = diagrams.reduce((sum, diagram) => sum + countDuplicateNodes(diagram), 0);
+  const quantities = statedSourceQuantities(sourceText);
+  const labels = diagrams.map((diagram) => diagram.nodes.map((node) => node.label).join(" ")).join(" ");
+  const missingQuantities = quantities.filter((value) => !labels.includes(value));
+
+  if (diagrams.length === 0) {
+    return {
+      verdict: hasAnalogy ? "analogy_only" : "withheld",
+      missingQuantities,
+      duplicateNodes,
+      hasFlowchart,
+      hasMindMap,
+      hasConcept,
+      hasAnalogy,
+    };
+  }
+
+  const unsupported = diagrams.some((diagram) => !diagramExplainsSource(diagram, sourceText));
+  if (unsupported) {
+    return {
+      verdict: "unsupported",
+      missingQuantities,
+      duplicateNodes,
+      hasFlowchart,
+      hasMindMap,
+      hasConcept,
+      hasAnalogy,
+    };
+  }
+
+  if (missingQuantities.length > 0 || duplicateNodes > 0) {
+    return {
+      verdict: "incomplete",
+      missingQuantities,
+      duplicateNodes,
+      hasFlowchart,
+      hasMindMap,
+      hasConcept,
+      hasAnalogy,
+    };
+  }
+
+  return {
+    verdict: "complete",
+    missingQuantities,
+    duplicateNodes,
+    hasFlowchart,
+    hasMindMap,
+    hasConcept,
+    hasAnalogy,
+  };
 }
 
 export function isQualityMcq(mcq: ComposedMcqItem, sourceText: string): boolean {
