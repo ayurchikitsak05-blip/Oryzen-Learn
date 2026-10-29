@@ -561,11 +561,12 @@ export function mergeStructuredLensPayload(
   const analogy = asAnalogy(parsed.analogy) ?? illustrative?.analogy ?? null;
   const askMyBook = asAskMyBook(parsed.askMyBook);
 
+  const hasIllustrativeDiagram = Boolean(
+    illustrative?.flowchart || illustrative?.mindMap || illustrative?.conceptDiagram || diagram
+  );
   const present = {
     explain: Boolean(explain),
-    illustrative: Boolean(
-      illustrative?.flowchart || illustrative?.mindMap || illustrative?.conceptDiagram
-    ),
+    illustrative: hasIllustrativeDiagram,
     story: Boolean(story),
     revision: Boolean(revision),
     mcqs: mcqs.length > 0,
@@ -577,11 +578,22 @@ export function mergeStructuredLensPayload(
   if (lensType === "illustrative" && !illustrative?.flowchart && !diagram) {
     missingStructure.push("flowchart");
   }
-  const hasModelTeaching = Boolean(
-    markdown || explain || story || revision || illustrative || diagram || askMyBook || mcqs.length > 0
-  );
+  // Analogy alone is not a successful Illustrate response — it is optional color.
+  const hasModelTeaching =
+    lensType === "illustrative"
+      ? hasIllustrativeDiagram
+      : Boolean(
+          markdown ||
+            explain ||
+            story ||
+            revision ||
+            illustrative ||
+            diagram ||
+            askMyBook ||
+            mcqs.length > 0
+        );
   if (!hasModelTeaching) {
-    return { payload: fallback, usable: false, missingStructure: [] };
+    return { payload: fallback, usable: false, missingStructure: [...missingStructure] };
   }
 
   return {

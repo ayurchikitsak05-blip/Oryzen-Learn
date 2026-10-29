@@ -199,12 +199,14 @@ function IllustrateOutput({
     return (
       <div data-testid="ai-partial-structure" className="font-reading space-y-3">
         <p className="text-sm font-medium text-muted">
-          No trustworthy flowchart or concept map is available for this passage. The written explanation is below.
+          The illustration did not include a usable flowchart, mind map, or concept diagram for this
+          passage. A teaching analogy is not a diagram substitute.
         </p>
         {bundle?.analogy ? (
           <div data-testid="study-analogy" className="space-y-2 text-sm leading-relaxed text-ink">
             <p className="text-muted">
-              Teaching analogy. This scene is not a quotation from the page.
+              Teaching analogy only. This scene is not a quotation from the page and is not a
+              successful illustration.
             </p>
             <p>{bundle.analogy.setup}</p>
             <p>{bundle.analogy.mapping}</p>

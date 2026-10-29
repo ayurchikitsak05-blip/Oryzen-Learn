@@ -115,19 +115,63 @@ describe("provider call timeouts", () => {
     useGeminiOnly();
     vi.useFakeTimers();
     const body = {
-      title: "Constant velocity",
-      markdown_body: "When net force is zero, velocity stays the same.",
-      key_points: ["net force zero", "constant velocity"],
+      title: "Illustrative View",
+      markdown_body:
+        "The passage says an object keeps a constant velocity unless a net force acts.",
+      key_points: ["constant velocity", "net force"],
       citations: [],
+      diagram: {
+        title: "Force line",
+        kind: "flowchart",
+        nodes: [
+          { id: "idea", label: "constant velocity" },
+          { id: "claim", label: "a net force" },
+          { id: "check", label: "Newton's first law" },
+        ],
+        edges: [
+          { from: "idea", to: "claim", label: "unless" },
+          { from: "claim", to: "check", label: "then" },
+        ],
+      },
       illustrative: {
         flowchart: {
+          title: "Force line",
           kind: "flowchart",
-          title: "Force and motion",
           nodes: [
-            { id: "a", label: "Net force equals zero" },
-            { id: "b", label: "Constant velocity remains" },
+            { id: "idea", label: "constant velocity" },
+            { id: "claim", label: "a net force" },
+            { id: "check", label: "Newton's first law" },
           ],
-          edges: [{ from: "a", to: "b", label: "produces" }],
+          edges: [
+            { from: "idea", to: "claim", label: "unless" },
+            { from: "claim", to: "check", label: "then" },
+          ],
+        },
+        mindMap: {
+          title: "Force line",
+          kind: "mind_map",
+          nodes: [
+            { id: "idea", label: "constant velocity" },
+            { id: "claim", label: "a net force" },
+            { id: "check", label: "Newton's first law" },
+          ],
+          edges: [
+            { from: "idea", to: "claim", label: "unless" },
+            { from: "claim", to: "check", label: "then" },
+          ],
+        },
+        conceptDiagram: {
+          title: "Force line",
+          kind: "concept_diagram",
+          nodes: [
+            { id: "idea", label: "constant velocity" },
+            { id: "claim", label: "a net force" },
+            { id: "check", label: "Newton's first law" },
+          ],
+          edges: [
+            { from: "idea", to: "claim", label: "unless" },
+            { from: "claim", to: "check", label: "then" },
+          ],
         },
       },
     };

@@ -340,6 +340,12 @@ export function edgeRelationIsSupported(
     if (lawAndForce || lawAndMotion) return false;
     return directed(/\bequals\b|\bequal to\b|\bis\b|\bare\b|=/i, "subject");
   }
+  if (/^(same as|weighs the same as|balances|balance)$/.test(relation)) {
+    return directed(
+      /\bweighs the same as\b|\bis the same (?:weight )?as\b|\bsame as\b|\bbalances\b/i,
+      "subject"
+    );
+  }
   if (/^(causes|cause|creates|produces|leads to|results in)$/.test(relation)) {
     if (lawAndForce) return false;
     return directed(/\b(causes|cause|creates|produces|leads to|results in)\b/i, "nearest") || becauseCause();
@@ -578,6 +584,49 @@ function explicitUnlessDiagram(source: string): {
         edges: edges.map((edge) => ({ ...edge })),
       },
     };
+  }
+  return null;
+}
+
+/**
+ * When the passage states a balance or same-weight comparison, draw that
+ * comparison. Invented market scenes belong in analogy, not here.
+ */
+function explicitBalanceComparison(source: string): CompletingDiagram | null {
+  for (const sentence of passageSentences(source)) {
+    const match = sentence.match(
+      /(?:when\s+|only when\s+)?(.+?)\s+(?:weighs the same as|is the same weight as|is the same as|balances)\s+(.+?)(?:[.?!]|$)/i
+    );
+    if (!match?.[1] || !match[2]) continue;
+    let left = match[1]
+      .replace(/^.*?,\s*/i, "")
+      .replace(/^(?:the|a|an)\s+/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    let right = match[2]
+      .replace(/^(?:the|a|an)\s+/i, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[.?!]+$/, "");
+    const leftParts = left.split(/\s+/);
+    const rightParts = right.split(/\s+/);
+    if (leftParts.length > 5) left = leftParts.slice(-4).join(" ");
+    if (rightParts.length > 5) right = rightParts.slice(0, 5).join(" ");
+    if (left.split(/\s+/).length < 2 || right.split(/\s+/).length < 2) continue;
+    if (left.toLowerCase() === right.toLowerCase()) continue;
+    const diagram = acceptedDiagram(
+      {
+        title: "The balance the passage states",
+        kind: "flowchart" as const,
+        nodes: [
+          { id: "left", label: left },
+          { id: "right", label: right },
+        ],
+        edges: [{ from: "left", to: "right", label: "same as" }],
+      },
+      source
+    );
+    if (diagram) return diagram;
   }
   return null;
 }
@@ -1020,6 +1069,7 @@ export function completeExplicitDiagrams<
   if (!flowchart) {
     flowchart =
       unlessDiagram?.flowchart ??
+      explicitBalanceComparison(source) ??
       workedFlowchart(source, formula, worked) ??
       formulaFlowchart(source, formula) ??
       sequence ??
