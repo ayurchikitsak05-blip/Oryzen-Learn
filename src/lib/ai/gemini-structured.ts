@@ -26,8 +26,14 @@ import {
   isGenericStudyStory,
   isMeaningfulStudyDiagram,
 } from "./lens-quality";
+import {
+  STANDARD_PROVIDER_CALL_TIMEOUT_MS,
+  providerCallTimeoutMs,
+  withProviderCallTimeout,
+} from "./provider-timeout";
 
-export const GEMINI_CALL_TIMEOUT_MS = 20_000;
+/** Default budget; Illustrate/Story use providerCallTimeoutMs(lensType). */
+export const GEMINI_CALL_TIMEOUT_MS = STANDARD_PROVIDER_CALL_TIMEOUT_MS;
 export const GEMINI_MAX_ATTEMPTS = 2;
 
 export type GeminiErrorClass =
@@ -603,26 +609,6 @@ export function mergeStructuredLensPayload(
   };
 }
 
-async function withTimeout<T>(
-  ms: number,
-  work: (signal: AbortSignal) => Promise<T>
-): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    return await work(controller.signal);
-  } catch (error) {
-    if (controller.signal.aborted) {
-      const timeoutError = new Error("timeout");
-      timeoutError.name = "TimeoutError";
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export async function generateStructuredGeminiLens(params: {
   model: GeminiModelTier;
   prompt: string;
@@ -642,20 +628,22 @@ export async function generateStructuredGeminiLens(params: {
   for (let attempt = 1; attempt <= GEMINI_MAX_ATTEMPTS; attempt += 1) {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await withTimeout(GEMINI_CALL_TIMEOUT_MS, (signal) =>
-        ai.models.generateContent({
-          model: params.model,
-          contents: params.prompt,
-          config: {
-            abortSignal: signal,
-            temperature: 0.2,
-            responseMimeType: "application/json",
-            responseSchema: {
-              ...LENS_RESPONSE_SCHEMA,
-              required: requiredFieldsForLens(params.lensType ?? "explain"),
+      const response = await withProviderCallTimeout(
+        providerCallTimeoutMs(params.lensType ?? "explain"),
+        (signal) =>
+          ai.models.generateContent({
+            model: params.model,
+            contents: params.prompt,
+            config: {
+              abortSignal: signal,
+              temperature: 0.2,
+              responseMimeType: "application/json",
+              responseSchema: {
+                ...LENS_RESPONSE_SCHEMA,
+                required: requiredFieldsForLens(params.lensType ?? "explain"),
+              },
             },
-          },
-        })
+          })
       );
       const usage = response.usageMetadata as
         | {

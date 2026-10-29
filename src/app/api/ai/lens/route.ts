@@ -13,6 +13,9 @@ import {
 import type { Dosha } from "@/lib/prakriti/config";
 import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
 
+/** Allow Illustrate/Story provider budgets (45s) plus one retry without cutting the function. */
+export const maxDuration = 120;
+
 export async function POST(request: NextRequest) {
   try {
     if (

@@ -174,9 +174,14 @@ export function StudyWorkspace({
                       : result.providerErrorClass === "quota" ||
                           result.geminiErrorClass === "quota"
                         ? "The study model quota was reached. Showing a source-grounded study draft."
-                        : result.fallbackReason === "model_error"
-                          ? "The study model did not respond. Showing a source-grounded study draft."
-                          : "Model output could not be used. Showing a source-grounded study draft."}
+                        : result.providerErrorClass === "timeout" ||
+                            result.geminiErrorClass === "timeout"
+                          ? lens === "illustrative" || lens === "story"
+                            ? "The illustration or story took too long to finish. Showing a source-grounded study draft. Try again."
+                            : "The study model timed out. Showing a source-grounded study draft. Try again."
+                          : result.fallbackReason === "model_error"
+                            ? "The study model did not respond. Showing a source-grounded study draft."
+                            : "Model output could not be used. Showing a source-grounded study draft."}
               </p>
             ) : result.usedProviderFallback ? (
               <p

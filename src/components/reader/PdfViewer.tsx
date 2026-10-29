@@ -1214,7 +1214,16 @@ export default function PdfViewer({
         Boolean(payload?.askMyBook?.answer);
       if (!res.ok || !usable) {
         setAiResult(null);
-        setAiError(data.error ?? "We couldn't explore this passage. Please try again.");
+        const timedOut =
+          data.providerErrorClass === "timeout" || data.geminiErrorClass === "timeout";
+        setAiError(
+          data.error ??
+            (timedOut
+              ? lens === "illustrative" || lens === "story"
+                ? "The illustration or story took too long. Try again with a shorter selection."
+                : "The study model timed out. Please try again."
+              : "We couldn't explore this passage. Please try again.")
+        );
         return;
       }
       setAiResult(data);

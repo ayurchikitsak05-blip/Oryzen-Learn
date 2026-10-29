@@ -13,6 +13,12 @@ import {
 } from "./models";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  HEAVY_PROVIDER_CALL_TIMEOUT_MS,
+  STANDARD_PROVIDER_CALL_TIMEOUT_MS,
+  providerCallTimeoutMs,
+  withProviderCallTimeout,
+} from "./provider-timeout";
+import {
   calculateCallCostInr,
   canConsumeReservation,
   consumeReservation,
@@ -27,8 +33,10 @@ import {
   type SpendClass,
 } from "./spend-guard";
 
-export const PROVIDER_CALL_TIMEOUT_MS = 20_000;
+/** Default budget; heavy lenses use providerCallTimeoutMs(lensType). */
+export const PROVIDER_CALL_TIMEOUT_MS = STANDARD_PROVIDER_CALL_TIMEOUT_MS;
 export const PROVIDER_MAX_ATTEMPTS = 2;
+export { providerCallTimeoutMs, HEAVY_PROVIDER_CALL_TIMEOUT_MS };
 
 export type ProviderErrorClass =
   | "missing_key"
@@ -412,26 +420,6 @@ function geminiRestSchema(lens: GatewayTaskType | "markdown" = "markdown"): Reco
   return geminiRestSchemaForLens(lens);
 }
 
-async function withTimeout<T>(
-  ms: number,
-  work: (signal: AbortSignal) => Promise<T>
-): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    return await work(controller.signal);
-  } catch (error) {
-    if (controller.signal.aborted) {
-      const timeoutError = new Error("timeout");
-      timeoutError.name = "TimeoutError";
-      throw timeoutError;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 function parseJsonContent(text: string): unknown {
   const trimmed = text.trim();
   if (!trimmed) return null;
@@ -723,7 +711,7 @@ export async function callProviderStructuredLens(params: {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const modeled = await withTimeout(PROVIDER_CALL_TIMEOUT_MS, (signal) => {
+      const modeled = await withProviderCallTimeout(providerCallTimeoutMs(params.lensType), (signal) => {
         if (params.provider === "google") {
           return callGoogleStructured({
             model: params.model,

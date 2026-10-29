@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { StudyLensOutput } from "../StudyLensOutput";
+import { StudyWorkspace } from "../StudyWorkspace";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 
 function result(
@@ -295,5 +296,46 @@ describe("student study screens", () => {
     );
     expect(view.getByTestId("story-teaching-note").textContent).toMatch(/not facts from the textbook/i);
     expect(view.getByTestId("story-output").textContent).toMatch(/ice hockey puck/i);
+  });
+
+  it("names Illustrate timeouts in the study panel on mobile and desktop", () => {
+    const timedOut = {
+      ...result(
+        {
+          ...base,
+          lens_type: "illustrative" as const,
+          markdown_body: "Source-grounded draft about constant velocity.",
+          used_fallback: true,
+        },
+        true
+      ),
+      providerErrorClass: "timeout" as const,
+      geminiErrorClass: "timeout" as const,
+      fallbackReason: "model_error" as const,
+    };
+
+    for (const isMobile of [true, false]) {
+      const view = render(
+        <StudyWorkspace
+          open
+          isMobile={isMobile}
+          title="Study"
+          pageRef="p1"
+          loading={false}
+          error={null}
+          notebookStatus={null}
+          result={timedOut}
+          lens="illustrative"
+          selectedMcqOptions={{}}
+          onPickMcq={() => undefined}
+          onRetry={() => undefined}
+          onClose={() => undefined}
+        />
+      );
+      expect(view.getByTestId("ai-fallback-banner").textContent).toMatch(
+        /illustration or story took too long/i
+      );
+      view.unmount();
+    }
   });
 });
