@@ -11,7 +11,7 @@ export const EXPERIENCE_THEMES: Record<
   focus: {
     id: "focus",
     name: "Focus",
-    mood: "Warm paper, sage, and charcoal. A quiet place to study.",
+    mood: "A quiet exam desk for plans, reading, and recorded results.",
     tokens: {
       bg: "#F7F4EE",
       bgSecondary: "#F1EBE3",
@@ -33,7 +33,7 @@ export const EXPERIENCE_THEMES: Record<
   studio: {
     id: "studio",
     name: "Studio",
-    mood: "Lavender, peach, and mint. Stationery, not a cartoon.",
+    mood: "An optional study room, stickers, garden, and a small pet.",
     tokens: {
       bg: "#F8F4FB",
       bgSecondary: "#F6EFE8",
@@ -55,7 +55,7 @@ export const EXPERIENCE_THEMES: Record<
   momentum: {
     id: "momentum",
     name: "Momentum",
-    mood: "Navy, teal, and clear type for exam preparation.",
+    mood: "Countdowns, recorded minutes, and progress against the saved plan.",
     tokens: {
       bg: "#0F1C2E",
       bgSecondary: "#15263C",

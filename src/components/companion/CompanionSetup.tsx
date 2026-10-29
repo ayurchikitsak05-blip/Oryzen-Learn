@@ -8,6 +8,7 @@ import {
   COMPANION_CHARACTERS,
   COMPANION_STYLES,
   STYLE_COPY,
+  STARTER_COMPANIONS,
   type CompanionCharacter,
   type CompanionPrefs,
   type CompanionStyle,
@@ -73,9 +74,16 @@ export function CompanionSetup({
               className={choiceClass(style === id)}
               onClick={() => setStyle(id)}
             >
-              <span>
-                <strong className="block text-heading">{STYLE_COPY[id].label}</strong>
-                <span className="text-xs text-muted">{STYLE_COPY[id].hint}</span>
+              <span className="flex items-center gap-3">
+                <CompanionFigure
+                  character={STARTER_COMPANIONS.find((member) => member.style === id)?.character ?? "leaf"}
+                  still
+                  className="h-12 w-12"
+                />
+                <span>
+                  <strong className="block text-heading">{STYLE_COPY[id].label}</strong>
+                  <span className="text-xs text-muted">{STYLE_COPY[id].hint}</span>
+                </span>
               </span>
             </button>
           ))}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CalendarClock, Compass } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
 import AccountMenu from "@/components/auth/AccountMenu";
-import { ExperienceHomeStrip } from "@/components/experience/ExperienceHomeStrip";
+import { HubExperienceSection } from "@/components/experience/LearningStudio";
 import { StudyHome } from "@/components/hub/StudyHome";
 import type { HomeContinuation } from "@/lib/hub/continuation";
 import SchedulerDialog from "@/components/study/SchedulerDialog";
@@ -15,10 +15,7 @@ import { readHomeContinuation } from "@/lib/hub/continuation";
 import { ensureAccountVault, isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { getLocalPdfDocument } from "@/lib/reader/storage";
-import { readMarginNotes } from "@/lib/reader/marks";
 import { readLastReaderDocumentId } from "@/lib/reader/fit";
-import { readLocalRoadmap } from "@/lib/roadmap/persist";
-import { daysBetween, localIsoDate } from "@/lib/roadmap/time";
 import { todayKey } from "@/lib/sprint/plan";
 import { ui } from "@/components/ui/classes";
 
@@ -35,8 +32,6 @@ export default function StudyHubPage() {
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [continuation, setContinuation] = useState<HomeContinuation>(EMPTY_CONTINUATION);
   const [record, setRecord] = useState<"loading" | "locked" | "ready">("loading");
-  const [examDaysLeft, setExamDaysLeft] = useState<number | null>(null);
-  const [hasNote, setHasNote] = useState(false);
   const coachScope = useSignedInScope();
 
   useEffect(() => {
@@ -51,8 +46,6 @@ export default function StudyHubPage() {
           if (cancelled) return;
           setSaved(readSavedBodyType(userId));
           if (userId && !isAccountVaultUnlocked()) {
-            setExamDaysLeft(null);
-            setHasNote(false);
             setContinuation(EMPTY_CONTINUATION);
             setRecord("locked");
             return;
@@ -60,17 +53,12 @@ export default function StudyHubPage() {
           const date = todayKey();
           const documentId = readLastReaderDocumentId(userId);
           const document = documentId ? await getLocalPdfDocument(documentId) : null;
-          const roadmap = readLocalRoadmap(userId);
           if (cancelled) return;
-          setExamDaysLeft(roadmap ? daysBetween(localIsoDate(), roadmap.intake.examDate) : null);
-          setHasNote(readMarginNotes(userId).length > 0);
           setContinuation(readHomeContinuation(userId, date, document?.title ?? null));
           setRecord("ready");
         } catch {
           if (cancelled) return;
           setSaved(null);
-          setExamDaysLeft(null);
-          setHasNote(false);
           setContinuation(EMPTY_CONTINUATION);
           setRecord("ready");
         }
@@ -102,18 +90,13 @@ export default function StudyHubPage() {
       }
     >
       <main className={ui.main}>
-        <StudyHome continuation={continuation} userId={coachScope} record={record} />
+        <HubExperienceSection
+          studiedMinutes={continuation.studiedMinutes}
+          dailyGoal={continuation.dailyGoal}
+          nextBlock={continuation.nextBlock}
+        />
         <div className="mt-4">
-          <ExperienceHomeStrip
-            signals={{
-              hasBook: Boolean(continuation.bookTitle),
-              hasNote,
-              hasSprint: Boolean(continuation.sprintLabel),
-              hasRoadmap: continuation.dailyGoal != null || examDaysLeft != null,
-              studiedMinutes: continuation.studiedMinutes,
-            }}
-            examDaysLeft={examDaysLeft}
-          />
+          <StudyHome continuation={continuation} userId={coachScope} record={record} />
         </div>
 
         {saved ? (

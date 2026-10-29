@@ -21,6 +21,69 @@ import { readUniversePrefs, writeUniversePrefs, type UniversePrefs } from "@/lib
 
 const EXPERIENCES: ExperienceId[] = ["focus", "studio", "momentum"];
 
+export function ExperiencePreview({ id }: { id: ExperienceId }) {
+  if (id === "focus") {
+    return (
+      <div data-testid="experience-preview-focus" className="mt-3 grid grid-cols-[1fr_5.5rem] gap-2 rounded-xl border border-line bg-canvas p-2 text-ink">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted">Exam desk</p>
+          <p className="mt-1 text-xs leading-snug">Countdown, today&apos;s block, plan, reading, and notes.</p>
+          <div className="mt-2 flex flex-wrap gap-1">
+            <span className="rounded-full border border-heading px-2 py-1 text-[10px] text-heading">Plan</span>
+            <span className="rounded-full border border-line px-2 py-1 text-[10px]">Reading</span>
+            <span className="rounded-full border border-line px-2 py-1 text-[10px]">Notes</span>
+          </div>
+        </div>
+        <div className="rounded-lg border border-line bg-surface p-2 text-[10px] leading-snug">
+          <p className="font-medium text-heading">Recorded</p>
+          <p>Minutes</p>
+          <p>Notes</p>
+          <p>Quiz review</p>
+        </div>
+      </div>
+    );
+  }
+  if (id === "studio") {
+    return (
+      <div data-testid="experience-preview-studio" className="mt-3 rounded-xl border border-line bg-canvas p-2 text-ink">
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 48 48" className="h-10 w-10 shrink-0" aria-hidden="true">
+            <ellipse cx="24" cy="30" rx="8" ry="12" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M24 18c6 0 10 6 8 12M24 18c-6 0-10 6-8 12" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M24 30v8" stroke="currentColor" strokeWidth="1.6" />
+          </svg>
+          <svg viewBox="0 0 48 48" className="h-10 w-10 shrink-0" aria-hidden="true">
+            <circle cx="24" cy="24" r="12" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <circle cx="19" cy="22" r="1.4" fill="currentColor" />
+            <circle cx="29" cy="22" r="1.4" fill="currentColor" />
+            <path d="M19 28c2 2 8 2 10 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+          <p className="text-xs leading-snug">Companion portrait and a study pet that does not speak.</p>
+        </div>
+        <ul className="mt-2 grid grid-cols-3 gap-1 text-[10px] font-medium text-heading">
+          {["Sticker Studio", "Badges", "Study Room", "Garden", "Passport", "Museum"].map((label) => (
+            <li key={label} className="rounded-lg bg-beige-2 px-1.5 py-2">{label}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  return (
+    <div data-testid="experience-preview-momentum" className="mt-3 rounded-xl border border-line bg-canvas p-2 text-ink">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted">Progress against the plan</p>
+      <p className="mt-1 text-lg leading-none text-heading">Minutes today</p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-beige-2" aria-hidden="true">
+        <div className="h-full w-1/3 bg-accent" />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+        <span className="rounded-full border border-line px-2 py-1">Focused</span>
+        <span className="rounded-full border border-line px-2 py-1">Tired</span>
+        <span className="rounded-full border border-line px-2 py-1">Personal best</span>
+      </div>
+    </div>
+  );
+}
+
 export function PersonalizeSpace() {
   const [userId, setUserId] = useState<string | null>(null);
   const [mode, setMode] = useState<ExperienceMode>("preserve");
@@ -86,8 +149,7 @@ export function PersonalizeSpace() {
         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">Personalize your space</p>
         <h1 className="font-reading text-3xl text-heading sm:text-4xl">Choose how this place feels</h1>
         <p className="max-w-2xl text-sm leading-relaxed text-ink">
-          Focus, Studio, and Momentum change the look. Your Prakriti profile still guides coaching and can tint the accent.
-          Nothing here changes your books, notes, or plan.
+          Focus, Studio, and Momentum are three ways to use the same books, notes, and plan. Your body-type profile, reading size, companion, and study rhythm stay separate.
         </p>
       </header>
 
@@ -97,35 +159,42 @@ export function PersonalizeSpace() {
         </p>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-3" data-testid="personalize-themes">
+      <div className="grid gap-4" data-testid="personalize-themes">
         {EXPERIENCES.map((id) => {
           const theme = EXPERIENCE_THEMES[id];
           const selected = mode === id;
           return (
-            <button
+            <article
               key={id}
-              type="button"
-              data-testid={`experience-${id}`}
-              aria-pressed={selected}
-              onClick={() => choose(id)}
-              className={`experience-rise min-h-11 rounded-2xl border p-3 text-left ${
-                selected ? "border-accent" : "border-line"
-              }`}
+              className={`experience-rise rounded-2xl border p-3 ${selected ? "border-accent" : "border-line"}`}
               style={{ background: theme.tokens.card, color: theme.tokens.body }}
             >
-              <span className="block text-xs font-medium uppercase tracking-[0.14em]" style={{ color: theme.tokens.textSecondary }}>
-                {id === "focus" ? "Recommended" : id === "studio" ? "Playful" : "Performance"}
-              </span>
-              <span className="mt-1 block font-reading text-2xl" style={{ color: theme.tokens.heading }}>
-                {theme.name}
-              </span>
-              <span className="mt-2 block text-sm leading-snug">{theme.mood}</span>
-              <span className="mt-3 flex gap-1" aria-hidden="true">
-                {[theme.tokens.bg, theme.tokens.beigePrimary, theme.tokens.accent, theme.tokens.heading].map((color) => (
-                  <span key={color} className="h-6 w-6 rounded-full border" style={{ background: color, borderColor: theme.tokens.borders }} />
-                ))}
-              </span>
-            </button>
+              <button
+                type="button"
+                data-testid={`experience-${id}`}
+                aria-pressed={selected}
+                onClick={() => choose(id)}
+                className="w-full min-h-11 text-left"
+              >
+                <span className="block text-xs font-medium uppercase tracking-[0.14em]" style={{ color: theme.tokens.textSecondary }}>
+                  {id === "focus" ? "Professional" : id === "studio" ? "Playful premium" : "Performance"}
+                </span>
+                <span className="mt-1 block font-reading text-2xl" style={{ color: theme.tokens.heading }}>
+                  {theme.name}
+                </span>
+                <span className="mt-2 block text-sm leading-snug">{theme.mood}</span>
+                <ExperiencePreview id={id} />
+              </button>
+              <Link
+                href="/hub"
+                data-testid={`open-${id}-dashboard`}
+                className="mt-3 inline-flex min-h-11 items-center text-sm font-medium underline"
+                style={{ color: theme.tokens.heading }}
+                onClick={() => choose(id)}
+              >
+                Open the {theme.name} dashboard
+              </Link>
+            </article>
           );
         })}
       </div>
@@ -192,8 +261,13 @@ export function PersonalizeSpace() {
           Show study rewards
         </label>
         <p className="text-sm text-muted">
-          Rewards mark real study. There is no streak pressure, leaderboard, or paid reward.
+          Rewards mark real study. There is no streak pressure, leaderboard, mystery box, or paid reward. You can study with rewards turned off.
         </p>
+        {mode === "studio" ? (
+          <Link href="/studio" className="btn-secondary text-sm">
+            Open Sticker Studio
+          </Link>
+        ) : null}
       </section>
 
       {mode === "momentum" ? (

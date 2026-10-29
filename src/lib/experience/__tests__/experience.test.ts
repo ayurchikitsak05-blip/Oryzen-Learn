@@ -3,6 +3,7 @@ import { achievementsFromSignals } from "../achievements";
 import { READINESS_FEELINGS, READINESS_NOTE, readinessSuggestion } from "../check-in";
 import {
   applyExperienceToDocument,
+  EXPERIENCE_BOOT_SCRIPT,
   experienceVisibleTo,
   resolveExperienceMode,
   writeExperiencePrefs,
@@ -74,6 +75,29 @@ describe("visual experiences", () => {
     expect(experienceVisibleTo("student-b")).toBeNull();
     expect(experienceVisibleTo("student-a")?.experience).toBe("studio");
     expect(localStorage.getItem(EXPERIENCE_STORAGE_KEY)).toContain("studio");
+  });
+
+  it("paints a saved theme before the session returns", () => {
+    localStorage.setItem(RHYTHM_STORAGE_KEY, JSON.stringify({ version: 1, themeId: "warm-grounded" }));
+    localStorage.setItem(
+      EXPERIENCE_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        ownerId: "student-a",
+        experience: "momentum",
+        decorations: false,
+        animations: true,
+      })
+    );
+    new Function(EXPERIENCE_BOOT_SCRIPT)();
+    expect(document.documentElement.dataset.experience).toBe("momentum");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("classic");
+  });
+
+  it("does not invent a theme when an existing Prakriti choice is all that is saved", () => {
+    localStorage.setItem(RHYTHM_STORAGE_KEY, JSON.stringify({ version: 1, themeId: "cool-clear" }));
+    new Function(EXPERIENCE_BOOT_SCRIPT)();
+    expect(document.documentElement.dataset.experience).toBeUndefined();
   });
 
   it("earns rewards only from known study activity", () => {

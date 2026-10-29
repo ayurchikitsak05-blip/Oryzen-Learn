@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Archive, BookOpen, ChartColumn, House, PenLine, UserRound } from "lucide-react";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
 import OwnerDemoBanner from "@/components/demo/OwnerDemoBanner";
+import { CompanionBubble } from "@/components/experience/CompanionBubble";
 import { ensureAccountVault } from "@/lib/privacy/account-vault";
 
 const APP_LINKS = [
@@ -73,6 +74,7 @@ export default function AppChrome({
       </header>
       {showAppNav ? <OwnerDemoBanner /> : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">{children}</div>
+      {showAppNav ? <CompanionBubble /> : null}
       {showAppNav ? (
         <nav
           aria-label="Primary"

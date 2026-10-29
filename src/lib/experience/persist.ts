@@ -134,4 +134,4 @@ export const EXPERIENCE_BOOT_SCRIPT = `(function(){try{var raw=localStorage.getI
   EXPERIENCE_STORAGE_KEY
 )});var rhythm=localStorage.getItem(${JSON.stringify(
   RHYTHM_STORAGE_KEY
-)});var root=document.documentElement;if(!raw){if(!rhythm)root.setAttribute("data-experience","focus");return;}var prefs=JSON.parse(raw);if(!prefs||prefs.ownerId)return;if(prefs.experience)root.setAttribute("data-experience",prefs.experience);if(prefs.decorations)root.setAttribute("data-decor","on");if(prefs.animations===false)root.setAttribute("data-motion","off");}catch(e){}})();`;
+)});var root=document.documentElement;if(!raw){if(!rhythm)root.setAttribute("data-experience","focus");return;}var prefs=JSON.parse(raw);if(!prefs||prefs.experience!=="focus"&&prefs.experience!=="studio"&&prefs.experience!=="momentum")return;root.setAttribute("data-experience",prefs.experience);root.setAttribute("data-decor",prefs.decorations?"on":"off");root.setAttribute("data-motion",prefs.animations===false?"off":"on");}catch(e){}})();`;

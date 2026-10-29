@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { HomeIcon, type HomeIconName } from "@/components/hub/HomeIllustrations";
+import { CompanionFigure } from "@/components/companion/CompanionFigure";
 import { ReadingSizeControl } from "@/components/reading/ReadingSizeControl";
 import { readCompanionStore, STYLE_COPY, type CompanionStyle } from "@/lib/companion";
 import type { HomeContinuation } from "@/lib/hub/continuation";
@@ -238,6 +239,7 @@ export function StudyHome({
                         selected ? "border-accent bg-surface text-heading" : "border-line bg-surface/70 text-ink"
                       }`}
                     >
+                      <CompanionFigure character={starter.character} still className="h-12 w-12" />
                       <IconWell name={COMPANION_ICONS[style]} />
                       <span className="mt-1 font-medium">{STYLE_COPY[style].label}</span>
                     </Link>
