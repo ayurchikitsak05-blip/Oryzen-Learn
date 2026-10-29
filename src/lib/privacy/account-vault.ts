@@ -25,6 +25,7 @@ export const PRIVATE_BROWSER_BASES = [
   "oryzen_study_universe_plan_v1",
   "oryzen_study_roadmap_v1",
   "oryzen_study_roadmap_snapshot_v1",
+  "oryzen_learning_world_v1",
   "oryzen_transform_v1",
   "oryzen_lens_feedback_v1",
   "oryzen_study_scheduler_v1",
@@ -48,6 +49,7 @@ let persistQueue: Promise<void> = Promise.resolve();
 let vaultEpoch = 0;
 let vaultOpenTask: Promise<boolean> | null = null;
 let retiredSlots = new Set<string>();
+let lastPersistError: Error | null = null;
 
 export function registerVaultLockHook(hook: () => void): void {
   lockHooks.add(hook);
@@ -172,16 +174,28 @@ export function readPrivateString(baseKey: string, userId?: string | null): stri
   return state?.memory.get(baseKey) ?? null;
 }
 
+function enqueuePrivatePersist(): void {
+  persistQueue = persistQueue
+    .then(async () => {
+      await persistPrivateRecords();
+      lastPersistError = null;
+    })
+    .catch((error) => {
+      lastPersistError =
+        error instanceof Error ? error : new Error("The private study record could not be sealed on this device.");
+    });
+}
+
 export function writePrivateString(baseKey: string, value: string, userId?: string | null): void {
   if (!privateAccessAllowed(userId) || !state) return;
   state.memory.set(baseKey, value);
-  persistQueue = persistQueue.then(() => persistPrivateRecords()).catch(() => undefined);
+  enqueuePrivatePersist();
 }
 
 export function removePrivateString(baseKey: string, userId?: string | null): void {
   if (!privateAccessAllowed(userId) || !state) return;
   state.memory.delete(baseKey);
-  persistQueue = persistQueue.then(() => persistPrivateRecords()).catch(() => undefined);
+  enqueuePrivatePersist();
 }
 
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
@@ -233,9 +247,14 @@ export async function lockAccountVault(): Promise<void> {
   for (const hook of lockHooks) hook();
 }
 
-/** Waits until queued sealed writes have finished. */
-export function flushAccountVault(): Promise<void> {
-  return persistQueue;
+/** Waits until queued sealed writes have finished. Throws if the latest seal failed. */
+export async function flushAccountVault(): Promise<void> {
+  await persistQueue;
+  if (lastPersistError) {
+    const error = lastPersistError;
+    lastPersistError = null;
+    throw error;
+  }
 }
 
 /** Drops in-memory copies without writing. Used between tests. */
@@ -245,6 +264,7 @@ export function discardAccountVault(): void {
   retiredSlots = new Set();
   persistQueue = Promise.resolve();
   vaultOpenTask = null;
+  lastPersistError = null;
   for (const hook of lockHooks) hook();
 }
 

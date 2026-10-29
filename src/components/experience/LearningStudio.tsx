@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CompanionFigure } from "@/components/companion/CompanionFigure";
 import { READINESS_FEELINGS, READINESS_NOTE, readinessSuggestion, type ReadinessFeeling } from "@/lib/experience/check-in";
@@ -11,12 +11,14 @@ import {
 import { EMPTY_LEARNING_RECORD, readLearningRecord, type LearningRecord } from "@/lib/experience/record";
 import { evaluateLearning, type LearningEvaluation } from "@/lib/experience/rewards";
 import type { ExperienceId } from "@/lib/experience/types";
-import { readLearningWorld, writeLearningWorld, type LearningWorld } from "@/lib/experience/world";
+import { commitLearningWorld, readLearningWorld, type LearningWorld } from "@/lib/experience/world";
 import { readCompanionStore, STARTER_COMPANIONS, STYLE_COPY, type CompanionStyle } from "@/lib/companion";
 import { badgeArt, CollectibleImage, gardenArt, petArt, stickerArt } from "@/components/experience/collectible-art";
 import { ensureAccountVault, isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { daysBetween, localIsoDate } from "@/lib/roadmap/time";
+
+export type StudyRoomSaveStatus = "idle" | "saving" | "saved" | "error";
 
 export interface StudioSnapshot {
   userId: string | null;
@@ -77,10 +79,21 @@ function snapshotFor(
 export function useStudioSnapshot(): {
   snapshot: StudioSnapshot | null;
   save: (next: LearningWorld) => void;
+  saveStatus: StudyRoomSaveStatus;
+  saveError: string | null;
   retryVault: () => void;
 } {
   const [snapshot, setSnapshot] = useState<StudioSnapshot | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [saveStatus, setSaveStatus] = useState<StudyRoomSaveStatus>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [pendingSave, setPendingSave] = useState<{
+    world: LearningWorld;
+    userId: string;
+    evaluation: LearningEvaluation;
+    token: number;
+  } | null>(null);
+  const saveTokenRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,15 +126,56 @@ export function useStudioSnapshot(): {
     };
   }, [attempt]);
 
+  useEffect(() => {
+    if (!pendingSave) return;
+    const draft = pendingSave;
+    setSaveStatus("saving");
+    setSaveError(null);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const result = await commitLearningWorld(draft.world, draft.userId, draft.evaluation);
+        if (saveTokenRef.current !== draft.token) return;
+        setPendingSave((current) => (current?.token === draft.token ? null : current));
+        setSnapshot((snap) => {
+          if (!snap?.userId || snap.locked || snap.userId !== draft.userId) return snap;
+          return { ...snap, world: result.world };
+        });
+        if (result.persisted) {
+          setSaveStatus("saved");
+          setSaveError(null);
+        } else {
+          setSaveStatus("error");
+          setSaveError(result.error);
+        }
+      })();
+    }, 280);
+    return () => window.clearTimeout(timer);
+  }, [pendingSave]);
+
   const save = (next: LearningWorld) => {
-    setSnapshot((current) => {
-      if (!current?.userId || current.locked) return current;
-      const saved = writeLearningWorld(next, current.userId, current.evaluation);
-      return { ...current, world: saved };
+    const current = snapshot;
+    if (!current?.userId || current.locked) return;
+    const world = { ...next, ownerId: current.userId };
+    const token = Date.now();
+    saveTokenRef.current = token;
+    setSnapshot({ ...current, world });
+    setSaveStatus("saving");
+    setSaveError(null);
+    setPendingSave({
+      world,
+      userId: current.userId,
+      evaluation: current.evaluation,
+      token,
     });
   };
 
-  return { snapshot, save, retryVault: () => setAttempt((current) => current + 1) };
+  return {
+    snapshot,
+    save,
+    saveStatus,
+    saveError,
+    retryVault: () => setAttempt((current) => current + 1),
+  };
 }
 
 function formatWhen(value: string | null, earned: boolean): string {
@@ -148,6 +202,35 @@ export function StudioNav() {
         </Link>
       ))}
     </nav>
+  );
+}
+
+function StudyRoomSaveNote({
+  status,
+  error,
+}: {
+  status: StudyRoomSaveStatus;
+  error: string | null;
+}) {
+  if (status === "idle") return null;
+  if (status === "saving") {
+    return (
+      <p id="study-room-save-status" data-testid="study-room-save-status" className="text-sm text-muted" role="status">
+        Saving Study Room on this device…
+      </p>
+    );
+  }
+  if (status === "error") {
+    return (
+      <p id="study-room-save-status" data-testid="study-room-save-status" className="text-sm text-danger" role="alert">
+        {error ?? "The Study Room change could not be sealed on this device. Try again."}
+      </p>
+    );
+  }
+  return (
+    <p id="study-room-save-status" data-testid="study-room-save-status" className="text-sm text-muted" role="status">
+      Saved on this device for this account.
+    </p>
   );
 }
 
@@ -251,7 +334,7 @@ export function BadgeGallery() {
 }
 
 export function StudyRoom() {
-  const { snapshot, save, retryVault } = useStudioSnapshot();
+  const { snapshot, save, saveStatus, saveError, retryVault } = useStudioSnapshot();
   if (!snapshot) return <p className="text-sm text-muted">Reading this account&apos;s study record...</p>;
   const starter = STARTER_COMPANIONS.find((member) => member.style === snapshot.companionStyle) ?? STARTER_COMPANIONS[0];
   const earnedStickers = snapshot.evaluation.stickers.filter((item) => item.earned);
@@ -269,6 +352,7 @@ export function StudyRoom() {
       </header>
       <StudioNav />
       <LockedNote snapshot={snapshot} onRetry={retryVault} />
+      <StudyRoomSaveNote status={saveStatus} error={saveError} />
       <RoomScene world={snapshot.world} companionStyle={snapshot.companionStyle} stickers={earnedStickers.filter((item) => snapshot.world.placedStickerIds.includes(item.id)).map((item) => ({ id: item.id, title: item.title }))} />
       <div className="grid gap-3 lg:grid-cols-2">
         <fieldset className="space-y-2 rounded-3xl border border-line bg-surface p-3">
@@ -286,7 +370,7 @@ export function StudyRoom() {
           <ChoiceRow label="Companion accessory" options={snapshot.evaluation.companionAccessories} value={snapshot.world.companionAccessory} disabled={!canSave} onChange={(companionAccessory) => update({ companionAccessory: companionAccessory as LearningWorld["companionAccessory"] })} />
           <label className="block text-sm text-ink" htmlFor="pet-name">
             Study pet name
-            <input id="pet-name" data-testid="pet-name" value={snapshot.world.petName} maxLength={24} disabled={!canSave} onChange={(event) => update({ petName: event.target.value })} className="mt-1 w-full rounded-xl border border-line bg-canvas px-3 py-2" placeholder="Optional name" />
+            <input id="pet-name" data-testid="pet-name" value={snapshot.world.petName} maxLength={24} disabled={!canSave} onChange={(event) => update({ petName: event.target.value })} className="mt-1 w-full rounded-xl border border-line bg-canvas px-3 py-2" placeholder="Optional name" aria-describedby="study-room-save-status" />
           </label>
           <ChoiceRow label="Pet accessory" options={snapshot.evaluation.petAccessories} value={snapshot.world.petAccessory} disabled={!canSave} onChange={(petAccessory) => update({ petAccessory: petAccessory as LearningWorld["petAccessory"] })} />
           <label className="block text-sm text-ink">

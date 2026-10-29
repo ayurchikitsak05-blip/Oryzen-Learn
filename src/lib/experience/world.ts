@@ -1,4 +1,10 @@
-import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
+import {
+  flushAccountVault,
+  isAccountVaultUnlocked,
+  privateAccessAllowed,
+  readPrivateString,
+  writePrivateString,
+} from "@/lib/privacy/account-vault";
 import { READINESS_FEELINGS, type ReadinessFeeling } from "./check-in";
 import type { LearningEvaluation } from "./rewards";
 
@@ -145,4 +151,51 @@ export function writeLearningWorld(
   const next = sanitizeLearningWorld({ ...world, ownerId: userId }, userId, evaluation);
   if (userId) writePrivateString(WORLD_STORAGE_KEY, JSON.stringify(next), userId);
   return next;
+}
+
+/**
+ * Writes the Study Room record into the open vault and waits until the sealed
+ * browser copy finishes. Callers must not report "saved" until this resolves.
+ */
+export async function commitLearningWorld(
+  world: LearningWorld,
+  userId: string | null,
+  evaluation: LearningEvaluation
+): Promise<{ world: LearningWorld; persisted: boolean; error: string | null }> {
+  if (!userId) {
+    return { world: defaultLearningWorld(null), persisted: false, error: "Sign in before saving the Study Room." };
+  }
+  if (!isAccountVaultUnlocked() || !privateAccessAllowed(userId)) {
+    return {
+      world: sanitizeLearningWorld({ ...world, ownerId: userId }, userId, evaluation),
+      persisted: false,
+      error: "The private study record is still locked on this device.",
+    };
+  }
+  const next = writeLearningWorld(world, userId, evaluation);
+  try {
+    await flushAccountVault();
+    const confirmed = readLearningWorld(userId, evaluation);
+    if (
+      confirmed.petName !== next.petName ||
+      confirmed.petAccessory !== next.petAccessory ||
+      confirmed.companionAccessory !== next.companionAccessory ||
+      confirmed.background !== next.background ||
+      confirmed.desk !== next.desk ||
+      confirmed.wall !== next.wall
+    ) {
+      return {
+        world: next,
+        persisted: false,
+        error: "The Study Room change could not be confirmed on this device.",
+      };
+    }
+    return { world: confirmed, persisted: true, error: null };
+  } catch {
+    return {
+      world: next,
+      persisted: false,
+      error: "The Study Room change could not be sealed on this device. Try again.",
+    };
+  }
 }
