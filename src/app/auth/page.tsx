@@ -4,6 +4,7 @@ import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Smartphone, Tablet } from "lucide-react";
+import TryDemoButton from "@/components/demo/TryDemoButton";
 import AppChrome from "@/components/layout/AppChrome";
 import { tabClass, ui } from "@/components/ui/classes";
 import { createClient } from "@/lib/supabase/client";
@@ -291,6 +292,8 @@ function AuthScreen() {
               Preview keeps its own accounts. A Production password will not open a Preview account.
             </p>
           ) : null}
+
+          <TryDemoButton className="mt-6" label="Try Demo without an account" />
 
           <div role="tablist" aria-label="Account" className="mt-6 grid grid-cols-2 gap-2">
             <button

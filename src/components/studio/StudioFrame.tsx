@@ -1,8 +1,6 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
 import { ui } from "@/components/ui/classes";
 import type { Dosha } from "@/lib/prakriti/config";
@@ -53,15 +51,9 @@ export default function StudioFrame({
       }
     >
       <main className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className={ui.eyebrow}>{eyebrow}</p>
-            <h1 className={`${ui.heading} mt-1 text-2xl md:text-3xl`}>{title}</h1>
-          </div>
-          <Link href="/hub" className={ui.ghost}>
-            <ArrowLeft className="h-4 w-4" />
-            Learning space
-          </Link>
+        <div className="mb-5">
+          <p className={ui.eyebrow}>{eyebrow}</p>
+          <h1 className={`${ui.heading} mt-1 text-2xl md:text-3xl`}>{title}</h1>
         </div>
         {children}
       </main>

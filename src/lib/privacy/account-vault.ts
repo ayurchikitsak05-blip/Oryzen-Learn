@@ -265,13 +265,18 @@ async function openAccountVault(): Promise<boolean> {
     await lockAccountVault();
     return false;
   }
-  const sessionBody = (await session.json()) as { userId?: string };
+  const sessionBody = (await session.json()) as { userId?: string; demo?: boolean };
   const userId = sessionBody.userId?.trim() ?? "";
   if (!userId) {
     await lockAccountVault();
     return false;
   }
   if (state?.userId === userId) return true;
+  if (sessionBody.demo === true && /^demo-visitor-[a-z0-9-]{8,64}$/i.test(userId)) {
+    const { PUBLIC_DEMO_VAULT_SALT } = await import("@/lib/demo/public-demo");
+    await unlockAccountVault(await deriveAccountVaultKey(PUBLIC_DEMO_VAULT_SALT, userId), userId);
+    return true;
+  }
   const vault = await fetch("/api/auth/reader-vault", { credentials: "same-origin", cache: "no-store" });
   if (!vault.ok) {
     await lockAccountVault();

@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import AccountMenu from "@/components/auth/AccountMenu";
+import TryDemoButton from "@/components/demo/TryDemoButton";
 import AppChrome from "@/components/layout/AppChrome";
 import { ui } from "@/components/ui/classes";
 
@@ -29,6 +30,7 @@ export default function MinimalistStudyStudioDashboard() {
             Go to My Learning Space
             <ArrowRight className="h-4 w-4" />
           </Link>
+          <TryDemoButton />
           <Link href="/body-type" className={`${ui.secondary} min-h-[52px] text-base`}>
             Explore My Learning Profile
           </Link>

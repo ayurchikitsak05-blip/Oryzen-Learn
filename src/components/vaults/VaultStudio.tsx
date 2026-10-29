@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
 import { tabClass, ui } from "@/components/ui/classes";
+import { registerLeaveGuard } from "@/lib/navigation/app-back";
 import { createClient } from "@/lib/supabase/client";
 import { AUTHORIZED_DOCUMENTS_BUCKET } from "@/lib/supabase/storage";
 import { extractTextbookText } from "@/lib/vaults/extract-pdf";
@@ -95,6 +95,12 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
     // Reload when the vault id changes. The loader is recreated each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultId]);
+
+  useEffect(() => {
+    return registerLeaveGuard(() =>
+      renaming ? "You are renaming this collection. Leave without saving the new title?" : null
+    );
+  }, [renaming]);
 
   const saveTitle = async () => {
     const next = title.trim();
@@ -287,15 +293,7 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
   };
 
   return (
-    <AppChrome
-      subtitle="My Learning Library"
-      actions={
-        <Link href="/vaults" className={ui.ghost}>
-          <ArrowLeft className="h-4 w-4" />
-          Back to library
-        </Link>
-      }
-    >
+    <AppChrome subtitle="My Learning Library">
       <main className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         <div className="flex items-start justify-between gap-3">
           {renaming ? (

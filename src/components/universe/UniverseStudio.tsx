@@ -301,9 +301,6 @@ export function UniverseStudio({
         </div>
       ) : null}
 
-      <Link href="/hub" className={ui.ghost}>
-        Back to Learning Space
-      </Link>
     </div>
   );
 }

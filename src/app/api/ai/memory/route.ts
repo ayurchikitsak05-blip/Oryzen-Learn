@@ -8,6 +8,23 @@ import {
 import type { Dosha } from "@/lib/prakriti/config";
 
 export async function POST(request: NextRequest) {
+  const { isPublicDemoSession, PUBLIC_DEMO_COOKIE, PUBLIC_DEMO_VISITOR_COOKIE } = await import(
+    "@/lib/demo/public-demo"
+  );
+  if (
+    isPublicDemoSession({
+      hostname: request.nextUrl.hostname,
+      cookieValue: request.cookies.get(PUBLIC_DEMO_COOKIE)?.value,
+      visitorId: request.cookies.get(PUBLIC_DEMO_VISITOR_COOKIE)?.value,
+      vercelEnv: process.env.VERCEL_ENV,
+    })
+  ) {
+    return NextResponse.json({
+      simulated: true,
+      notice: "DEMO — paid AI is disabled. Memory updates are not stored on a real student account.",
+    });
+  }
+
   try {
     const body = (await request.json()) as {
       userId?: string;

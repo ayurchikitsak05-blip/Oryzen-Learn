@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { allowsLocalOwnerDemoBypass, OWNER_DEMO_COOKIE } from "@/lib/demo/owner-demo";
+import {
+  PUBLIC_DEMO_COOKIE,
+  PUBLIC_DEMO_VISITOR_COOKIE,
+  isPublicDemoSession,
+} from "@/lib/demo/public-demo";
 import { canManageClasses, decideAccessRedirect, isEntitled } from "@/lib/access/gate";
 import { getSupabaseEnvConfig } from "./client";
 import { verifyDeviceSessionActive } from "./device-lock";
@@ -51,8 +56,31 @@ export async function updateSession(
     request,
   });
 
+  const publicDemo = isPublicDemoSession({
+    hostname: request.nextUrl.hostname,
+    cookieValue: request.cookies.get(PUBLIC_DEMO_COOKIE)?.value,
+    visitorId: request.cookies.get(PUBLIC_DEMO_VISITOR_COOKIE)?.value,
+    vercelEnv: process.env.VERCEL_ENV,
+  });
+
   const { url, anonKey, isConfigured } = getSupabaseEnvConfig();
   if (!isConfigured) {
+    if (publicDemo) {
+      const pathname = request.nextUrl.pathname;
+      if (pathname === "/auth" || pathname.startsWith("/auth/")) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = "/hub";
+        redirectUrl.search = "";
+        return NextResponse.redirect(redirectUrl);
+      }
+      if (pathname === "/pricing" || pathname.startsWith("/pricing/")) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = "/hub";
+        redirectUrl.search = "";
+        return NextResponse.redirect(redirectUrl);
+      }
+      return supabaseResponse;
+    }
     return supabaseResponse;
   }
 
@@ -92,10 +120,14 @@ export async function updateSession(
     user = null;
   }
 
+  if (publicDemo && !user) {
+    user = { id: request.cookies.get(PUBLIC_DEMO_VISITOR_COOKIE)!.value };
+  }
+
   const deviceId = request.cookies.get(DEVICE_ID_COOKIE_NAME)?.value;
 
   // Enforce Strict 2-Device Lock on authenticated sessions when device cookie is present
-  if (user && deviceId) {
+  if (user && deviceId && !publicDemo) {
     try {
       const { isActive, session } = await verifyDeviceSessionActive(
         supabase,
@@ -122,7 +154,10 @@ export async function updateSession(
   const pathname = request.nextUrl.pathname;
   let accessStatus: string | null = null;
   let role: string | null = null;
-  if (user) {
+  if (publicDemo) {
+    accessStatus = "trial";
+    role = "student";
+  } else if (user) {
     try {
       const { data: profile, error } = await supabase
         .from("profiles")

@@ -23,6 +23,7 @@ import {
   type CompanionStore,
   type CompanionStyle,
 } from "@/lib/companion";
+import { registerLeaveGuard } from "@/lib/navigation/app-back";
 import { ensureAccountVault, privateAccessAllowed } from "@/lib/privacy/account-vault";
 import { ANONYMOUS_READER_SCOPE, isAnonymousScope } from "@/lib/reader/local-scope";
 import { activeSession, quizHref, readSprintStore, saveSprintNote } from "@/lib/sprint";
@@ -81,6 +82,14 @@ export function CompanionChat({
     () => activeSession(readSprintStore(userId).sessions),
     [userId, store.turns.length]
   );
+
+  useEffect(() => {
+    return registerLeaveGuard(() =>
+      draft.trim().length > 0
+        ? "You have an unfinished study note. Leave this page and discard it?"
+        : null
+    );
+  }, [draft]);
 
   useEffect(() => {
     const previousScope = settledScopeRef.current;

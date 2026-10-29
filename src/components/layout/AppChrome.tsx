@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 import { Archive, BookOpen, ChartColumn, House, PenLine, UserRound } from "lucide-react";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
 import OwnerDemoBanner from "@/components/demo/OwnerDemoBanner";
+import PublicDemoBanner from "@/components/demo/PublicDemoBanner";
 import { CompanionBubble } from "@/components/experience/CompanionBubble";
+import AppBackButton from "@/components/layout/AppBackButton";
 import { ensureAccountVault } from "@/lib/privacy/account-vault";
 
 const APP_LINKS = [
@@ -30,12 +32,15 @@ export default function AppChrome({
   actions,
   nav = "app",
   maxWidthClass = "max-w-6xl",
+  showBack = true,
 }: {
   children: React.ReactNode;
   subtitle?: string;
   actions?: React.ReactNode;
   nav?: "app" | "marketing";
   maxWidthClass?: string;
+  /** When false, the shared Back control is omitted (page already has equivalent navigation). */
+  showBack?: boolean;
 }) {
   const pathname = usePathname() ?? "";
   const [navReady, setNavReady] = useState(false);
@@ -78,7 +83,13 @@ export default function AppChrome({
           <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1">{actions}</div>
         </div>
       </header>
+      {showAppNav ? <PublicDemoBanner /> : null}
       {showAppNav ? <OwnerDemoBanner /> : null}
+      {showAppNav && showBack ? (
+        <div className={`mx-auto flex w-full min-w-0 shrink-0 items-center px-3 pt-2 md:px-4 lg:px-6 ${maxWidthClass}`}>
+          <AppBackButton />
+        </div>
+      ) : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">{children}</div>
       {showAppNav ? <CompanionBubble /> : null}
       {showAppNav ? (
