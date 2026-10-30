@@ -83,6 +83,106 @@ describe("provider call timeouts", () => {
     expect(result.payload.used_fallback).toBe(true);
   });
 
+  it("does not start a second Story attempt after a timeout", async () => {
+    useGeminiOnly();
+    vi.useFakeTimers();
+    let attempts = 0;
+    const fetchImpl: FetchLike = (_url, init) => {
+      attempts += 1;
+      return new Promise((_, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    };
+
+    const pending = callProviderStructuredLens({
+      provider: "google",
+      model: "gemini-2.5-flash-lite",
+      prompt: "Tell a teaching story.",
+      fallback: {
+        ...fallback,
+        lens_type: "story",
+        title: "Story Mode",
+        markdown_body: "Fallback teaching draft about constant velocity.",
+        story: {
+          opening: "A puck glides at constant velocity on smooth ice.",
+          turningPoint: "A push becomes a net force.",
+          close: "The velocity changes only after that net force acts.",
+        },
+      },
+      fetchImpl,
+      // Default would be 2; timeout must still stop after the first heavy budget.
+      maxAttempts: 2,
+      lensType: "story",
+    });
+
+    await vi.advanceTimersByTimeAsync(HEAVY_PROVIDER_CALL_TIMEOUT_MS + 50);
+    const result = await pending;
+    expect(attempts).toBe(1);
+    expect(result.errorClass).toBe("timeout");
+    expect(result.provider).toBe("deterministic");
+    expect(result.payload.used_fallback).toBe(true);
+
+    // A second heavy window must not remain armed after the first timeout.
+    await vi.advanceTimersByTimeAsync(HEAVY_PROVIDER_CALL_TIMEOUT_MS + 50);
+    expect(attempts).toBe(1);
+  });
+
+  it("lets a late Story response succeed inside the heavy budget", async () => {
+    useGeminiOnly();
+    vi.useFakeTimers();
+    const body = {
+      title: "Story Mode",
+      markdown_body:
+        "A teaching example: a toy boat drifts at steady speed until a child taps its side.",
+      key_points: ["steady speed", "tap changes motion"],
+      citations: [],
+      story: {
+        opening: "As a teaching example, a toy boat drifts at a steady speed.",
+        turningPoint: "A child taps the side of the boat.",
+        close: "After the tap, the boat turns and moves faster.",
+      },
+    };
+    const fetchImpl: FetchLike = (_url, init) =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          resolve(
+            new Response(
+              JSON.stringify({
+                candidates: [{ content: { parts: [{ text: JSON.stringify(body) }] } }],
+                usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 60 },
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }, 25_000);
+        init?.signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+
+    const pending = callProviderStructuredLens({
+      provider: "google",
+      model: "gemini-2.5-flash-lite",
+      prompt: "Tell a teaching story.",
+      fallback: { ...fallback, lens_type: "story", title: "Story Mode" },
+      fetchImpl,
+      maxAttempts: 1,
+      lensType: "story",
+    });
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    await vi.advanceTimersByTimeAsync(5_050);
+    const result = await pending;
+    expect(result.errorClass).toBeNull();
+    expect(result.provider).toBe("google");
+    expect(result.payload.used_fallback).toBe(false);
+    expect(result.payload.story?.turningPoint).toMatch(/taps the side/i);
+  });
+
   it("keeps the shorter explain budget so light lenses do not wait the heavy window", async () => {
     useGeminiOnly();
     vi.useFakeTimers();

@@ -777,7 +777,10 @@ export async function callProviderStructuredLens(params: {
         lastClass === "quota" ||
         lastClass === "auth" ||
         lastClass === "safety" ||
-        lastClass === "missing_key"
+        lastClass === "missing_key" ||
+        // A second full wait after a timeout doubles Story/Illustrate delay (~90s)
+        // before the student sees a clear fallback. Retry from the study panel instead.
+        lastClass === "timeout"
       ) {
         break;
       }

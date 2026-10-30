@@ -688,7 +688,9 @@ export async function generateStructuredGeminiLens(params: {
         lastClass === "billing" ||
         lastClass === "quota" ||
         lastClass === "auth" ||
-        lastClass === "safety"
+        lastClass === "safety" ||
+        // Do not burn a second heavy budget after a timeout; the UI already offers retry.
+        lastClass === "timeout"
       ) {
         break;
       }

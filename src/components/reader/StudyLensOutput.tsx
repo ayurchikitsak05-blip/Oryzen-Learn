@@ -131,13 +131,20 @@ function ExplainOutput({ result }: { result: AiGatewayExecutionResult }) {
   );
 }
 
-function StoryOutput({ result }: { result: AiGatewayExecutionResult }) {
+function StoryOutput({
+  result,
+  onRetry,
+}: {
+  result: AiGatewayExecutionResult;
+  onRetry?: () => void;
+}) {
   const story = result.payload.story;
   if (!story) {
     return (
       <PartialModelAnswer
         result={result}
         message="The model did not return a structured story. Showing its written answer."
+        onRetry={onRetry}
       />
     );
   }
@@ -575,7 +582,7 @@ export function StudyLensOutput({
     );
   }
   if (resolved === "explain") return <ExplainOutput result={result} />;
-  if (resolved === "story") return <StoryOutput result={result} />;
+  if (resolved === "story") return <StoryOutput result={result} onRetry={onRetry} />;
   if (resolved === "illustrative") return <IllustrateOutput result={result} onRetry={onRetry} />;
   if (resolved === "high_yield_revision") return <ReviseOutput result={result} />;
   if (resolved === "test_me") {
