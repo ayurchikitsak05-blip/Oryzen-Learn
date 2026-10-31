@@ -185,11 +185,11 @@ function AuthScreen() {
     setPasswordMismatch(false);
   };
 
-  const handlePasswordAuth = async (action: "sign_in" | "sign_up" | "replace_password") => {
+  const handlePasswordAuth = async (action: "sign_in" | "sign_up") => {
     setErrorMessage(null);
     setStatusMessage(null);
     setPasswordMismatch(false);
-    setPendingAction(action === "replace_password" ? "sign_in" : action);
+    setPendingAction(action);
     setLoading(true);
     let redirecting = false;
     try {
@@ -222,11 +222,6 @@ function AuthScreen() {
         redirecting = true;
         const nextPath = json.next;
         window.setTimeout(() => finishSignIn(nextPath), 900);
-      } else if (action === "replace_password") {
-        setStatusMessage("Password saved. You're signed in.");
-        redirecting = true;
-        const nextPath = json.next;
-        window.setTimeout(() => finishSignIn(nextPath), 900);
       } else {
         redirecting = true;
         finishSignIn(json.next);
@@ -238,6 +233,34 @@ function AuthScreen() {
         setPendingAction(null);
         setLoading(false);
       }
+    }
+  };
+
+  const handleVerifiedRecovery = async () => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/password-recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const json = (await res.json()) as { status?: string; error?: string };
+      if (!res.ok) {
+        setErrorMessage(json.error ?? "Unable to send a recovery email.");
+      } else {
+        setUseOneTimeCode(true);
+        setOtpSent(true);
+        setPasswordMismatch(false);
+        setStatusMessage(
+          "Check your email for a verified sign-in or recovery link. Open that link to prove you own the account. Passwords cannot be changed without that email."
+        );
+      }
+    } catch {
+      setErrorMessage("Network error while sending the recovery email.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -348,11 +371,11 @@ function AuthScreen() {
                   <button
                     type="button"
                     suppressHydrationWarning
-                    disabled={loading}
-                    onClick={() => void handlePasswordAuth("replace_password")}
+                    disabled={loading || !email.trim()}
+                    onClick={() => void handleVerifiedRecovery()}
                     className={secondaryButtonClass}
                   >
-                    {loading ? "Saving password..." : "Save this password and sign in"}
+                    {loading ? "Sending email..." : "Email me a verified sign-in link"}
                   </button>
                 )}
               </div>
