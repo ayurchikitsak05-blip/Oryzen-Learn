@@ -7,6 +7,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Smartphone, Tablet } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { detectDeviceCategory } from "@/lib/supabase/device-lock";
+import {
+  classifyAuthHash,
+  describeAuthLinkQueryError,
+} from "@/lib/supabase/password-reset";
 import type { DeviceCategory } from "@/lib/supabase/types";
 
 const labelClass =
@@ -20,24 +24,8 @@ const secondaryButtonClass =
 const noticeClass =
   "rounded-xl border border-white/10 bg-[#161616] px-4 py-3 text-sm leading-relaxed text-[#E2E8F0]";
 
-function describeAuthLinkError(params: URLSearchParams): string | null {
-  const code = params.get("error_code");
-  const description = params.get("error_description")?.replace(/\+/g, " ") ?? "";
-  const error = params.get("error")?.replace(/\+/g, " ") ?? "";
-  if (/code challenge/i.test(error) || /code challenge/i.test(description)) {
-    return "That sign-in link could not be matched to this browser. Request a new email, or use your password.";
-  }
-  if (code === "otp_expired" || /expired|invalid/i.test(description)) {
-    return "That email link is invalid or has already expired. Request a new email, or use your password.";
-  }
-  if (error) {
-    return description || "The sign-in link could not be completed. Request a new email, or use your password.";
-  }
-  return null;
-}
-
 function readAuthLinkError(searchParams: { get(name: string): string | null }): string | null {
-  const direct = describeAuthLinkError(
+  const direct = describeAuthLinkQueryError(
     new URLSearchParams(
       ["error", "error_code", "error_description"]
         .flatMap((key) => {
@@ -50,7 +38,7 @@ function readAuthLinkError(searchParams: { get(name: string): string | null }): 
   const next = searchParams.get("next");
   if (!next) return null;
   try {
-    return describeAuthLinkError(new URL(next, "http://localhost").searchParams);
+    return describeAuthLinkQueryError(new URL(next, "http://localhost").searchParams);
   } catch {
     return null;
   }
@@ -110,33 +98,52 @@ function AuthScreen() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void (async () => {
-        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-        const accessToken = hash.get("access_token");
-        const refreshToken = hash.get("refresh_token");
-        const hashError = hash.get("error_description") || hash.get("error");
-        if (!accessToken || !refreshToken) {
-          if (hashError) setErrorMessage(hashError.replace(/\+/g, " "));
-          return;
-        }
-        setLoading(true);
-        setErrorMessage(null);
-        setStatusMessage("Signing you in from the email link...");
-        try {
-          const supabase = createClient();
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-          if (error) {
-            setErrorMessage(error.message);
-            setLoading(false);
-            return;
-          }
+        const classified = classifyAuthHash(
+          new URLSearchParams(window.location.hash.replace(/^#/, ""))
+        );
+        if (classified.kind === "empty") return;
+        if (classified.kind === "error") {
+          setErrorMessage(classified.message);
           window.history.replaceState(
             null,
             "",
             `${window.location.pathname}${window.location.search}`
           );
+          return;
+        }
+
+        setLoading(true);
+        setErrorMessage(null);
+        setStatusMessage(
+          classified.kind === "recovery"
+            ? "Verifying your recovery link..."
+            : "Signing you in from the email link..."
+        );
+        try {
+          const supabase = createClient();
+          const { error } = await supabase.auth.setSession({
+            access_token: classified.accessToken,
+            refresh_token: classified.refreshToken,
+          });
+          // Clear tokens from the address bar immediately; never log them.
+          window.history.replaceState(
+            null,
+            "",
+            `${window.location.pathname}${window.location.search}`
+          );
+          if (error) {
+            setErrorMessage(error.message);
+            setLoading(false);
+            return;
+          }
+
+          if (classified.kind === "recovery") {
+            setStatusMessage("Recovery verified. Choose a new password.");
+            router.replace("/auth/reset-password");
+            router.refresh();
+            return;
+          }
+
           const res = await fetch("/api/auth/establish", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -254,7 +261,7 @@ function AuthScreen() {
         setOtpSent(true);
         setPasswordMismatch(false);
         setStatusMessage(
-          "Check your email for a verified sign-in or recovery link. Open that link to prove you own the account. Passwords cannot be changed without that email."
+          "Check your email for a recovery link. Open that link, then choose a new password on the next screen. Passwords cannot be changed without that email."
         );
       }
     } catch {

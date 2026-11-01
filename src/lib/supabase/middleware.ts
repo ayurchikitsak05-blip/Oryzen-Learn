@@ -162,7 +162,9 @@ export async function updateSession(
     role,
   });
   const stayOnSignInForm =
-    pathname === "/auth" && request.nextUrl.searchParams.get("form") === "1";
+    (pathname === "/auth" && request.nextUrl.searchParams.get("form") === "1") ||
+    pathname === "/auth/reset-password" ||
+    pathname.startsWith("/auth/reset-password/");
   if (redirectPath && !stayOnSignInForm) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = redirectPath;

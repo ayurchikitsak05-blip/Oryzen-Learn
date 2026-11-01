@@ -45,4 +45,22 @@ describe("replace_unmatched_password containment", () => {
     expect(recovery).not.toMatch(/replace_unmatched_password/);
     expect(recovery).not.toMatch(/encrypted_password/);
   });
+
+  it("updates passwords only for the authenticated recovery session", () => {
+    const update = readFileSync(
+      join(root, "src/app/api/auth/update-password/route.ts"),
+      "utf8"
+    );
+    const resetPage = readFileSync(
+      join(root, "src/app/auth/reset-password/reset-password-client.tsx"),
+      "utf8"
+    );
+    expect(update).toMatch(/updateUser\(\{\s*password/);
+    expect(update).toMatch(/getUser\(/);
+    expect(update).not.toMatch(/replace_unmatched_password/);
+    expect(update).not.toMatch(/\.rpc\(/);
+    expect(resetPage).toMatch(/Set new password/);
+    expect(resetPage).not.toMatch(/console\.(log|info|debug|warn|error)/);
+  });
 });
+
