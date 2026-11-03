@@ -1,0 +1,82 @@
+name: Learn CI (tests, lint, typecheck, build)
+on:
+  pull_request:
+  push:
+    branches: [main, "claude/**", "feature/**", "hotfix/**"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: learn-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Placeholder public values so the build can compile pages; no real keys are used in CI.
+      NEXT_PUBLIC_SUPABASE_URL: "https://ci-placeholder.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-placeholder-anon-key"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Unit tests (vitest)
+        id: tests
+        continue-on-error: true
+        run: npx vitest run --reporter=default --reporter=json --outputFile=vitest-results.json 2>&1 | tee vitest-output.txt; exit ${PIPESTATUS[0]}
+      - name: Lint (eslint)
+        id: lint
+        continue-on-error: true
+        run: npx eslint . 2>&1 | tee eslint-output.txt; exit ${PIPESTATUS[0]}
+      - name: Typecheck (tsc)
+        id: typecheck
+        continue-on-error: true
+        run: npx tsc --noEmit -p tsconfig.json 2>&1 | tee tsc-output.txt; exit ${PIPESTATUS[0]}
+      - name: Production build (next build)
+        id: build
+        continue-on-error: true
+        run: npm run build 2>&1 | tee build-output.txt; exit ${PIPESTATUS[0]}
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## ORYZEN Learn checks"
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| Unit tests | ${{ steps.tests.outcome }} |"
+            echo "| Lint | ${{ steps.lint.outcome }} |"
+            echo "| Typecheck | ${{ steps.typecheck.outcome }} |"
+            echo "| Build | ${{ steps.build.outcome }} |"
+            echo
+            echo '```'
+            grep -E "Test Files|Tests  " vitest-output.txt || true
+            echo "TypeScript errors: $(grep -c 'error TS' tsc-output.txt || true)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: learn-ci-results
+          path: |
+            vitest-results.json
+            vitest-output.txt
+            eslint-output.txt
+            tsc-output.txt
+            build-output.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Fail if any check failed
+        if: always()
+        run: |
+          for o in "${{ steps.tests.outcome }}" "${{ steps.lint.outcome }}" "${{ steps.typecheck.outcome }}" "${{ steps.build.outcome }}"; do
+            [ "$o" = "success" ] || { echo "A check failed: $o"; exit 1; }
+          done
