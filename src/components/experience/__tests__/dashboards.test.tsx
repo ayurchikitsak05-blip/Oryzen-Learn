@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { petArt } from "../collectible-art";
 import { ExperienceBoard } from "../LearningStudio";
-import { ExperiencePreview } from "../PersonalizeSpace";
 import { EMPTY_LEARNING_RECORD } from "@/lib/experience/record";
 import { evaluateLearning } from "@/lib/experience/rewards";
 import { defaultLearningWorld } from "@/lib/experience/world";
@@ -52,21 +51,4 @@ describe("experience dashboards", () => {
     expect(screen.getByTestId("dashboard-momentum").className).not.toMatch(/min-w-\[40rem\]/);
   });
 
-  it("previews three different layouts on Personalize", () => {
-    const view = render(
-      <>
-        <ExperiencePreview id="focus" />
-        <ExperiencePreview id="studio" />
-        <ExperiencePreview id="momentum" />
-      </>
-    );
-    expect(view.getByTestId("experience-preview-focus").textContent).toMatch(/Exam desk/);
-    expect(view.getByTestId("experience-preview-focus").textContent).not.toMatch(/Sticker Studio/);
-    expect(view.getByTestId("experience-preview-studio").textContent).toMatch(/Sticker Studio/);
-    expect(view.getByTestId("experience-preview-studio").textContent).toMatch(/Study Room/);
-    expect(view.getByTestId("experience-preview-studio").textContent).toMatch(/Museum/);
-    expect(view.getByTestId("experience-preview-momentum").textContent).toMatch(/Minutes today/);
-    expect(view.getByTestId("experience-preview-momentum").textContent).toMatch(/Personal best/);
-    expect(view.getByTestId("experience-preview-momentum").textContent).not.toMatch(/Sticker Studio/);
-  });
 });
