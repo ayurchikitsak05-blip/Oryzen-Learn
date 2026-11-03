@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Production Auth must allowlist `${origin}/auth` (recovery hash lands
+    // there, then the app routes to /auth/reset-password). Do not put tokens
+    // in query strings.
     const origin = new URL(request.url).origin;
     const { error } = await mailer.auth.resetPasswordForEmail(email, {
       redirectTo: `${origin}/auth`,
@@ -49,7 +52,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Always return the same shape so callers cannot probe which emails exist.
     return NextResponse.json({
       status: "recovery_email_sent",
       email,

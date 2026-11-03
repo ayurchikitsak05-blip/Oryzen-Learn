@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { DIRECT_ACCESS_PRICE_INR } from "@/lib/access/gate";
 import { stripeSessionGrantsAccess } from "@/lib/billing/providers";
+import { completeVerifiedCheckout } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
@@ -40,10 +41,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/pricing`);
   }
 
-  const { error } = await supabase.rpc("complete_direct_checkout", {
-    session_id: checkoutId,
+  const result = await completeVerifiedCheckout({
+    sessionId: checkoutId,
+    userId: user.id,
+    provider: "stripe",
+    providerReference: stripeSessionId,
   });
-  if (error) {
+  if (!result.ok) {
     return NextResponse.redirect(`${origin}/pricing`);
   }
   return NextResponse.redirect(`${origin}/hub`);

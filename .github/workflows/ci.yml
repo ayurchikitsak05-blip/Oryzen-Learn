@@ -1,0 +1,129 @@
+name: Learn CI (tests, lint, typecheck, build)
+on:
+  pull_request:
+  push:
+    branches: [main, "claude/**", "feature/**", "hotfix/**"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: learn-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Placeholder public values so the build can compile pages; no real keys are used in CI.
+      NEXT_PUBLIC_SUPABASE_URL: "https://ci-placeholder.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-placeholder-anon-key"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        # The committed lockfile was made on a Mac and lacks the Linux builds of some
+        # native packages (npm bug 4828). After npm ci, unpack any missing Linux builds
+        # at the exact versions already installed, without touching the lockfile.
+        run: |
+          npm ci --no-audit --no-fund
+          add_native() {
+            local base="$1" native="$2"
+            [ -f "node_modules/$base/package.json" ] || return 0
+            [ -d "node_modules/$native" ] && return 0
+            local ver; ver=$(node -p "require('./node_modules/$base/package.json').version")
+            echo "::warning::Adding missing $native@$ver (lockfile has no Linux build)"
+            local dir; dir=$(mktemp -d)
+            (cd "$dir" && npm pack --silent "$native@$ver" >/dev/null)
+            mkdir -p "node_modules/$native"
+            tar -xzf "$dir"/*.tgz -C "node_modules/$native" --strip-components 1
+          }
+          add_native lightningcss lightningcss-linux-x64-gnu
+          add_native rolldown @rolldown/binding-linux-x64-gnu
+          add_native @tailwindcss/oxide @tailwindcss/oxide-linux-x64-gnu
+          add_native @napi-rs/canvas @napi-rs/canvas-linux-x64-gnu
+      - name: Unit tests (vitest)
+        id: tests
+        continue-on-error: true
+        run: npx vitest run --reporter=default --reporter=json --outputFile=vitest-results.json 2>&1 | tee vitest-output.txt; exit ${PIPESTATUS[0]}
+      - name: Lint (eslint, report only — next.config ignores lint during builds)
+        id: lint
+        continue-on-error: true
+        run: npx eslint . 2>&1 | tee eslint-output.txt; exit ${PIPESTATUS[0]}
+      - name: Typecheck (tsc)
+        id: typecheck
+        continue-on-error: true
+        run: npx tsc --noEmit -p tsconfig.json 2>&1 | tee tsc-output.txt; exit ${PIPESTATUS[0]}
+      - name: Production build (next build)
+        id: build
+        continue-on-error: true
+        run: npm run build 2>&1 | tee build-output.txt; exit ${PIPESTATUS[0]}
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## ORYZEN Learn checks"
+            echo "| Check | Result |"
+            echo "|---|---|"
+            echo "| Unit tests | ${{ steps.tests.outcome }} |"
+            echo "| Lint | ${{ steps.lint.outcome }} |"
+            echo "| Typecheck | ${{ steps.typecheck.outcome }} |"
+            echo "| Build | ${{ steps.build.outcome }} |"
+            echo
+            echo '```'
+            grep -E "Test Files|Tests  " vitest-output.txt || true
+            echo "TypeScript errors: $(grep -c 'error TS' tsc-output.txt || true)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: learn-ci-results
+          path: |
+            vitest-results.json
+            vitest-output.txt
+            eslint-output.txt
+            tsc-output.txt
+            build-output.txt
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Fail if any check failed
+        if: always()
+        run: |
+          for o in "${{ steps.tests.outcome }}" "${{ steps.typecheck.outcome }}" "${{ steps.build.outcome }}"; do
+            [ "$o" = "success" ] || { echo "A check failed: $o"; exit 1; }
+          done
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start a throwaway local database and apply every migration
+        run: |
+          [ -f supabase/config.toml ] || supabase init --force
+          supabase db start
+      - name: Database acceptance tests (rolled back)
+        shell: bash
+        run: |
+          for f in supabase/tests/*.sql; do
+            echo "== $f"
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f "$f" 2>&1 | tee -a db-tests.txt
+          done
+          {
+            echo "## Database acceptance tests"
+            echo '```'
+            grep -E "RESULTS|FAILED" db-tests.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

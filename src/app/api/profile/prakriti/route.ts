@@ -54,7 +54,6 @@ export async function POST(request: NextRequest) {
       basicScores?: DoshaScores;
       readingScores?: DoshaScores;
       fullName?: string | null;
-      organizationId?: string | null;
     };
 
     if (!body.basicScores || !body.readingScores) {
@@ -81,7 +80,6 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       email: user.email,
       fullName: body.fullName,
-      organizationId: body.organizationId,
       basicScores: body.basicScores,
       readingScores: body.readingScores,
     });

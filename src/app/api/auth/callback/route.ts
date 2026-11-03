@@ -90,6 +90,12 @@ export async function GET(request: NextRequest) {
       // Sign-in can finish even when the device-session table is unavailable.
     }
 
+    if ((otpType ?? "").toLowerCase() === "recovery") {
+      const response = NextResponse.redirect(`${origin}/auth/reset-password`);
+      deviceCookies(response, resolvedDeviceId, resolvedDeviceType);
+      return withCookies(response);
+    }
+
     const profile = await ensureSignedInProfile(supabase, data.user);
     const destination = canManageClasses(profile.role) ? "/instructor" : "/hub";
     const response = NextResponse.redirect(`${origin}${destination}`);

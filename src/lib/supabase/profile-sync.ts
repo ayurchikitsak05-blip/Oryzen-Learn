@@ -135,7 +135,6 @@ export async function savePrakritiProfileToDatabase(
     userId: string;
     email: string;
     fullName?: string | null;
-    organizationId?: string | null;
     basicScores: DoshaScores;
     readingScores: DoshaScores;
   }
@@ -164,7 +163,6 @@ export async function savePrakritiProfileToDatabase(
         id: params.userId,
         email: params.email,
         full_name: params.fullName ?? null,
-        organization_id: params.organizationId ?? null,
         prakriti_profile: payload,
         updated_at: nowIso,
       },
