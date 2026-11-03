@@ -5,7 +5,7 @@ import {
   type PaymentProviderMode,
 } from "@/lib/billing/direct-access";
 import { razorpaySignature, signaturesMatch, stripeCheckoutForm } from "@/lib/billing/providers";
-import { completeVerifiedCheckout } from "@/lib/supabase/admin";
+import { completeVerifiedCheckout, createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type CheckoutBody = {
@@ -30,6 +30,15 @@ export async function POST(request: NextRequest) {
     const offer = directAccessOffer();
     if (!offer.provider) {
       console.error("Checkout refused: no payment provider is configured on Production.");
+      return NextResponse.json(
+        { error: "Payments are temporarily unavailable. Please try again later." },
+        { status: 503 }
+      );
+    }
+
+    // Never take a payment we could not turn into access afterwards.
+    if (!createAdminClient()) {
+      console.error("Checkout refused: SUPABASE_SERVICE_ROLE_KEY is not configured.");
       return NextResponse.json(
         { error: "Payments are temporarily unavailable. Please try again later." },
         { status: 503 }

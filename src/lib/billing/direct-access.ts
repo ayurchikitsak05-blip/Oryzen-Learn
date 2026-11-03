@@ -5,7 +5,8 @@ export type PaymentProviderMode = "placeholder" | "stripe" | "razorpay";
 export function isProductionDeployment(
   env: { VERCEL_ENV?: string; NODE_ENV?: string } = process.env
 ): boolean {
-  return env.VERCEL_ENV === "production";
+  if (env.VERCEL_ENV) return env.VERCEL_ENV === "production";
+  return env.NODE_ENV === "production";
 }
 
 /**

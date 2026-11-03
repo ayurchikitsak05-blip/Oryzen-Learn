@@ -27,8 +27,9 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - **Fix:**
   - Migration `20261103000001_lock_paid_access_and_profile_columns.sql`: payment completion now only runs for the server, after Razorpay or Stripe confirms; the old student-callable function is switched off; profile role, access and institute, and the plan and booster balance, can't be set by a student.
   - App: `src/lib/supabase/admin.ts` completes a checkout with the server key after verification; Production refuses checkout instead of using placeholder mode; quota route only meters; profile save no longer touches the institute.
-  - Also: the in-browser institute demo and the Gemini model diagnostic are hidden on Production; vault wrapping only binds data to the signed-in student; two scratch test scripts that contained a demo account password were removed.
+  - Also: the in-browser institute demo and the Gemini model diagnostic are hidden on Production; checkout refuses to start if the server key is missing, so a student is never charged without getting access; two scratch test scripts that contained a demo account password were removed.
 - **Tested:** database tests on a real local Supabase (all 10 pass: the old function and the new one are refused for a student; self-upgrades are ignored; a privileged first profile is reset; usage counting still works; the server path grants access, refuses the wrong provider or student, and is safe to retry). Unit tests for the payment-mode rule and source guards.
+- **Observer:** APPROVE WITH FOLLOW-UPS. Its one pre-merge point (a vault change that would have permanently locked away another student's notes on a shared browser) was reverted; the original issue it addressed is low-risk and stays as an open item. Its other points were fixed: checkout now refuses when the server key is missing, and a production server outside Vercel also counts as Production.
 - **Not tested:** a real Razorpay or Stripe payment on Preview. That needs the Preview keys and a test purchase.
 
 ### Owner decisions and actions
@@ -44,4 +45,7 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - [ ] Institute dashboard: connect to real instructor data (hidden on Production until then)
 - [ ] 32 lint errors (React rules) to clean up
 - [ ] Commit a lockfile that includes Linux builds
+- [ ] Reader-vault wraps keys for any owner id a signed-in user names (low risk: affects only that user's own browser); redesign the legacy-migration flow
+- [ ] Students can still reset their own daily usage counters; move metering server-side
+- [ ] Pin the Supabase CLI version in CI
 - [ ] Live end-to-end testing on Preview with a test student account

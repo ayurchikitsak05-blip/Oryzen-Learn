@@ -20,8 +20,12 @@ describe("resolvePaymentMode", () => {
   });
 
   it("allows the placeholder only off Production", () => {
-    expect(resolvePaymentMode({ VERCEL_ENV: "preview" })).toBe("placeholder");
+    expect(resolvePaymentMode({ VERCEL_ENV: "preview", NODE_ENV: "production" })).toBe("placeholder");
     expect(resolvePaymentMode({})).toBe("placeholder");
+  });
+
+  it("treats a production server outside Vercel as Production", () => {
+    expect(resolvePaymentMode({ NODE_ENV: "production" })).toBeNull();
   });
 });
 
@@ -50,10 +54,5 @@ describe("paid access is granted only by the server after verification", () => {
     expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.complete_direct_checkout\(UUID\) FROM anon, authenticated/);
     expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.complete_verified_checkout\(UUID, UUID, TEXT, TEXT\) TO service_role/);
     expect(sql).toMatch(/BEFORE INSERT OR UPDATE ON public\.profiles/);
-  });
-
-  it("vault wrapping only binds data to the signed-in student", () => {
-    const src = read("src/app/api/auth/reader-vault/route.ts");
-    expect(src).toMatch(/claimed && claimed === user\?\.id \? claimed : null/);
   });
 });
