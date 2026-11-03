@@ -58,6 +58,33 @@ describe("CompanionChat", () => {
     expect(readCompanionStore("student-a").prefs.style).toBe("coach");
   });
 
+  it("offers the six starting buttons, answers from the written library, then shows follow-ups", () => {
+    const view = render(<CompanionChat userId="student-a" />);
+    fireEvent.click(view.getByTestId("companion-save"));
+    expect(view.getByText("What's stopping you right now?")).toBeTruthy();
+    fireEvent.click(view.getByTestId("companion-starter-cant-start"));
+    const thread = view.getByTestId("companion-thread").textContent ?? "";
+    expect(thread).toMatch(/I can't get started/);
+    expect(thread).toMatch(/10 minutes/);
+    const followUps = view.getAllByTestId("companion-follow-up").map((node) => node.textContent);
+    expect(followUps).toEqual(["OK, start 10 minutes", "Even that feels hard", "Move it to tomorrow"]);
+    fireEvent.click(view.getByText("Even that feels hard"));
+    expect(view.getByTestId("companion-thread").textContent).toMatch(/read the heading out loud/);
+    expect(view.getByTestId("companion-next-step").getAttribute("href")).toBe("/reader");
+  });
+
+  it("answers worrying words with the helpline reply and a call button", () => {
+    const view = render(<CompanionChat userId="student-a" />);
+    fireEvent.click(view.getByTestId("companion-save"));
+    fireEvent.change(view.getByTestId("companion-input"), {
+      target: { value: "i dont want to live anymore" },
+    });
+    fireEvent.click(view.getByTestId("companion-ask"));
+    expect(view.getByTestId("companion-thread").textContent).toMatch(/Tele-MANAS on 14416/);
+    expect(view.getByTestId("companion-call-helpline").getAttribute("href")).toBe("tel:14416");
+    expect(view.queryByTestId("companion-quick-replies")).toBeNull();
+  });
+
   it("answers with a mocked, style-aware study draft", () => {
     const view = render(<CompanionChat userId="student-a" />);
     fireEvent.click(view.getByTestId("companion-save"));
