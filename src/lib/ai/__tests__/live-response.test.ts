@@ -59,18 +59,17 @@ describe("captured Gemini responses stay out of the local draft", () => {
     expect(JSON.stringify(merged.payload.explain)).not.toContain(LOCAL_DRAFT);
   });
 
-  it("keeps prose when a diagram was not returned and does not insert the local flowchart", () => {
+  it("rejects Illustrate prose without a diagram instead of treating it as success", () => {
     const merged = mergeStructuredLensPayload(
       draftFor("illustrative"),
       CAPTURED_PROSE,
       "illustrative"
     );
-    expect(merged.usable).toBe(true);
-    expect(merged.payload.used_fallback).toBe(false);
-    expect(merged.missingStructure).toContain("illustrative");
-    expect(merged.payload.illustrative).toBeUndefined();
-    expect(merged.payload.diagram).toBeUndefined();
-    expect(merged.payload.markdown_body).toMatch(/hockey puck/i);
+    expect(merged.usable).toBe(false);
+    expect(merged.missingStructure).toEqual(
+      expect.arrayContaining(["illustrative", "flowchart"])
+    );
+    // Unusable Illustrate payloads keep the deterministic draft, never the empty model diagram.
     expect(merged.payload.markdown_body).not.toContain(LOCAL_DRAFT);
   });
 

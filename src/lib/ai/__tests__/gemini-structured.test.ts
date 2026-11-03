@@ -59,6 +59,66 @@ describe("structured Gemini helpers", () => {
     expect(merged.payload.diagram?.nodes.length).toBe(2);
   });
 
+  it("accepts a complete Illustrate bundle with flowchart mind map and concept diagram", () => {
+    const diagram = {
+      title: "Force line",
+      kind: "flowchart" as const,
+      nodes: [
+        { id: "idea", label: "constant velocity" },
+        { id: "claim", label: "a net force" },
+        { id: "check", label: "Newton's first law" },
+      ],
+      edges: [
+        { from: "idea", to: "claim", label: "unless" },
+        { from: "claim", to: "check", label: "then" },
+      ],
+    };
+    const merged = mergeStructuredLensPayload(
+      fallback,
+      {
+        title: "Illustrative View",
+        markdown_body:
+          "The passage says an object keeps a constant velocity unless a net force acts.",
+        key_points: ["constant velocity", "net force"],
+        diagram,
+        illustrative: {
+          flowchart: diagram,
+          mindMap: { ...diagram, kind: "mind_map" as const },
+          conceptDiagram: { ...diagram, kind: "concept_diagram" as const },
+        },
+      },
+      "illustrative"
+    );
+    expect(merged.usable).toBe(true);
+    expect(merged.payload.illustrative?.flowchart?.nodes.length).toBe(3);
+    expect(merged.missingStructure ?? []).not.toContain("illustrative");
+  });
+
+  it("rejects Illustrate responses that only return an analogy", () => {
+    const merged = mergeStructuredLensPayload(
+      fallback,
+      {
+        title: "Balance",
+        markdown_body:
+          "A classroom balance scale holds three equal iron cubes on the left pan and one larger iron cube on the right pan.",
+        key_points: ["three cubes", "larger cube"],
+        illustrative: {
+          analogy: {
+            setup: "Imagine grocery items on a market scale.",
+            mapping: "Small apples stand for the three cubes.",
+            takeaway: "Equal weight keeps pans level.",
+          },
+        },
+      },
+      "illustrative"
+    );
+    expect(merged.usable).toBe(false);
+    expect(merged.missingStructure).toEqual(
+      expect.arrayContaining(["illustrative", "flowchart"])
+    );
+    expect(merged.payload.illustrative?.flowchart).toBeUndefined();
+  });
+
   it("accepts a valid structured diagram and explain block", () => {
     const merged = mergeStructuredLensPayload(fallback, {
       title: "Illustrative View",

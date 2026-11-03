@@ -1219,9 +1219,11 @@ export default function PdfViewer({
         setAiError(
           data.error ??
             (timedOut
-              ? lens === "illustrative" || lens === "story"
-                ? "The illustration or story took too long. Try again with a shorter selection."
-                : "The study model timed out. Please try again."
+              ? lens === "story"
+                ? "The story took too long. Try again with a shorter selection."
+                : lens === "illustrative"
+                  ? "The illustration took too long. Try again with a shorter selection."
+                  : "The study model timed out. Please try again."
               : "We couldn't explore this passage. Please try again.")
         );
         return;

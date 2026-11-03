@@ -93,7 +93,12 @@ describe("student study screens", () => {
         })}
       />
     );
-    expect(view.getByTestId("ai-partial-structure").textContent).toMatch(/no trustworthy flowchart/i);
+    expect(view.getByTestId("ai-partial-structure").textContent).toMatch(
+      /did not include a usable flowchart/i
+    );
+    expect(view.getByTestId("ai-partial-structure").textContent).toMatch(
+      /not a diagram substitute/i
+    );
     expect(view.getByTestId("ai-partial-structure").textContent).toMatch(/hockey puck/i);
     expect(view.getByTestId("ai-partial-structure").textContent).not.toMatch(
       /keeps going the same way/i
@@ -298,6 +303,45 @@ describe("student study screens", () => {
     expect(view.getByTestId("story-output").textContent).toMatch(/ice hockey puck/i);
   });
 
+  it("shows incomplete Illustrate structure clearly on mobile and desktop", () => {
+    const incomplete = result(
+      {
+        ...base,
+        lens_type: "illustrative" as const,
+        markdown_body: "Source-grounded draft about three iron cubes on a balance.",
+        missingStructure: ["flowchart", "illustrative"],
+        illustrative: {
+          analogy: {
+            setup: "Imagine grocery items on a scale.",
+            mapping: "Apples stand for the cubes.",
+            takeaway: "Equal weight keeps pans level.",
+          },
+        },
+      },
+      false
+    );
+
+    for (const width of [1280, 390] as const) {
+      const view = render(
+        <div style={{ width }}>
+          <StudyLensOutput
+            lens="illustrative"
+            selectedMcqOptions={{}}
+            onPickMcq={() => undefined}
+            onRetry={() => undefined}
+            result={incomplete}
+          />
+        </div>
+      );
+      expect(view.getByTestId("ai-partial-structure").textContent).toMatch(
+        /not a diagram substitute|not a successful illustration/i
+      );
+      expect(view.queryByTestId("illustrate-output")).toBeNull();
+      expect(view.queryByTestId("study-flowchart")).toBeNull();
+      view.unmount();
+    }
+  });
+
   it("names Illustrate timeouts in the study panel on mobile and desktop", () => {
     const timedOut = {
       ...result(
@@ -333,9 +377,76 @@ describe("student study screens", () => {
         />
       );
       expect(view.getByTestId("ai-fallback-banner").textContent).toMatch(
-        /illustration or story took too long/i
+        /illustration took too long/i
       );
       view.unmount();
     }
+  });
+
+  it("names Story timeouts and offers retry for incomplete beats on mobile and desktop", () => {
+    const timedOut = {
+      ...result(
+        {
+          ...base,
+          lens_type: "story" as const,
+          markdown_body: "Source-grounded draft about a steady boat then a tap.",
+          used_fallback: true,
+          story: {
+            opening: "A toy boat drifts at a steady speed.",
+            turningPoint: "A child taps its side.",
+            close: "The boat turns and moves faster.",
+          },
+        },
+        true
+      ),
+      providerErrorClass: "timeout" as const,
+      geminiErrorClass: "timeout" as const,
+      fallbackReason: "model_error" as const,
+    };
+
+    for (const isMobile of [true, false]) {
+      const view = render(
+        <StudyWorkspace
+          open
+          isMobile={isMobile}
+          title="Study"
+          pageRef="p1"
+          loading={false}
+          error={null}
+          notebookStatus={null}
+          result={timedOut}
+          lens="story"
+          selectedMcqOptions={{}}
+          onPickMcq={() => undefined}
+          onRetry={() => undefined}
+          onClose={() => undefined}
+        />
+      );
+      expect(view.getByTestId("ai-fallback-banner").textContent).toMatch(/story took too long/i);
+      expect(view.getByTestId("story-teaching-note").textContent).toMatch(
+        /not facts from the textbook/i
+      );
+      view.unmount();
+    }
+
+    const onRetry = vi.fn();
+    const incomplete = render(
+      <StudyLensOutput
+        lens="story"
+        selectedMcqOptions={{}}
+        onPickMcq={() => undefined}
+        onRetry={onRetry}
+        result={result({
+          ...base,
+          lens_type: "story",
+          markdown_body: "Written answer without structured beats.",
+        })}
+      />
+    );
+    expect(incomplete.getByTestId("ai-partial-structure").textContent).toMatch(
+      /did not return a structured story/i
+    );
+    fireEvent.click(incomplete.getByTestId("diagram-retry"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

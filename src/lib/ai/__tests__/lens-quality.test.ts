@@ -541,6 +541,7 @@ describe("educational quality guards", () => {
       flowchart?: DiagramSlot;
       mindMap?: DiagramSlot;
       conceptDiagram?: DiagramSlot;
+      analogy?: { setup: string; mapping: string; takeaway: string };
     };
   };
   function ground(payload: IllustratedPayload, source: string) {
@@ -961,5 +962,50 @@ describe("educational quality guards", () => {
       "Bright sunlight",
       "glucose to form in the leaf",
     ]);
+  });
+
+  it("builds a balance flowchart from the passage when the model returned only an analogy", () => {
+    const BALANCE =
+      "A fictional classroom balance scale holds three equal iron cubes on the left pan and one larger iron cube on the right pan. The pans stay level only when the larger cube weighs the same as the three small cubes together.";
+    const grounded = ground(
+      {
+        missingStructure: ["flowchart", "illustrative"],
+        illustrative: {
+          analogy: {
+            setup: "Imagine two groups of grocery items on a market scale.",
+            mapping: "Three apples stand for the three small cubes.",
+            takeaway: "Equal weight keeps the pans level.",
+          },
+        },
+      },
+      BALANCE
+    );
+    expect(grounded.illustrative?.flowchart?.nodes.length).toBeGreaterThanOrEqual(2);
+    expect(grounded.illustrative?.flowchart?.edges[0]?.label).toMatch(/same as/i);
+    const labels = grounded.illustrative?.flowchart?.nodes.map((node) => node.label).join(" ") ?? "";
+    expect(labels).toMatch(/larger cube/i);
+    expect(labels).toMatch(/three small cubes/i);
+    expect(JSON.stringify(grounded.illustrative?.flowchart)).not.toMatch(/grocery|apples|market/i);
+    expect(grounded.missingStructure).not.toContain("flowchart");
+    expect(grounded.missingStructure).not.toContain("illustrative");
+    // Analogy may remain as optional color, but is never the only structure.
+    expect(grounded.illustrative?.analogy?.setup).toMatch(/grocery|market/i);
+  });
+
+  it("rejects unsupported invented balance claims that are not in the passage", () => {
+    const BALANCE =
+      "The pans stay level only when the larger cube weighs the same as the three small cubes together.";
+    expect(
+      diagramExplainsSource(
+        {
+          nodes: [
+            { id: "a", label: "larger cube" },
+            { id: "b", label: "gold bars on Mars" },
+          ],
+          edges: [{ from: "a", to: "b", label: "same as" }],
+        },
+        BALANCE
+      )
+    ).toBe(false);
   });
 });
