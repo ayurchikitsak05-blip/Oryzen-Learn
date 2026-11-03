@@ -56,14 +56,17 @@ function pad(value: number): string {
   return String(value).padStart(2, "0");
 }
 
-/** A plan needs at least four weeks before the exam month starts. */
-export const MIN_LEAD_DAYS = 28;
+/**
+ * Smallest gap between today and the exam month's 1st. Kept short on purpose: students
+ * closest to their exam need a plan most, even a one- or two-week one.
+ */
+export const MIN_LEAD_DAYS = 7;
 
 function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000);
 }
 
-/** "YYYY-MM" for the next `count` exam months whose 1st is at least four weeks away. */
+/** "YYYY-MM" for the next `count` exam months whose 1st is at least a week away. */
 export function upcomingMonths(today: string, count = 18): string[] {
   const [year, month] = today.split("-").map(Number);
   const out: string[] = [];
@@ -75,7 +78,7 @@ export function upcomingMonths(today: string, count = 18): string[] {
   return out;
 }
 
-/** The next time the exam's usual month comes round (at least four weeks away); else 3 months away. */
+/** The next time the exam's usual month comes round (at least a week away); else 3 months away. */
 export function suggestedExamMonth(exam: ExamId, today: string): string {
   const months = upcomingMonths(today);
   const usual = examOption(exam)?.usualMonth;

@@ -29,9 +29,11 @@ describe("first-run setup", () => {
     // Boards start mid-February, so the plan finishes by 1 February.
     expect(suggestedExamMonth("class12", "2026-11-03")).toBe("2027-02");
     expect(suggestedExamMonth("neet", "2026-11-03")).toBe("2027-05");
-    // 1 January is only 12 days after 20 December: too close for a plan, so next year's.
-    expect(upcomingMonths("2026-12-20", 2)).toEqual(["2027-02", "2027-03"]);
-    expect(suggestedExamMonth("jee", "2026-12-20")).toBe("2028-01");
+    // Close to the exam still gets this year's date (a short plan is better than none).
+    expect(suggestedExamMonth("jee", "2026-12-20")).toBe("2027-01");
+    expect(suggestedExamMonth("class12", "2027-01-10")).toBe("2027-02");
+    // Less than a week before the 1st: that month isn't offered.
+    expect(upcomingMonths("2026-12-28", 2)).toEqual(["2027-02", "2027-03"]);
     expect(suggestedExamMonth("college", "2026-11-03")).toBe("2027-02");
   });
 

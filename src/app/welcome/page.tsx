@@ -70,7 +70,11 @@ export default function WelcomePage() {
     if (saving) return;
     setSaving(true);
     if (exam && ready) {
-      const user = await fetchSignedInUser().catch(() => null);
+      // Don't leave the student stuck on a slow connection: give up after 4 seconds.
+      const user = await Promise.race([
+        fetchSignedInUser().catch(() => null),
+        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 4000)),
+      ]);
       saveFirstRunDraft(
         { exam, subjects: cleanSubjects(subjects), examMonth },
         user?.userId ?? "local-anonymous"
