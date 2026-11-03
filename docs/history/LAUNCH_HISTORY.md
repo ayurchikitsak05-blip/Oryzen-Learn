@@ -4,6 +4,24 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-03 (evening) · Redesign, part 2: "My Notes", and a daily AI-help allowance
+
+**Owner decision (3 Nov):** don't use the word "notebook" anywhere students see it, so the app isn't confused with Google's product. Chosen word: **My Notes**.
+
+### Change: "Notebook" is now "My Notes"
+- Every student-visible label, button and message now says My Notes ("Save to My Notes", "Open My Notes"). Saved data keys, routes and the API are unchanged, so nobody loses notes.
+
+### Change: daily AI helps
+- **Problem:** AI calls had no per-day limit, only a ₹70 monthly wallet per student, and Free got the same as Pro.
+- **Fix:** Free gets 5 new AI helps a day, Pro (paid or class-sponsored) 40. Saved answers never count. Illustrate, Story and Ask My Book count as two. The day resets at midnight India time. When the helps are used, the reader says so plainly ("Saved answers, reading, notes and practice still work") and no paid call is made. Monthly safety net: Free ₹25, Pro ₹70; reaching it now shows a message too instead of a silent basic answer. Files: `src/lib/ai/daily-allowance.ts`, `src/lib/ai/gateway.ts`, `src/app/api/ai/lens/route.ts`.
+- **Tested:** unit tests for the counting rules and India day; gateway tests that a used-up allowance makes no paid call, saved answers still come back, a double help is refused when one is left, and the next day gets the real answer.
+- **Observer:** CHANGES NEEDED on the first pass. Fixed: a blocked request was being saved as that passage's answer (the student would never get the real one); the first monthly cap (₹5) would have run out after about a week; a monthly cap gave a silent fallback; one leftover "notebook". Left as follow-ups: two requests sent at the same instant can both use the last help (the monthly cap still limits money); if the usage table can't be read, the daily limit doesn't apply (monthly cap still does).
+
+### Owner decision
+- Daily helps (5 / 40) and monthly safety nets (₹25 / ₹70) can be changed in one file. At about ₹0.17 a help, a Free student who uses every help every day costs about ₹25 a month; most will use far less.
+
+---
+
 ## 2026-11-03 (afternoon) · Redesign, part 1: four tabs, Today screen, Take My Study replies
 
 **Owner decisions (3 Nov):** keep the study style (optional, renamed Spark, Laser, Anchor, with a disclaimer); Take My Study uses written replies, no AI; YouTube lecture notes, Master Study Book, Personalize, alarm quiz and distraction guard stay; studio, garden, badges, passport, museum and Study Universe are hidden. Screens were agreed on the design canvas first.
@@ -62,7 +80,9 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - [ ] Apply `20261103000001` to Preview, then Production with the deploy (owner)
 - [ ] Apply the three files in `supabase/pending/` to Production (AI cache isolation, roadmaps, reader sync). The study app already uses them; without the cache one, cached AI answers are readable by every student.
 - [ ] Stripe and Razorpay webhooks: access is granted once and never ends; a monthly plan should lapse when renewal fails or the student cancels. Needs an owner decision on renewals.
-- [ ] Free plan gets the same features as Pro; plan quotas aren't enforced on AI calls (only the ₹70 monthly AI wallet per student)
+- [x] Daily AI helps enforced on the reader (Free 5, Pro 40) — 3 Nov
+- [ ] Daily helps: two simultaneous requests can both use the last help; usage-table read errors skip the daily limit
+- [ ] Index `ai_usage_logs (user_id, created_at)` when usage grows
 - [ ] Institute dashboard: connect to real instructor data (hidden on Production until then)
 - [ ] 32 lint errors (React rules) to clean up
 - [ ] Commit a lockfile that includes Linux builds
