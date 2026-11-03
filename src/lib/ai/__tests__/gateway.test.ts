@@ -929,4 +929,69 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       });
     });
   });
+
+  describe("7. Daily AI help allowance", () => {
+    const generator = vi.fn(async ({ request }) => ({
+      payload: {
+        lens_type: request.lensType,
+        prakriti_dosha: "Vata" as const,
+        title: "Explained",
+        markdown_body: `Answer [Page ${request.pageNumber}, Section ${request.sectionHeading}]`,
+        key_points: ["one"],
+        citations: [],
+      },
+      promptTokens: 300,
+      completionTokens: 100,
+    }));
+    const base = {
+      userId: "student-allowance-01",
+      documentId: "doc-allowance",
+      documentHash: "hash-allowance",
+      pageNumber: 2,
+      sectionHeading: "Light",
+      selectedText: "Light travels in straight lines.",
+      lensType: "explain" as const,
+      prakritiDosha: "Vata" as const,
+      candidateChunks: [],
+      llmGenerator: generator,
+    };
+
+    it("makes no paid call once today's helps are used, but still returns saved answers", async () => {
+      generator.mockClear();
+      const first = await executeControlledAiGateway({
+        ...base,
+        dailyAllowance: { plan: "free", limit: 5, used: 4, left: 1 },
+      });
+      expect(first.cacheHit).toBe(false);
+      expect(generator).toHaveBeenCalledTimes(1);
+
+      const saved = await executeControlledAiGateway({
+        ...base,
+        dailyAllowance: { plan: "free", limit: 5, used: 5, left: 0 },
+      });
+      expect(saved.cacheHit).toBe(true);
+      expect(saved.fallbackReason).not.toBe("daily_allowance");
+
+      const blocked = await executeControlledAiGateway({
+        ...base,
+        selectedText: "A new line the student has not asked about.",
+        dailyAllowance: { plan: "free", limit: 5, used: 5, left: 0 },
+      });
+      expect(blocked.fallbackReason).toBe("daily_allowance");
+      expect(blocked.costInr).toBe(0);
+      expect(generator).toHaveBeenCalledTimes(1);
+    });
+
+    it("blocks a double help when only one is left", async () => {
+      generator.mockClear();
+      const result = await executeControlledAiGateway({
+        ...base,
+        lensType: "story",
+        selectedText: "Refraction bends light.",
+        dailyAllowance: { plan: "free", limit: 5, used: 4, left: 1 },
+      });
+      expect(result.fallbackReason).toBe("daily_allowance");
+      expect(generator).not.toHaveBeenCalled();
+    });
+  });
 });

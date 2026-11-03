@@ -10,6 +10,13 @@ import {
   executeControlledAiGateway,
   type GatewayTaskType,
 } from "@/lib/ai/gateway";
+import {
+  allowanceMessage,
+  allowancePlanFor,
+  allowanceStatus,
+  helpsUsedToday,
+  MONTHLY_AI_CAP_INR,
+} from "@/lib/ai/daily-allowance";
 import type { Dosha } from "@/lib/prakriti/config";
 import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
 
@@ -92,6 +99,26 @@ export async function POST(request: NextRequest) {
     }
     const resolvedUserId = resolveAuthorizedUserId(sessionUserId, body.userId);
 
+    // Daily AI helps: Free 5, Pro 40 (saved answers never count).
+    const { data: profile } = supabase
+      ? await supabase
+          .from("profiles")
+          .select("access_status")
+          .eq("id", sessionUserId)
+          .maybeSingle()
+          .then(
+            (res) => res,
+            () => ({ data: null })
+          )
+      : { data: null };
+    const plan = allowancePlanFor(
+      (profile as { access_status?: string | null } | null)?.access_status
+    );
+    const dailyAllowance = allowanceStatus(
+      plan,
+      await helpsUsedToday(supabase, resolvedUserId)
+    );
+
     const result = await executeControlledAiGateway({
       userId: resolvedUserId,
       documentId: body.documentId,
@@ -111,7 +138,20 @@ export async function POST(request: NextRequest) {
       documentClass: "private_upload",
       supabase,
       maxProviderAttempts: body.maxProviderAttempts === 1 ? 1 : undefined,
+      dailyAllowance,
+      walletCapInr: MONTHLY_AI_CAP_INR[plan],
     });
+
+    if (result.fallbackReason === "daily_allowance") {
+      return NextResponse.json(
+        {
+          error: allowanceMessage(dailyAllowance),
+          code: "daily_allowance",
+          allowance: dailyAllowance,
+        },
+        { status: 429 }
+      );
+    }
 
     return NextResponse.json(result);
   } catch (err) {
