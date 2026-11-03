@@ -1,0 +1,163 @@
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw } from "lucide-react";
+import type { HomeContinuation } from "@/lib/hub/continuation";
+
+/**
+ * The Today screen: one main action (today's study), then revision, help to start,
+ * a small progress strip, and the last book. Replaces the eight-tile Learning Space.
+ */
+export function TodayHome({
+  continuation,
+  record = "ready",
+  onRetry,
+}: {
+  continuation: HomeContinuation;
+  record?: "loading" | "opening" | "locked" | "ready";
+  onRetry?: () => void;
+}) {
+  const ready = record === "ready";
+  const hasPlan = ready && Boolean(continuation.nextBlock);
+  const hasBook = ready && Boolean(continuation.bookTitle);
+  const studied = continuation.studiedMinutes;
+  const goal = continuation.dailyGoal;
+  const percent =
+    ready && studied != null && goal != null && goal > 0
+      ? Math.min(100, Math.round((studied / goal) * 100))
+      : null;
+
+  return (
+    <div data-testid="today-home" className="mx-auto w-full max-w-xl space-y-4">
+      <header>
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">Today</p>
+        <h1 className="font-display mt-1 text-3xl text-heading">What to study now</h1>
+      </header>
+
+      <section
+        aria-label="Today's study"
+        data-testid="today-plan"
+        className="rounded-3xl bg-heading p-5 text-canvas"
+      >
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-beige">Today&apos;s study</p>
+        {record === "loading" ? (
+          <p className="mt-3 text-base">Opening your study plan…</p>
+        ) : record === "opening" || record === "locked" ? (
+          <div className="mt-3 space-y-3">
+            <p className="text-base">
+              Your private study record is still locked on this device, so your plan is hidden for now.
+            </p>
+            {record === "locked" && onRetry ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex min-h-11 items-center rounded-xl bg-canvas px-4 text-sm font-semibold text-heading"
+              >
+                Try again
+              </button>
+            ) : null}
+          </div>
+        ) : hasPlan ? (
+          <>
+            <p className="mt-2 text-xl font-semibold leading-snug">{continuation.nextBlock}</p>
+            {continuation.sprintLabel ? (
+              <p className="mt-1 text-sm text-beige-2">{continuation.sprintLabel}</p>
+            ) : null}
+            <Link
+              href="/sprint"
+              data-testid="today-start"
+              className="mt-4 flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-canvas text-base font-semibold text-heading"
+            >
+              <Play className="h-4 w-4" aria-hidden="true" />
+              Start
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-xl font-semibold leading-snug">No plan yet</p>
+            <p className="mt-1 text-sm text-beige-2">Tell us your exam date and subjects, and we&apos;ll plan each day.</p>
+            <Link
+              href="/roadmap"
+              data-testid="today-make-plan"
+              className="mt-4 flex min-h-[52px] items-center justify-center rounded-2xl bg-canvas text-base font-semibold text-heading"
+            >
+              Make my exam plan
+            </Link>
+          </>
+        )}
+      </section>
+
+      <Link
+        href="/reader?lens=test_me"
+        data-testid="today-revise"
+        className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+      >
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-beige-2">
+          <RotateCcw className="h-5 w-5 text-accent" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-heading">Revise what I read</span>
+          <span className="block text-sm text-muted">Quick questions on your last pages</span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
+      </Link>
+
+      <Link
+        href="/companion"
+        data-testid="today-take-my-study"
+        className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+      >
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-beige-2">
+          <MessageCircle className="h-5 w-5 text-accent" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-heading">Can&apos;t get started?</span>
+          <span className="block text-sm text-muted">Take My Study helps you begin</span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
+      </Link>
+
+      <section aria-label="Study progress" data-testid="today-progress" className="rounded-2xl border border-line bg-surface p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="font-semibold text-heading">
+            {!ready ? "Progress" : studied == null ? "Nothing recorded today" : `${studied} min studied today`}
+          </p>
+          <Link href="/progress" className="text-sm font-medium text-accent underline-offset-4 hover:underline">
+            Progress
+          </Link>
+        </div>
+        {percent != null ? (
+          <div
+            className="mt-3 h-2 overflow-hidden rounded-full bg-beige-2"
+            role="progressbar"
+            aria-label="Daily study goal"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+          >
+            <div className="h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
+          </div>
+        ) : null}
+        {ready && goal != null ? <p className="mt-2 text-sm text-muted">Daily goal: {goal} minutes</p> : null}
+      </section>
+
+      <Link
+        href={hasBook ? "/reader" : "/reader?upload=1"}
+        data-testid="today-book"
+        className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+      >
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-beige-2">
+          <BookOpen className="h-5 w-5 text-accent" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-heading">{hasBook ? "Continue reading" : "Add your first book"}</span>
+          <span className="block truncate text-sm text-muted">
+            {hasBook ? continuation.bookTitle : "Upload a PDF of your textbook"}
+          </span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
+      </Link>
+    </div>
+  );
+}

@@ -15,6 +15,18 @@ export const DIRECT_ACCESS_PRICE_INR = 199;
 
 const PAGE_EXEMPT_PREFIXES = ["/auth", "/access", "/pricing", "/checkout"];
 
+/**
+ * Screens kept in the code but hidden from students until after the pilot
+ * (decided 3 Nov 2026). Visiting one sends the student to Today.
+ */
+export const HIDDEN_ROUTE_PREFIXES = ["/studio", "/universe", "/institute"] as const;
+
+export function isHiddenRoute(pathname: string): boolean {
+  return HIDDEN_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+}
+
 export function isEntitled(accessStatus: string | null | undefined): boolean {
   return ENTITLED_ACCESS_STATUSES.includes(
     accessStatus as EntitledAccessStatus
@@ -50,6 +62,7 @@ export function decideAccessRedirect(input: {
 }): string | null {
   const { pathname } = input;
   if (pathname.startsWith("/api")) return null;
+  if (isHiddenRoute(pathname)) return input.isAuthenticated ? "/hub" : "/auth";
 
   if (!input.isAuthenticated) {
     if (
