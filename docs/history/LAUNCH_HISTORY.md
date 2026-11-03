@@ -4,6 +4,27 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-03 (afternoon) · Redesign, part 1: four tabs, Today screen, Take My Study replies
+
+**Owner decisions (3 Nov):** keep the study style (optional, renamed Spark, Laser, Anchor, with a disclaimer); Take My Study uses written replies, no AI; YouTube lecture notes, Master Study Book, Personalize, alarm quiz and distraction guard stay; studio, garden, badges, passport, museum and Study Universe are hidden. Screens were agreed on the design canvas first.
+
+### Change: four tabs and a Today screen
+- **Problem:** home was eight equal tiles and six tabs; nothing said what to do next.
+- **Fix:** tabs are now Today, Books, Practice and Me. Today shows one Start button for the day's plan (or "Make my exam plan"), revision, "Can't get started?", progress and the last book. Practice and Me list the kept features. Studio, Study Universe and the institute dashboard redirect to Today; their code is kept. Files: `src/components/hub/TodayHome.tsx`, `src/lib/navigation/tabs.ts`, `src/lib/access/gate.ts`.
+- **Correction to the earlier review:** new students already get the free plan at sign-up, so they normally land on home, not the price page.
+
+### Change: Take My Study written replies
+- **What:** six starting buttons ("I can't get started", "I'm too tired", ...) answered from the reply library doc in Teacher, Friend or Coach tone, with follow-up buttons that lead to a sprint, the reader or questions. File: `src/lib/companion/library.ts`.
+- **Safety:** worrying words in English, Hinglish, Hindi or Marathi always get the Tele-MANAS 14416 reply and a Call button, before anything else. The list is deliberately broad ("this exam will kill me" also gets it). Owner to review the word list before launch.
+
+- **Tested:** CI 86 test files, 495 tests passed; type check clean; build passed. Preview deployment built; signed-in screens not yet checked in a browser (needs a test login).
+- **Observer:** CHANGES NEEDED on the first pass (safety words missed common phrasings such as "i wanna die", curly apostrophes and Hinglish). Fixed and re-tested with every phrase it listed. Other follow-ups fixed: double taps, old labels, links into hidden screens.
+
+### Still to build (next slices)
+- First-run screens (exam setup, first book, first win), reader AI-help allowance and cost tags, Personalize with the Universe themes and sounds, YouTube lecture notes via Gemini, alarm quiz, distraction guard, study style 10-question version, prices and Razorpay webhook.
+
+---
+
 ## 2026-11-03 · Checks on every change, and paid access locked to real payments
 
 **Starting point:** `main` is what Production runs (21 Oct). Most of the work since then lives on `feature/soft-beige-premium-ui` (58 commits, the Soft Beige study app on Preview). The password hotfix (PR #1) was open and not in that branch. Nothing ran the tests automatically.
@@ -48,4 +69,5 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - [ ] Reader-vault wraps keys for any owner id a signed-in user names (low risk: affects only that user's own browser); redesign the legacy-migration flow
 - [ ] Students can still reset their own daily usage counters; move metering server-side
 - [ ] Pin the Supabase CLI version in CI
+- [ ] Owner: review the Take My Study safety word list
 - [ ] Live end-to-end testing on Preview with a test student account

@@ -23,6 +23,16 @@ import {
   type CompanionStore,
   type CompanionStyle,
 } from "@/lib/companion";
+import {
+  findFollowUp,
+  findStarter,
+  SAFETY_PHONE_HREF,
+  SAFETY_REPLY,
+  SOMETHING_ELSE_LABEL,
+  STARTER_PROMPT,
+  STARTERS,
+  type Starter,
+} from "@/lib/companion/library";
 import { registerLeaveGuard } from "@/lib/navigation/app-back";
 import { ensureAccountVault, privateAccessAllowed } from "@/lib/privacy/account-vault";
 import { ANONYMOUS_READER_SCOPE, isAnonymousScope } from "@/lib/reader/local-scope";
@@ -75,6 +85,7 @@ export function CompanionChat({
   const scopeRef = useRef(userId);
   const storeRef = useRef(store);
   const sessionTurnIds = useRef(new Set<string>());
+  const lastTap = useRef({ text: "", at: 0 });
   const submitGuard = useRef({ busy: false, needsEdit: false, lastQuestion: "" });
   scopeRef.current = userId;
   storeRef.current = store;
@@ -160,13 +171,20 @@ export function CompanionChat({
     setEditing(false);
   };
 
-  const ask = () => {
-    const question = normalizeQuestion(draft);
+  const ask = (tapped?: string) => {
+    const fromButton = typeof tapped === "string";
+    const question = normalizeQuestion(fromButton ? tapped : draft);
     if (question.length < 2) return;
-    if (submitGuard.current.busy || submitGuard.current.needsEdit) return;
+    if (submitGuard.current.busy || (!fromButton && submitGuard.current.needsEdit)) return;
+    // A quick double tap on the same button adds one reply, not two.
+    const now = Date.now();
+    if (fromButton && lastTap.current.text === question && now - lastTap.current.at < 800) return;
+    if (fromButton) lastTap.current = { text: question, at: now };
     submitGuard.current.busy = true;
-    submitGuard.current.needsEdit = true;
-    submitGuard.current.lastQuestion = question;
+    if (!fromButton) {
+      submitGuard.current.needsEdit = true;
+      submitGuard.current.lastQuestion = question;
+    }
     try {
       studentTurnSerial += 1;
       const student = {
@@ -192,7 +210,7 @@ export function CompanionChat({
           scopeRef.current
         );
       });
-      setDraft("");
+      if (!fromButton) setDraft("");
     } catch (error) {
       submitGuard.current.needsEdit = false;
       submitGuard.current.lastQuestion = "";
@@ -213,6 +231,18 @@ export function CompanionChat({
     submitGuard.current.needsEdit = false;
     setDraft(next);
   };
+
+  const lastStudent = [...store.turns].reverse().find((turn) => turn.role === "student");
+  const lastCompanion = [...store.turns].reverse().find((turn) => turn.role === "companion");
+  const activeStarter: Starter | undefined = (() => {
+    if (!lastStudent) return undefined;
+    const direct = findStarter(lastStudent.text);
+    if (direct) return direct;
+    const followUp = findFollowUp(lastStudent.text);
+    return followUp ? STARTERS.find((starter) => starter.followUps.includes(followUp)) : undefined;
+  })();
+  const lastFollowUp = lastStudent ? findFollowUp(lastStudent.text) : undefined;
+  const showSafety = lastCompanion?.text === SAFETY_REPLY;
 
   if (editing) {
     return (
@@ -296,6 +326,77 @@ export function CompanionChat({
           </li>
         ))}
       </ol>
+      {showSafety ? (
+        <div data-testid="companion-safety" className="flex flex-wrap gap-2">
+          <a href={SAFETY_PHONE_HREF} className={ui.primary} data-testid="companion-call-helpline">
+            Call 14416
+          </a>
+          <Link href="/hub" className={ui.secondary}>
+            Back to Today
+          </Link>
+        </div>
+      ) : (
+        <section aria-label="Quick replies" data-testid="companion-quick-replies" className="space-y-2">
+          {lastFollowUp?.kind === "reply" && lastFollowUp.action ? (
+            <Link href={lastFollowUp.action.href} className={`${ui.primary} w-full`} data-testid="companion-next-step">
+              {lastFollowUp.action.label}
+            </Link>
+          ) : null}
+          {activeStarter ? (
+            <>
+              <div className="flex flex-col gap-2">
+                {activeStarter.followUps.map((followUp) =>
+                  followUp.kind === "link" ? (
+                    <Link
+                      key={followUp.label}
+                      href={followUp.href}
+                      className={`${ui.secondary} justify-start`}
+                      data-testid="companion-follow-up"
+                    >
+                      {followUp.label}
+                    </Link>
+                  ) : (
+                    <button
+                      key={followUp.label}
+                      type="button"
+                      className={`${ui.secondary} justify-start`}
+                      data-testid="companion-follow-up"
+                      onClick={() => ask(followUp.label)}
+                    >
+                      {followUp.label}
+                    </button>
+                  )
+                )}
+              </div>
+              <button
+                type="button"
+                className={`${ui.ghost} text-xs`}
+                data-testid="companion-something-else"
+                onClick={() => ask(SOMETHING_ELSE_LABEL)}
+              >
+                Something else
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-heading">{STARTER_PROMPT}</p>
+              <div className="flex flex-col gap-2">
+                {STARTERS.map((starter) => (
+                  <button
+                    key={starter.id}
+                    type="button"
+                    className={`${ui.secondary} min-h-12 justify-start text-base`}
+                    data-testid={`companion-starter-${starter.id}`}
+                    onClick={() => ask(starter.label)}
+                  >
+                    {starter.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
       <div className="flex flex-wrap gap-2 text-xs">
         <Link href="/sprint" className={ui.secondary} data-testid="companion-open-sprint">
           Open StudySprint
@@ -337,7 +438,7 @@ export function CompanionChat({
         </button>
         {fromOnboarding ? (
           <Link href="/hub" data-testid="companion-continue-hub" className={ui.ghost}>
-            Continue to Learning Space
+            Continue to Today
           </Link>
         ) : null}
       </div>

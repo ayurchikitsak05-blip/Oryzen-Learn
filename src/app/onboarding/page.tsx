@@ -225,7 +225,7 @@ export default function PrakritiOnboardingPage() {
       }
 
       setTimeout(() => {
-        router.push("/universe?from=onboarding");
+        router.push("/hub");
       }, 600);
     } catch (err) {
       const msg =
@@ -312,7 +312,7 @@ export default function PrakritiOnboardingPage() {
             <Sliders className="h-4 w-4" />
             {inputMode === "questions" ? "Questions" : "Sliders"}
           </button>
-          <Link href="/universe?from=onboarding" className={ui.ghost}>
+          <Link href="/hub" className={ui.ghost}>
             Skip personalization
           </Link>
           <Link href="/body-type" className={ui.ghost}>
@@ -333,7 +333,7 @@ export default function PrakritiOnboardingPage() {
             performance.
           </p>
           <p className="mt-3">
-            <Link href="/universe?from=onboarding" className={ui.secondary} data-testid="onboarding-skip">
+            <Link href="/hub" className={ui.secondary} data-testid="onboarding-skip">
               Skip personalization
             </Link>
           </p>

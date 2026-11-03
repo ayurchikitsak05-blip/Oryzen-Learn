@@ -1,5 +1,6 @@
 import { notesHref, quizHref, readerHref } from "@/lib/sprint/plan";
 import type { SprintSession } from "@/lib/sprint/types";
+import { libraryAnswer } from "./library";
 import type { CompanionPrefs, CompanionStyle, CompanionTurn } from "./types";
 
 export const COMPANION_MOCK_NOTICE =
@@ -140,6 +141,18 @@ export function companionReply(input: {
   const asked = input.question.replace(/\s+/g, " ").trim();
   const low = asked.toLowerCase();
   const session = input.unfinished ?? null;
+  // Written reply library first: safety words, the starting buttons and their follow-ups.
+  const fromLibrary = libraryAnswer(asked, input.prefs.style, { session });
+  if (fromLibrary) {
+    replySerial += 1;
+    return {
+      id: `companion-${Date.now().toString(36)}-${replySerial.toString(36)}`,
+      role: "companion",
+      text: fromLibrary.text,
+      mocked: true,
+      createdAt: input.now ?? new Date().toISOString(),
+    };
+  }
   let intent: "break" | "quiz" | "plan" | "resume" | "explain" | "encourage" | "other" = "other";
   if (/break|rest|tired|pause/i.test(low)) intent = "break";
   else if (/quiz|test|mcq|revise|revision|weak/i.test(low)) intent = "quiz";

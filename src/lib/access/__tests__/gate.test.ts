@@ -213,6 +213,7 @@ describe("access gate", () => {
         role: "student",
       })
     ).toBeNull();
+    // Study Universe is hidden until after the pilot (decided 3 Nov 2026): it sends students to Today.
     expect(
       decideAccessRedirect({
         pathname: "/universe",
@@ -220,7 +221,7 @@ describe("access gate", () => {
         accessStatus: "free",
         role: "student",
       })
-    ).toBeNull();
+    ).toBe("/hub");
     expect(
       decideAccessRedirect({
         pathname: "/sprint",
