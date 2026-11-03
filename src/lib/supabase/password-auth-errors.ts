@@ -1,7 +1,7 @@
 export type PasswordAuthFailure = {
   error: string;
-  code?: "password_mismatch";
-  status: 401 | 409 | 503;
+  code?: "password_mismatch" | "password_replace_disabled";
+  status: 401 | 403 | 409 | 503;
 };
 
 export function describePasswordAuthFailure(input: {
@@ -22,7 +22,7 @@ export function describePasswordAuthFailure(input: {
   if (notConfirmed) {
     return {
       error:
-        "This email is not ready for sign-in yet. Save the password on this page, then sign in.",
+        "This email is not ready for password sign-in yet. Request an email sign-in link to open your account, or wait for the confirmation email.",
       code: "password_mismatch",
       status: 401,
     };
@@ -31,7 +31,7 @@ export function describePasswordAuthFailure(input: {
   if (input.alreadyRegistered && invalidPassword) {
     return {
       error:
-        "This email already has an account, and that password does not match the one that was saved.",
+        "This email already has an account, and that password does not match. Request an email sign-in link to prove you own the account. Passwords cannot be replaced from this page.",
       code: "password_mismatch",
       status: 409,
     };
@@ -40,7 +40,7 @@ export function describePasswordAuthFailure(input: {
   if (invalidPassword) {
     return {
       error:
-        "That email and password did not match. Use the password you created on this site, or create an account if you have not signed up here yet.",
+        "That email and password did not match. Use the password you created on this site, request an email sign-in link, or create an account if you have not signed up here yet.",
       status: 401,
     };
   }

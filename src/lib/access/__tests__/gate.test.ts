@@ -79,6 +79,22 @@ describe("access gate", () => {
     ).toBe("/hub");
     expect(
       decideAccessRedirect({
+        pathname: "/auth/reset-password",
+        isAuthenticated: true,
+        accessStatus: "free",
+        role: "student",
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
+        pathname: "/auth/reset-password",
+        isAuthenticated: false,
+        accessStatus: null,
+        role: null,
+      })
+    ).toBeNull();
+    expect(
+      decideAccessRedirect({
         pathname: "/auth",
         isAuthenticated: true,
         accessStatus: "none",

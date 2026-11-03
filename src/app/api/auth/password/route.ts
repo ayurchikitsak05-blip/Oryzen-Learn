@@ -10,10 +10,12 @@ import {
   DEVICE_TYPE_COOKIE_NAME,
 } from "@/lib/supabase/middleware";
 
+type PasswordAction = "sign_in" | "sign_up";
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
-      action?: "sign_in" | "sign_up" | "replace_password";
+      action?: string;
       email?: string;
       password?: string;
       fullName?: string;
@@ -21,6 +23,19 @@ export async function POST(request: NextRequest) {
       deviceType?: string;
     };
 
+    if (body.action === "replace_password") {
+      return NextResponse.json(
+        {
+          error:
+            "Passwords cannot be replaced from this page. Request an email sign-in link to prove you own the account, then sign in.",
+          code: "password_replace_disabled",
+        },
+        { status: 403 }
+      );
+    }
+
+    const action: PasswordAction =
+      body.action === "sign_up" ? "sign_up" : "sign_in";
     const email = body.email?.trim().toLowerCase();
     const password = body.password ?? "";
     const fullName = body.fullName?.trim() ?? "";
@@ -37,8 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { supabase, withCookies } = await createAuthRouteClient();
-    const created = body.action === "sign_up";
-    const replacing = body.action === "replace_password";
+    const created = action === "sign_up";
     let authResult = created
       ? await supabase.auth.signUp({
           email,
@@ -56,27 +70,6 @@ export async function POST(request: NextRequest) {
 
     if (created && !authResult.error && authResult.data.user && !authResult.data.session) {
       authResult = await supabase.auth.signInWithPassword({ email, password });
-    }
-
-    if (replacing && (authResult.error || !authResult.data.session)) {
-      const { error: replaceError } = await supabase.rpc("replace_unmatched_password", {
-        target_email: email,
-        new_password: password,
-      });
-      const missingAccount = /no account uses that email/i.test(replaceError?.message ?? "");
-      if (replaceError && missingAccount) {
-        authResult = await supabase.auth.signUp({ email, password });
-        if (!authResult.error && authResult.data.user && !authResult.data.session) {
-          authResult = await supabase.auth.signInWithPassword({ email, password });
-        }
-      } else if (replaceError) {
-        return NextResponse.json(
-          { error: "Could not save that password. Use at least 8 characters and try again." },
-          { status: 400 }
-        );
-      } else {
-        authResult = await supabase.auth.signInWithPassword({ email, password });
-      }
     }
 
     if (authResult.error || !authResult.data.user || !authResult.data.session) {

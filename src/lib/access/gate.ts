@@ -65,6 +65,14 @@ export function decideAccessRedirect(input: {
     return "/auth";
   }
 
+  // Recovery sessions must stay on the set-password screen before leaving /auth.
+  if (
+    pathname === "/auth/reset-password" ||
+    pathname.startsWith("/auth/reset-password/")
+  ) {
+    return null;
+  }
+
   if (pathname === "/auth" || pathname.startsWith("/auth/")) {
     if (canManageClasses(input.role)) return "/instructor";
     if (isEntitled(input.accessStatus)) return "/hub";

@@ -203,7 +203,9 @@ export async function updateSession(
     cookieValue: request.cookies.get(OWNER_DEMO_COOKIE)?.value,
   });
   const stayOnSignInForm =
-    pathname === "/auth" && request.nextUrl.searchParams.get("form") === "1";
+    (pathname === "/auth" && request.nextUrl.searchParams.get("form") === "1") ||
+    pathname === "/auth/reset-password" ||
+    pathname.startsWith("/auth/reset-password/");
   if (
     localOwnerDemo &&
     !pathname.startsWith("/api") &&
