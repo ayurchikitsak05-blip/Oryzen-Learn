@@ -10,7 +10,7 @@ import {
   writeExperiencePrefs,
 } from "./persist";
 import { EXPERIENCE_THEMES } from "./themes";
-import { EXPERIENCE_STORAGE_KEY } from "./types";
+import { EXPERIENCE_STORAGE_KEY, type ExperiencePrefs } from "./types";
 
 /**
  * Personalize → Colours (design board "Personalize my space", 3 Nov 2026).
@@ -81,8 +81,8 @@ export function applyColour(id: ColourId, userId: string | null): void {
     window.dispatchEvent(new Event("oryzen-experience-changed"));
     return;
   }
-  const prefs = { ...defaultExperiencePrefs(userId), experience: "momentum" as const, usePrakritiAccent: false };
-  let saved = prefs;
+  const prefs: ExperiencePrefs = { ...defaultExperiencePrefs(userId), experience: "momentum", usePrakritiAccent: false };
+  let saved: ExperiencePrefs = prefs;
   try {
     saved = writeExperiencePrefs(prefs);
   } catch {
