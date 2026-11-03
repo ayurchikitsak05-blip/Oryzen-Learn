@@ -4,6 +4,17 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-03 (night) · Redesign, part 4: Personalize my space
+
+### Change: a simpler Personalize screen
+- **Problem:** Personalize offered three "experiences" (Focus, Studio, Momentum) with previews of hidden features (stickers, garden, badges), plus accent, rewards and decoration switches. Focus sounds only played on that screen.
+- **Fix:** four sections, as on the design board: **Colours** (Beige, Clay, Teal, Peach and Night; the study style suggests one), **Reading text** size, **Focus sound** (now plays while a study sprint runs), and the **Take My Study helper** (Meera, Teacher · Aarav, Friend · Kabir, Coach). File: `src/components/experience/PersonalizeSpace.tsx`, `src/lib/experience/colours.ts`.
+- **Tested:** colour tests (theme switch, Night, shared phone) and a screen test for colours and the helper. CI passed.
+- **Observer:** APPROVE WITH FOLLOW-UPS. Fixed: a sound could start after a sprint was paused (when the browser held the audio); one student's light colour erased another student's Night on a shared phone; sound choices were lost while the private record was locked; the older Focus look was wrongly shown as "Beige"; blocked storage could crash the colour change. Changing the helper starts a fresh chat; the screen says so.
+- **Follow-ups:** the light colour itself is shared by everyone on one browser; the old Focus/Studio/Momentum dashboards are now unused code to clean up; arrow-key movement inside the colour and helper choices.
+
+---
+
 ## 2026-11-03 (night) · Redesign, part 3: first-run screens
 
 ### Change: one-minute setup for new students

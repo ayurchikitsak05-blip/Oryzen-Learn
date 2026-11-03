@@ -26,7 +26,7 @@ describe("Personalize colours", () => {
   it("a light colour switches the study theme and drops the older look", () => {
     writeExperiencePrefs({ ...defaultExperiencePrefs("student-a"), experience: "focus" });
     document.documentElement.style.setProperty("--bg", "#000000");
-    expect(currentColour("student-a")).toBe("beige");
+    expect(currentColour("student-a")).toBeNull();
 
     applyColour("teal", "student-a");
     expect(readRhythmPrefs().themeId).toBe("cool-clear");
@@ -43,7 +43,10 @@ describe("Personalize colours", () => {
     expect(saved?.usePrakritiAccent).toBe(false);
     expect(document.documentElement.dataset.experience).toBe("momentum");
     expect(currentColour("student-a")).toBe("night");
-    // Another student on the same phone isn't shown this student's Night choice.
+    // Another student on the same phone isn't shown this student's Night choice,
+    // and their light colour doesn't erase it.
     expect(currentColour("student-b")).not.toBe("night");
+    applyColour("clay", "student-b");
+    expect(readExperienceRecord()?.experience).toBe("momentum");
   });
 });

@@ -58,7 +58,9 @@ export function PersonalizeSpace() {
       if (opened) {
         setSuggested(suggestion(id));
         const store = readCompanionStore(id);
-        setHelper(store.prefs.onboarded ? store.prefs.style : null);
+        // Tara (guide) uses the Teacher replies, so show Teacher as chosen.
+        const style = store.prefs.style === "guide" ? "teacher" : store.prefs.style;
+        setHelper(store.prefs.onboarded ? style : null);
       }
       setReady(true);
     })();
@@ -127,7 +129,7 @@ export function PersonalizeSpace() {
         <ReadingSizeControl />
       </section>
 
-      {ready && universe ? (
+      {ready && universe && vaultOpen ? (
         <section className="space-y-2" data-testid="personalize-audio">
           <FocusSoundPanel
             prefs={universe}
@@ -139,7 +141,9 @@ export function PersonalizeSpace() {
 
       <section className={sectionClass} aria-labelledby="personalize-helper" data-testid="personalize-helper">
         <h2 id="personalize-helper" className="font-semibold text-heading">Take My Study helper</h2>
-        <p className="text-sm text-muted">How the written replies sound when you can&apos;t get started.</p>
+        <p className="text-sm text-muted">
+          How the written replies sound when you can&apos;t get started. Changing it starts a fresh chat.
+        </p>
         {ready && !vaultOpen ? (
           <p className="text-sm text-muted">Your private study record is locked on this device, so this can&apos;t be changed right now.</p>
         ) : (
@@ -155,6 +159,7 @@ export function PersonalizeSpace() {
                   disabled={!ready}
                   data-testid={`helper-${choice.style}`}
                   onClick={() => {
+                    if (active) return;
                     activateCompanionStyle(choice.style, userId);
                     setHelper(choice.style);
                   }}

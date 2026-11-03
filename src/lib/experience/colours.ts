@@ -6,6 +6,7 @@ import {
   clearExperienceInline,
   defaultExperiencePrefs,
   experienceVisibleTo,
+  readExperienceRecord,
   writeExperiencePrefs,
 } from "./persist";
 import { EXPERIENCE_THEMES } from "./themes";
@@ -52,12 +53,12 @@ export function colourForTheme(themeId: ThemeId | string | null | undefined): Co
   return COLOUR_CHOICES.find((choice) => choice.themeId === themeId)?.id ?? null;
 }
 
-/** What the student sees now. The older Focus look counts as Beige; Studio has no match. */
+/** What the student sees now. */
 export function currentColour(userId: string | null): ColourId | null {
   const experience = experienceVisibleTo(userId);
   if (experience?.experience === "momentum") return "night";
-  if (experience?.experience === "focus") return "beige";
-  if (experience?.experience === "studio") return null;
+  // The older Focus and Studio looks have their own palettes, so no swatch is ticked for them.
+  if (experience) return null;
   return colourForTheme(readRhythmPrefs().themeId) ?? "beige";
 }
 
@@ -65,21 +66,27 @@ export function applyColour(id: ColourId, userId: string | null): void {
   const choice = COLOUR_CHOICES.find((item) => item.id === id);
   if (!choice || typeof window === "undefined") return;
   if (choice.themeId) {
-    const next = writeRhythmPrefs({ ...readRhythmPrefs(), themeId: choice.themeId, suggestionState: "applied" });
     try {
-      window.localStorage.removeItem(EXPERIENCE_STORAGE_KEY);
+      writeRhythmPrefs({ ...readRhythmPrefs(), themeId: choice.themeId, suggestionState: "applied" });
+      // Only drop the older look if it belongs to this student (or nobody): phones get shared.
+      const stored = readExperienceRecord();
+      if (stored && (!stored.ownerId || stored.ownerId === userId)) {
+        window.localStorage.removeItem(EXPERIENCE_STORAGE_KEY);
+      }
     } catch {
       /* storage blocked: the colour still applies for this visit */
     }
     clearExperienceInline(document.documentElement);
-    applyThemeToDocument(next.themeId);
+    applyThemeToDocument(choice.themeId);
     window.dispatchEvent(new Event("oryzen-experience-changed"));
     return;
   }
-  const saved = writeExperiencePrefs({
-    ...defaultExperiencePrefs(userId),
-    experience: "momentum",
-    usePrakritiAccent: false,
-  });
+  const prefs = { ...defaultExperiencePrefs(userId), experience: "momentum" as const, usePrakritiAccent: false };
+  let saved = prefs;
+  try {
+    saved = writeExperiencePrefs(prefs);
+  } catch {
+    /* storage blocked: Night still applies for this visit */
+  }
   applyExperienceToDocument({ mode: "momentum", prefs: saved, prakritiThemeId: readRhythmPrefs().themeId });
 }
