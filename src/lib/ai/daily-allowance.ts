@@ -8,8 +8,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 export const DAILY_AI_HELPS = { free: 5, pro: 40 } as const;
 
-/** Monthly AI spend safety net per student, in rupees (replaces the flat ₹70 for students). */
-export const MONTHLY_AI_CAP_INR = { free: 5, pro: 30 } as const;
+/**
+ * Monthly AI spend safety net per student, in rupees. The daily helps are the main limit;
+ * this only stops a runaway month. About ₹0.17 a help: Free ₹25 covers 5 a day all month,
+ * Pro ₹70 (the old flat cap) covers about 400 helps. Owner can lower these.
+ */
+export const MONTHLY_AI_CAP_INR = { free: 25, pro: 70 } as const;
+
+export const MONTHLY_CAP_MESSAGE =
+  "You've used this month's AI helps. Saved answers, reading, notes and practice still work. New helps arrive on the 1st.";
 
 export type AllowancePlan = keyof typeof DAILY_AI_HELPS;
 

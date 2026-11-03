@@ -611,7 +611,8 @@ async function finishGatewayResult(params: {
   providerErrorDetail?: AiGatewayExecutionResult["providerErrorDetail"];
   payload: AiLensResponsePayload;
 }): Promise<AiGatewayExecutionResult> {
-  if (!params.cacheHit) {
+  // Never save a "you're out of helps" fallback as the answer for this passage.
+  if (!params.cacheHit && !params.budgetBlocked) {
     await storeCachedResponse({
       supabase: params.request.supabase,
       cacheKey: params.cacheKey,

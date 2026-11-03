@@ -980,6 +980,16 @@ describe("Layer 3: Controlled AI Gateway, 5-Shield Profit Protection & Multi-Len
       expect(blocked.fallbackReason).toBe("daily_allowance");
       expect(blocked.costInr).toBe(0);
       expect(generator).toHaveBeenCalledTimes(1);
+
+      // Next day, with helps again: the real answer comes, not a saved "blocked" one.
+      const nextDay = await executeControlledAiGateway({
+        ...base,
+        selectedText: "A new line the student has not asked about.",
+        dailyAllowance: { plan: "free", limit: 5, used: 0, left: 5 },
+      });
+      expect(nextDay.cacheHit).toBe(false);
+      expect(nextDay.fallbackReason).not.toBe("daily_allowance");
+      expect(generator).toHaveBeenCalledTimes(2);
     });
 
     it("blocks a double help when only one is left", async () => {

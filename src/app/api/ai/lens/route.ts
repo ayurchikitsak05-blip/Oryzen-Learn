@@ -16,6 +16,7 @@ import {
   allowanceStatus,
   helpsUsedToday,
   MONTHLY_AI_CAP_INR,
+  MONTHLY_CAP_MESSAGE,
 } from "@/lib/ai/daily-allowance";
 import type { Dosha } from "@/lib/prakriti/config";
 import type { BoundingBox, CitationReadyChunk } from "@/lib/reader/extractor";
@@ -149,6 +150,13 @@ export async function POST(request: NextRequest) {
           code: "daily_allowance",
           allowance: dailyAllowance,
         },
+        { status: 429 }
+      );
+    }
+
+    if (result.fallbackReason === "wallet_exhausted" && result.budgetBlocked) {
+      return NextResponse.json(
+        { error: MONTHLY_CAP_MESSAGE, code: "monthly_cap" },
         { status: 429 }
       );
     }

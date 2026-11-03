@@ -77,7 +77,7 @@ export function studyProgressLines(facts: StudyProgressFacts): string[] {
     lines.push(`${plural(facts.marginNoteCount, "margin note", "margin notes")} saved.`);
   }
   if (facts.savedPassageCount > 0) {
-    lines.push(`${plural(facts.savedPassageCount, "saved passage", "saved passages")} in the notebook.`);
+    lines.push(`${plural(facts.savedPassageCount, "saved passage", "saved passages")} in My Notes.`);
   }
   if (facts.quizzesCompleted > 0) {
     lines.push(`${plural(facts.quizzesCompleted, "quiz", "quizzes")} completed.`);
