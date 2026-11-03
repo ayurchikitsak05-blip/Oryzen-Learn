@@ -4,6 +4,22 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-03 (night) · Redesign, part 3: first-run screens
+
+### Change: one-minute setup for new students
+- **Problem:** a new student landed on Today with "No plan yet" and a seven-step plan form (chapters, commitments, sleep times) before anything useful happened.
+- **Fix:** a new `/welcome` screen. Step 1: tap the class or exam (Class 10, 11, 12, NEET, JEE, College), subjects and exam month; this becomes a plan of about 2 hours a day. Step 2: upload a first PDF (the reader opens with a "press and hold a line, tap Explain" tip) or add a book later. Today's "Make my exam plan" now opens this screen; the full form stays on the plan screen.
+- **How the plan is made:** chapters are named "Chapter 1, 2, …" using rough NCERT chapter counts (for example Class 12 Physics 14, NEET Biology 32); students rename or remove them on the plan. Boards default to February so the plan finishes before mid-February exams. The plan is created on the plan screen once it knows the student has none, so it syncs to the account like any other plan.
+- **Left out on purpose:** the "From my syllabus" NCERT books on the design (needs the NCERT precompute and a legal check) and the age question with parent approval (needs the DPDP decision below).
+- **Tested:** unit tests for months, suggestions, subject cleaning, Hindi subject names and the planner accepting the result; screen tests for the welcome flow and Today. CI passed.
+- **Observer:** CHANGES NEEDED on the first pass. Fixed: on a shared phone one student's answers could become another student's plan (answers are now tied to the student and expire after a day); offline, a plan could be made that then clashed with the account's plan; Hindi subject names merged into one; exam dates could be a day away; an existing plan silently ignored the new answers. Second pass: APPROVE WITH FOLLOW-UPS; its two points (students close to the exam couldn't pick this year's month; a slow sign-in check could freeze the buttons) are fixed.
+
+### Owner decisions
+- **Under-18 students (DPDP Act):** collecting data from minors needs verifiable parent consent. Decide how (parent email or phone OTP) before public launch; the screen is ready to add the question.
+- **Chapter counts** are approximate and can be replaced with real chapter names per class later.
+
+---
+
 ## 2026-11-03 (evening) · Redesign, part 2: "My Notes", and a daily AI-help allowance
 
 **Owner decision (3 Nov):** don't use the word "notebook" anywhere students see it, so the app isn't confused with Google's product. Chosen word: **My Notes**.
@@ -90,4 +106,5 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - [ ] Students can still reset their own daily usage counters; move metering server-side
 - [ ] Pin the Supabase CLI version in CI
 - [ ] Owner: review the Take My Study safety word list
+- [ ] Owner: decide parent consent for under-18 students (DPDP) before public launch
 - [ ] Live end-to-end testing on Preview with a test student account

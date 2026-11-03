@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { FIRST_RUN_DRAFT_KEY } from "@/lib/onboarding/first-run";
+import { afterEach, describe, expect, it } from "vitest";
 import { TodayHome } from "../TodayHome";
 
 const empty = {
@@ -11,10 +12,27 @@ const empty = {
 };
 
 describe("TodayHome", () => {
+  afterEach(() => window.localStorage.clear());
+
+  it("offers to open the plan when first-run answers are waiting", async () => {
+    window.localStorage.setItem(
+      FIRST_RUN_DRAFT_KEY,
+      JSON.stringify({ exam: "class12", subjects: ["Physics"], examMonth: "2099-03", owner: "student-a", savedAt: Date.now() })
+    );
+    const view = render(<TodayHome continuation={empty} draftOwner="student-a" />);
+    expect(await screen.findByText("Show my plan")).toBeTruthy();
+    expect(screen.getByTestId("today-make-plan").getAttribute("href")).toBe("/roadmap");
+    view.unmount();
+
+    // Another student signed in on the same phone doesn't see it.
+    render(<TodayHome continuation={empty} draftOwner="student-b" />);
+    expect(screen.getByTestId("today-make-plan").getAttribute("href")).toBe("/welcome");
+  });
+
   it("asks a student with no plan to make one, and to add a first book", () => {
     render(<TodayHome continuation={empty} />);
     expect(screen.getByRole("heading", { name: "What to study now" })).toBeTruthy();
-    expect(screen.getByTestId("today-make-plan").getAttribute("href")).toBe("/roadmap");
+    expect(screen.getByTestId("today-make-plan").getAttribute("href")).toBe("/welcome");
     expect(screen.queryByTestId("today-start")).toBeNull();
     expect(screen.getByTestId("today-book").getAttribute("href")).toBe("/reader?upload=1");
     expect(screen.getByTestId("today-book").textContent).toMatch(/Add your first book/);

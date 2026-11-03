@@ -19,6 +19,11 @@ import {
   type RemoteFetchResult,
 } from "@/lib/roadmap/persist";
 import { decideHydrate } from "@/lib/roadmap/sync";
+import {
+  buildQuickIntake,
+  clearFirstRunDraft,
+  readFirstRunDraft,
+} from "@/lib/onboarding/first-run";
 import { addDays, localIsoDate } from "@/lib/roadmap/time";
 import type { RoadmapIntake, RoadmapRecord } from "@/lib/roadmap/types";
 import { ensureAccountVault } from "@/lib/privacy/account-vault";
@@ -48,6 +53,7 @@ export default function RoadmapApp() {
   const [serverUpdatedAt, setServerUpdatedAt] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [syncRetry, setSyncRetry] = useState<"hydrate" | "save" | null>(null);
+  const [draftNotice, setDraftNotice] = useState(false);
 
   const applyLocal = useCallback(
     (next: RoadmapRecord, scope = userId) => {
@@ -238,6 +244,31 @@ export default function RoadmapApp() {
     );
   };
 
+  // First run: answers from /welcome become a plan as soon as we know there isn't one yet.
+  useEffect(() => {
+    if (loading) return;
+    if (syncPhase === "conflict" || syncPhase === "pending-import") return;
+    // Offline: we don't yet know whether the account already has a plan, so keep the answers.
+    if (syncRetry === "hydrate") return;
+    const draft = readFirstRunDraft(userId, today);
+    if (!draft) return;
+    clearFirstRunDraft();
+    if (record) {
+      setDraftNotice(true);
+      return;
+    }
+    const quick = buildQuickIntake(draft);
+    persist(
+      createRoadmapRecord({
+        userId,
+        intake: { ...quick, rhythm: emptyStudyRhythmHook() },
+        today,
+      })
+    );
+    // persist reads the latest sync state on each render; run once per load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, record, syncPhase, syncRetry, today, userId]);
+
   const reset = () => {
     clearLocalRoadmap(userId);
     setRecord(null);
@@ -359,6 +390,12 @@ export default function RoadmapApp() {
         </div>
 
         {loading && <p className={`${ui.loading} mt-8`}>Opening your roadmap...</p>}
+
+        {!loading && draftNotice && (
+          <p className={`${ui.notice} mt-6`} role="status" data-testid="roadmap-draft-notice">
+            You already have a plan, so we kept it. To use your new exam or subjects, change this plan below.
+          </p>
+        )}
 
         {!loading && syncMessage && (
           <RoadmapSyncNotice

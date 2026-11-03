@@ -12,6 +12,7 @@ const BLOCKED_PREFIXES = [
   "/checkout",
   "/access",
   "/onboarding",
+  "/welcome",
 ] as const;
 
 export function normalizeAppPath(path: string): string {

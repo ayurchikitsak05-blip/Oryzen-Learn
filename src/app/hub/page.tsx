@@ -25,6 +25,7 @@ export default function StudyHubPage() {
   const [continuation, setContinuation] = useState<HomeContinuation>(EMPTY_CONTINUATION);
   const [record, setRecord] = useState<"loading" | "opening" | "locked" | "ready">("loading");
   const [vaultAttempt, setVaultAttempt] = useState(0);
+  const [draftOwner, setDraftOwner] = useState<string | null>(null);
   const coachScope = useSignedInScope();
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function StudyHubPage() {
           const user = await fetchSignedInUser();
           const userId = user?.userId ?? null;
           if (cancelled) return;
+          setDraftOwner(userId ?? "local-anonymous");
           if (!userId) {
             const date = todayKey();
             const documentId = readLastReaderDocumentId(userId);
@@ -81,6 +83,7 @@ export default function StudyHubPage() {
         <TodayHome
           continuation={continuation}
           record={record}
+          draftOwner={draftOwner}
           onRetry={record === "locked" ? () => setVaultAttempt((current) => current + 1) : undefined}
         />
       </main>
