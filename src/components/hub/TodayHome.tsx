@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw } from "lucide-react";
 import type { HomeContinuation } from "@/lib/hub/continuation";
+import { readFirstRunDraft } from "@/lib/onboarding/first-run";
 
 /**
  * The Today screen: one main action (today's study), then revision, help to start,
@@ -19,6 +20,11 @@ export function TodayHome({
   onRetry?: () => void;
 }) {
   const ready = record === "ready";
+  // Answers from the first-run screen that haven't become a plan yet.
+  const [hasDraft, setHasDraft] = useState(false);
+  useEffect(() => {
+    setHasDraft(Boolean(readFirstRunDraft()));
+  }, []);
   const hasPlan = ready && Boolean(continuation.nextBlock);
   const hasBook = ready && Boolean(continuation.bookTitle);
   const studied = continuation.studiedMinutes;
@@ -75,14 +81,20 @@ export function TodayHome({
           </>
         ) : (
           <>
-            <p className="mt-2 text-xl font-semibold leading-snug">No plan yet</p>
-            <p className="mt-1 text-sm text-beige-2">Tell us your exam date and subjects, and we&apos;ll plan each day.</p>
+            <p className="mt-2 text-xl font-semibold leading-snug">
+              {hasDraft ? "Your exam plan is ready to open" : "No plan yet"}
+            </p>
+            <p className="mt-1 text-sm text-beige-2">
+              {hasDraft
+                ? "We'll split your subjects into about 2 hours a day."
+                : "Tell us your class and exam month. It takes a minute."}
+            </p>
             <Link
-              href="/roadmap"
+              href={hasDraft ? "/roadmap" : "/welcome"}
               data-testid="today-make-plan"
               className="mt-4 flex min-h-[52px] items-center justify-center rounded-2xl bg-canvas text-base font-semibold text-heading"
             >
-              Make my exam plan
+              {hasDraft ? "Show my plan" : "Make my exam plan"}
             </Link>
           </>
         )}

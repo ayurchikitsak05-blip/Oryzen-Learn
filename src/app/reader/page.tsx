@@ -61,6 +61,7 @@ function ReaderStudio() {
     };
   }, []);
 
+  const [showExplainTip, setShowExplainTip] = useState(searchParams.get("tip") === "explain");
   const scores = scoresFor(activeDosha);
   const profile = calculatePrakritiProfile(scores, scores);
 
@@ -87,6 +88,25 @@ function ReaderStudio() {
       }
     >
       <div className="flex h-full max-h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+        {showExplainTip ? (
+          <div
+            role="note"
+            data-testid="reader-explain-tip"
+            className="mx-4 mt-3 flex shrink-0 items-start gap-3 rounded-2xl border border-line bg-beige-2 px-4 py-3 text-sm leading-relaxed text-ink"
+          >
+            <p className="min-w-0 flex-1">
+              <span className="font-semibold text-heading">Your first win:</span> open your book, press and hold any
+              line, then tap <span className="font-semibold">Explain</span>. Answers always come from your book.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowExplainTip(false)}
+              className="shrink-0 font-medium text-accent underline-offset-4 hover:underline"
+            >
+              Got it
+            </button>
+          </div>
+        ) : null}
         <PdfViewer
           theme={profile.activeConfiguration.theme}
           promptUpload={searchParams.get("upload") === "1"}
