@@ -60,6 +60,7 @@ export default function AppChrome({
                 <Link
                   key={link.href}
                   href={link.href}
+                  aria-current={isActive(navPath, link.href) ? "page" : undefined}
                   className={`inline-flex min-h-11 items-center whitespace-nowrap rounded-xl px-1 text-[13px] lg:px-3 lg:text-sm ${
                     isActive(navPath, link.href)
                       ? "bg-selected text-heading"

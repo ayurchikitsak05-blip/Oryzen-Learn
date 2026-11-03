@@ -166,26 +166,62 @@ export const SAFETY_REPLY =
 
 export const SAFETY_PHONE_HREF = "tel:14416";
 
-/** Worrying phrases. Checked before any other reply. The owner reviews this list before launch. */
+/**
+ * Worrying phrases, in English, Hinglish, Hindi and Marathi. Checked before any other reply.
+ * Deliberately broad: a stressed "this exam will kill me" also gets the helpline reply,
+ * which is the safer mistake. The owner reviews this list before launch.
+ */
 export const SAFETY_PATTERNS: readonly RegExp[] = [
-  /\b(want|wanna|going) to die\b/i,
-  /\bkill (myself|me)\b/i,
-  /\bhurt (myself|me)\b/i,
-  /\bend (my life|it all)\b/i,
-  /\bsuicid/i,
-  /\bself[- ]?harm/i,
-  /\bno (point|reason) (in )?living\b/i,
-  /\bdon'?t want to live\b/i,
-  /\bi'?m really not okay\b/i,
+  // English
+  /\b(want|wanna|going|gonna|wish|need) (to )?die\b/,
+  /\bwish i (was|were) dead\b/,
+  /\b(feel like|thinking of|thinking about) dying\b/,
+  /\bkill(ing)? (myself|me)\b/,
+  /\b(hurt|hurting|cut|cutting|harm|harming) myself\b/,
+  /\bunalive\b/,
+  /\bkms\b/,
+  /\bend (my life|it all|everything)\b/,
+  /\bsuicid/,
+  /\bself ?harm/,
+  /\bno (point|reason) (in |to )?(living|live|being alive)\b/,
+  /\b(do not|dont|don't|never) (want|wanna) (to )?(live|be alive|exist)\b/,
+  /\bbetter off dead\b/,
+  /\b(i'm|i am|im) (really |really really )?not (okay|ok)\b/,
+  // Hinglish (romanized Hindi)
+  /\bmar(na)? (jaana|jana|jau|jaun|jaaun)\b/,
+  /\bmarna (chahta|chahti|hai)\b/,
+  /\bmar jana hai\b/,
+  /\bjeena nahi\b/,
+  /\bjeene ka (mann|man) nahi\b/,
+  /\bkhudkushi\b/,
+  /\baatmahatya\b/,
+  // Hindi
   /मरना चाह/,
+  /मरना है/,
+  /मर जा/,
   /आत्महत्या/,
-  /जगायचं नाही/,
   /जीना नहीं/,
+  /जीने का मन नहीं/,
+  /ख़ुदकुशी|खुदकुशी/,
+  // Marathi
+  /जगायचं नाही|जगायचे नाही/,
+  /मरायच/,
+  /मरून जा/,
 ];
 
-export function isSafetyMessage(text: string): boolean {
-  return SAFETY_PATTERNS.some((pattern) => pattern.test(text));
+/** Lower-case, straight apostrophes, single spaces: so "I DON’T  want to live" still matches. */
+export function normalizeForSafety(text: string): string {
+  return text.toLowerCase().replace(/[’‘`´]/g, "'").replace(/\s+/g, " ").trim();
 }
+
+export function isSafetyMessage(text: string): boolean {
+  const value = normalizeForSafety(text);
+  return SAFETY_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+export const SOMETHING_ELSE_LABEL = "Something else is stopping me";
+export const SOMETHING_ELSE_REPLY =
+  "That's okay, not everything fits a button. Pick the one that's closest, or write it below in a few words. Whatever it is, starting with just 10 minutes usually helps.";
 
 export const NOT_A_PERSON_REPLY = "No. I'm a set of written study tips inside ORYZEN Learn, not a person.";
 
@@ -258,6 +294,9 @@ export function libraryAnswer(
     return { kind: "followUp", text: fillTokens(followUp.reply, context), followUp };
   }
   if (followUp?.kind === "safety") return { kind: "safety", text: SAFETY_REPLY };
+  if (normalized(text) === normalized(SOMETHING_ELSE_LABEL)) {
+    return { kind: "notAPerson", text: SOMETHING_ELSE_REPLY };
+  }
   if (/\b(are you|r u) (real|a (real )?person|human)\b/i.test(text)) {
     return { kind: "notAPerson", text: NOT_A_PERSON_REPLY };
   }

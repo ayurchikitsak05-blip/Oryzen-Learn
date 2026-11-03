@@ -69,8 +69,37 @@ describe("Take My Study reply library", () => {
       expect(libraryAnswer(text, "coach")?.text).toBe(SAFETY_REPLY);
     }
     expect(SAFETY_REPLY).toMatch(/14416/);
-    expect(isSafetyMessage("this chapter is killing me with formulas")).toBe(false);
     expect(isSafetyMessage("I'm tired")).toBe(false);
+    expect(isSafetyMessage("I can't get started")).toBe(false);
+    expect(isSafetyMessage("Explain the motion of a dying star")).toBe(false);
+  });
+
+  it("catches the everyday ways a student writes it, including curly apostrophes and Hinglish", () => {
+    for (const text of [
+      "i wanna die",
+      "I don’t want to live",
+      "i dont wanna live anymore",
+      "do not want to live",
+      "I wish I was dead",
+      "i feel like dying",
+      "cutting myself again",
+      "I want to KILL MYSELF",
+      "kms",
+      "I am really not okay",
+      "im not ok",
+      "marna chahta hu",
+      "marna chahti hoon",
+      "jeena nahi chahta",
+      "mujhe mar jana hai",
+      "मुझे मरना है",
+      "मर जाना चाहता हूं",
+      "मला मरायचं आहे",
+      "मला जगायचे नाही",
+    ]) {
+      expect(isSafetyMessage(text), text).toBe(true);
+    }
+    // Broad on purpose: a stressed figure of speech also gets the helpline reply.
+    expect(isSafetyMessage("this exam is going to kill me")).toBe(true);
   });
 
   it("says plainly that it is not a person", () => {

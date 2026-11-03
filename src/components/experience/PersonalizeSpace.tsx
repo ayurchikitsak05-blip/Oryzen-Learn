@@ -204,9 +204,6 @@ export function PersonalizeSpace() {
           />
           Use my Prakriti accent when the contrast stays readable
         </label>
-        <Link href="/universe" className="btn-secondary text-sm">
-          Adjust Prakriti colors in Study Universe
-        </Link>
       </section>
 
       <section className="space-y-3 rounded-2xl border border-line bg-surface p-3" data-testid="personalize-rhythm">
@@ -254,11 +251,6 @@ export function PersonalizeSpace() {
         <p className="text-sm text-muted">
           Rewards mark real study. There is no streak pressure, leaderboard, mystery box, or paid reward. You can study with rewards turned off.
         </p>
-        {mode === "studio" ? (
-          <Link href="/studio" className="btn-secondary text-sm">
-            Open Sticker Studio
-          </Link>
-        ) : null}
       </section>
 
       {mode === "momentum" ? (

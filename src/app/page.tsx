@@ -27,7 +27,7 @@ export default function MinimalistStudyStudioDashboard() {
 
         <div className="mt-10 flex w-full max-w-sm flex-col items-stretch gap-3">
           <Link href="/hub" className={`${ui.primary} min-h-[52px] text-base`}>
-            Go to My Learning Space
+            Go to Today
             <ArrowRight className="h-4 w-4" />
           </Link>
           <TryDemoButton />

@@ -28,6 +28,7 @@ import {
   findStarter,
   SAFETY_PHONE_HREF,
   SAFETY_REPLY,
+  SOMETHING_ELSE_LABEL,
   STARTER_PROMPT,
   STARTERS,
   type Starter,
@@ -84,6 +85,7 @@ export function CompanionChat({
   const scopeRef = useRef(userId);
   const storeRef = useRef(store);
   const sessionTurnIds = useRef(new Set<string>());
+  const lastTap = useRef({ text: "", at: 0 });
   const submitGuard = useRef({ busy: false, needsEdit: false, lastQuestion: "" });
   scopeRef.current = userId;
   storeRef.current = store;
@@ -174,6 +176,10 @@ export function CompanionChat({
     const question = normalizeQuestion(fromButton ? tapped : draft);
     if (question.length < 2) return;
     if (submitGuard.current.busy || (!fromButton && submitGuard.current.needsEdit)) return;
+    // A quick double tap on the same button adds one reply, not two.
+    const now = Date.now();
+    if (fromButton && lastTap.current.text === question && now - lastTap.current.at < 800) return;
+    if (fromButton) lastTap.current = { text: question, at: now };
     submitGuard.current.busy = true;
     if (!fromButton) {
       submitGuard.current.needsEdit = true;
@@ -366,7 +372,7 @@ export function CompanionChat({
                 type="button"
                 className={`${ui.ghost} text-xs`}
                 data-testid="companion-something-else"
-                onClick={() => ask("Something else is stopping me")}
+                onClick={() => ask(SOMETHING_ELSE_LABEL)}
               >
                 Something else
               </button>
@@ -432,7 +438,7 @@ export function CompanionChat({
         </button>
         {fromOnboarding ? (
           <Link href="/hub" data-testid="companion-continue-hub" className={ui.ghost}>
-            Continue to Learning Space
+            Continue to Today
           </Link>
         ) : null}
       </div>
