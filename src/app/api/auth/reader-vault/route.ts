@@ -99,7 +99,10 @@ export async function POST(request: NextRequest) {
       keyBytes = null;
     }
     if (!keyBytes || keyBytes.byteLength !== 32) continue;
-    const ownerId = claimedOwnerId(record.ownerId);
+    // Only the signed-in student's own data is wrapped to their account.
+    // Anything claimed for another account goes to quarantine instead.
+    const claimed = claimedOwnerId(record.ownerId);
+    const ownerId = claimed && claimed === user?.id ? claimed : null;
     const vaultKey = ownerId
       ? await deriveAccountVaultKey(materials.current, ownerId)
       : await deriveQuarantineKey(materials.current);

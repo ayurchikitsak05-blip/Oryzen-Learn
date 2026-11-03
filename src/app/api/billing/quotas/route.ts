@@ -2,13 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { resolveAuthorizedUserId } from "@/lib/auth/request-user";
 import { createClient } from "@/lib/supabase/server";
 import {
-  applyExamBoosterPack,
   evaluateAndConsumeQuota,
   getOrInitUserQuotaState,
   PLAN_ENTITLEMENTS,
-  upgradeUserPlanTier,
   type MeteredResourceType,
-  type SubscriptionPlanTier,
 } from "@/lib/billing/quotas";
 import { getOwnMonthlyAiUsage } from "@/lib/ai/spend-guard";
 
@@ -38,11 +35,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
-      action: "consume" | "upgrade_tier" | "buy_booster";
+      action: "consume";
       userId?: string;
       resource?: MeteredResourceType;
-      newTier?: SubscriptionPlanTier;
-      packCount?: number;
     };
 
     const supabase = await createClient().catch(() => null);
@@ -55,35 +50,10 @@ export async function POST(request: NextRequest) {
     }
     const userId = resolveAuthorizedUserId(sessionUserId, body.userId);
 
-    if (body.action === "upgrade_tier") {
-      if (!body.newTier || !(body.newTier in PLAN_ENTITLEMENTS)) {
-        return NextResponse.json(
-          { error: "Valid newTier is required ('free', 'pro_monthly', 'exam_pass_6mo')." },
-          { status: 400 }
-        );
-      }
-      const state = await upgradeUserPlanTier({
-        userId,
-        newTier: body.newTier,
-        supabase,
-      });
-      return NextResponse.json({
-        status: "upgraded",
-        state,
-        entitlements: PLAN_ENTITLEMENTS[state.planTier],
-      });
-    }
-
-    if (body.action === "buy_booster") {
-      const state = await applyExamBoosterPack({
-        userId,
-        packCount: body.packCount ?? 1,
-        supabase,
-      });
-      return NextResponse.json({
-        status: "booster_applied",
-        state,
-      });
+    // Plan and booster changes only happen after a verified payment on the server,
+    // never from this route.
+    if (!sessionUserId) {
+      return NextResponse.json({ error: "Sign in required." }, { status: 401 });
     }
 
     if (body.action === "consume") {
@@ -106,8 +76,7 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Billing quota operation failed.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Billing quota operation failed", err);
+    return NextResponse.json({ error: "Billing quota operation failed." }, { status: 500 });
   }
 }

@@ -37,3 +37,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local env files without a leading dot, and scratch end-to-end scripts
+env.local
+**/env.local
+tmp-e2e*

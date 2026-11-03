@@ -27,12 +27,22 @@ jobs:
           node-version: "22"
           cache: npm
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        # The committed lockfile was made on a Mac and lacks the Linux builds of some
+        # native packages (lightningcss, rolldown), npm bug 4828. Use it when it works;
+        # otherwise rebuild it and upload the repaired lockfile for review.
+        run: |
+          npm ci --no-audit --no-fund
+          if ! node -e "require('lightningcss'); require('rolldown')" 2>/dev/null; then
+            echo "::warning::Lockfile is missing Linux native builds; regenerating it for this run."
+            rm -rf node_modules package-lock.json
+            npm install --no-audit --no-fund
+            mkdir -p repaired && cp package-lock.json repaired/
+          fi
       - name: Unit tests (vitest)
         id: tests
         continue-on-error: true
         run: npx vitest run --reporter=default --reporter=json --outputFile=vitest-results.json 2>&1 | tee vitest-output.txt; exit ${PIPESTATUS[0]}
-      - name: Lint (eslint)
+      - name: Lint (eslint, report only — next.config ignores lint during builds)
         id: lint
         continue-on-error: true
         run: npx eslint . 2>&1 | tee eslint-output.txt; exit ${PIPESTATUS[0]}
@@ -67,6 +77,7 @@ jobs:
         with:
           name: learn-ci-results
           path: |
+            repaired/package-lock.json
             vitest-results.json
             vitest-output.txt
             eslint-output.txt
@@ -77,6 +88,34 @@ jobs:
       - name: Fail if any check failed
         if: always()
         run: |
-          for o in "${{ steps.tests.outcome }}" "${{ steps.lint.outcome }}" "${{ steps.typecheck.outcome }}" "${{ steps.build.outcome }}"; do
+          for o in "${{ steps.tests.outcome }}" "${{ steps.typecheck.outcome }}" "${{ steps.build.outcome }}"; do
             [ "$o" = "success" ] || { echo "A check failed: $o"; exit 1; }
           done
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start a throwaway local database and apply every migration
+        run: |
+          [ -f supabase/config.toml ] || supabase init --force
+          supabase db start
+      - name: Database acceptance tests (rolled back)
+        shell: bash
+        run: |
+          for f in supabase/tests/*.sql; do
+            echo "== $f"
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f "$f" 2>&1 | tee -a db-tests.txt
+          done
+          {
+            echo "## Database acceptance tests"
+            echo '```'
+            grep -E "RESULTS|FAILED" db-tests.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

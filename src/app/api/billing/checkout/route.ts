@@ -5,6 +5,7 @@ import {
   type PaymentProviderMode,
 } from "@/lib/billing/direct-access";
 import { razorpaySignature, signaturesMatch, stripeCheckoutForm } from "@/lib/billing/providers";
+import { completeVerifiedCheckout } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type CheckoutBody = {
@@ -27,13 +28,20 @@ export async function POST(request: NextRequest) {
     }
 
     const offer = directAccessOffer();
+    if (!offer.provider) {
+      console.error("Checkout refused: no payment provider is configured on Production.");
+      return NextResponse.json(
+        { error: "Payments are temporarily unavailable. Please try again later." },
+        { status: 503 }
+      );
+    }
 
     if (body.action === "confirm") {
-      return confirmPlaceholder(supabase, body.sessionId, offer.provider);
+      return confirmPlaceholder(user.id, body.sessionId, offer.provider);
     }
 
     if (body.action === "razorpay") {
-      return confirmRazorpay(supabase, body, offer.amountInr, offer.provider);
+      return confirmRazorpay(user.id, body, offer.amountInr, offer.provider);
     }
 
     const { data, error } = await supabase
@@ -51,11 +59,12 @@ export async function POST(request: NextRequest) {
       const missingTable =
         /checkout_sessions/i.test(error?.message ?? "") &&
         /schema cache|does not exist/i.test(error?.message ?? "");
+      console.error("checkout_sessions insert failed", error?.message, { missingTable });
       return NextResponse.json(
         {
           error: missingTable
-            ? "Checkout is not installed on the database yet. Run supabase/bootstrap.sql in the Supabase SQL editor, then click Subscribe Now again."
-            : (error?.message ?? "Could not start checkout."),
+            ? "Checkout is not available yet. Please try again later."
+            : "Could not start checkout. Please try again.",
         },
         { status: 400 }
       );
@@ -112,13 +121,13 @@ export async function POST(request: NextRequest) {
       confirmInApp: true,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Checkout failed.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Checkout failed", err);
+    return NextResponse.json({ error: "Checkout failed. Please try again." }, { status: 500 });
   }
 }
 
 async function confirmPlaceholder(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
   sessionId: string | undefined,
   provider: PaymentProviderMode
 ) {
@@ -133,17 +142,16 @@ async function confirmPlaceholder(
       { status: 501 }
     );
   }
-  const { data, error } = await supabase.rpc("complete_direct_checkout", {
-    session_id: sessionId,
-  });
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  // Placeholder confirmation only exists off Production (see resolvePaymentMode).
+  const result = await completeVerifiedCheckout({ sessionId, userId, provider: "placeholder" });
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
   }
-  return NextResponse.json({ accessStatus: "active_paid", result: data });
+  return NextResponse.json({ accessStatus: "active_paid" });
 }
 
 async function confirmRazorpay(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
   body: CheckoutBody,
   amountInr: number,
   provider: PaymentProviderMode
@@ -164,13 +172,16 @@ async function confirmRazorpay(
   if (!order || order.receipt !== body.sessionId || order.amount !== amountInr * 100 || order.amount_paid !== amountInr * 100) {
     return NextResponse.json({ error: "Razorpay payment does not match this subscription." }, { status: 400 });
   }
-  const { data, error } = await supabase.rpc("complete_direct_checkout", {
-    session_id: body.sessionId,
+  const result = await completeVerifiedCheckout({
+    sessionId: body.sessionId,
+    userId,
+    provider: "razorpay",
+    providerReference: body.paymentId,
   });
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
   }
-  return NextResponse.json({ accessStatus: "active_paid", result: data });
+  return NextResponse.json({ accessStatus: "active_paid" });
 }
 
 async function createStripeCheckoutUrl(input: {
