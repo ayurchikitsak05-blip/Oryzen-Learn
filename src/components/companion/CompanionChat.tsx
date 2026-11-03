@@ -431,10 +431,10 @@ export function CompanionChat({
               },
               userId
             );
-            setNoteStatus("Saved that study draft to your notebook, with the sprint and book as the source.");
+            setNoteStatus("Saved that reply to My Notes, with the sprint and book as the source.");
           }}
         >
-          Save reply to notebook
+          Save reply to My Notes
         </button>
         {fromOnboarding ? (
           <Link href="/hub" data-testid="companion-continue-hub" className={ui.ghost}>

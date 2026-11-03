@@ -28,7 +28,7 @@ const literata = Literata({
 export const metadata: Metadata = {
   title: "Oryzen Learn — Your personal learning environment",
   description:
-    "An AI-powered personal learning environment. Read your textbooks, learn from videos, organize your notebook, and discover how you study best.",
+    "An AI-powered personal learning environment. Read your textbooks, learn from videos, keep your notes, and discover how you study best.",
 };
 
 export default function RootLayout({

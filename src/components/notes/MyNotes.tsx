@@ -48,7 +48,7 @@ function SprintSessionNotes() {
 
 function notesError(message: string): string {
   if (/note_subjects|study_notes|schema cache|does not exist/i.test(message)) {
-    return "Your notebook isn't ready yet. Please try again in a moment.";
+    return "My Notes isn't ready yet. Please try again in a moment.";
   }
   return message;
 }
@@ -72,7 +72,7 @@ export default function MyNotes() {
       error?: string;
     };
     if (!response.ok) {
-      setError(notesError(json.error ?? "Your notebook could not be opened."));
+      setError(notesError(json.error ?? "My Notes could not be opened."));
       setSubjects([]);
       setNotes([]);
       setLoading(false);
@@ -188,10 +188,10 @@ export default function MyNotes() {
   const visibleNotes = notes.filter((note) => note.subject_id === selectedId);
 
   return (
-    <AppChrome subtitle="My Notebook">
+    <AppChrome subtitle="My Notes">
       <main className={ui.main}>
-        <p className={ui.eyebrow}>My Notebook</p>
-        <h1 className={`${ui.heading} mt-3 text-4xl`}>My Notebook</h1>
+        <p className={ui.eyebrow}>My Notes</p>
+        <h1 className={`${ui.heading} mt-3 text-4xl`}>My Notes</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
           Capture your thoughts, save important ideas, and return to them whenever you need.
         </p>
@@ -225,9 +225,9 @@ export default function MyNotes() {
               </button>
             </form>
             <div className="mt-4 space-y-2">
-              {loading && <p className={ui.loading}>Opening your notebook...</p>}
+              {loading && <p className={ui.loading}>Opening My Notes...</p>}
               {!loading && subjects.length === 0 && (
-                <p className={ui.empty}>Your notebook is waiting for its first idea.</p>
+                <p className={ui.empty}>Nothing in My Notes yet. Save a passage or write your first note.</p>
               )}
               {subjects.map((subject) => (
                 <div key={subject.id} className="flex items-center gap-2">
@@ -264,7 +264,7 @@ export default function MyNotes() {
             </div>
             {!selected && (
               <p className="mt-4 text-sm leading-relaxed text-muted">
-                Choose a subject to write in your notebook or open a note you already saved.
+                Choose a subject to write a note, or open a note you already saved.
               </p>
             )}
             {selected && (

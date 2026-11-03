@@ -890,15 +890,15 @@ export default function PdfViewer({
       }),
     });
     if (response.ok) {
-      setNotebookStatus("Saved to My Notebook. Open Notebook to see it after refresh.");
+      setNotebookStatus("Saved to My Notes. Open My Notes to see it after refresh.");
       return;
     }
     if (response.status === 401) {
-      setNotebookStatus("Saved on this device. Sign in to keep it in My Notebook.");
+      setNotebookStatus("Saved on this device. Sign in to keep it in My Notes.");
       return;
     }
     const json = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(json?.error ?? "My Notebook could not save this passage.");
+    throw new Error(json?.error ?? "My Notes could not save this passage.");
   };
 
   const saveGeneratedOutput = async () => {
@@ -1258,7 +1258,7 @@ export default function PdfViewer({
           setAiError(
             error instanceof Error
               ? error.message
-              : "The passage was prepared, but My Notebook did not save it."
+              : "The passage was prepared, but My Notes did not save it."
           );
         }
       }
@@ -1748,9 +1748,9 @@ export default function PdfViewer({
                   void persistQuizProgressNote(progress).then((saved) => {
                     setNotebookStatus(
                       saved.notebook === "saved"
-                        ? "Quiz progress saved to My Notebook."
+                        ? "Quiz progress saved to My Notes."
                         : saved.notebook === "device_only"
-                          ? "Quiz progress saved on this device. Sign in to keep it in My Notebook."
+                          ? "Quiz progress saved on this device. Sign in to keep it in My Notes."
                           : "Quiz progress saved on this device."
                     );
                   });

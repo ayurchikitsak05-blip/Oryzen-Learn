@@ -307,7 +307,7 @@ export default function SynthesisStudio({
                 }}
                 className="btn-secondary text-xs"
               >
-                Save to Notebook
+                Save to My Notes
               </button>
             </div>
           </div>

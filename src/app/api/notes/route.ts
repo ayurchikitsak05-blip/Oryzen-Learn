@@ -28,7 +28,7 @@ export async function GET() {
     return NextResponse.json(
       {
         error: missingTable(subjects.error.message)
-          ? "Your notebook isn't ready yet. Please try again in a moment."
+          ? "My Notes isn't ready yet. Please try again in a moment."
           : subjects.error.message,
       },
       { status: 500 }
