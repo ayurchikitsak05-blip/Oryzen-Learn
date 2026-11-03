@@ -77,8 +77,10 @@ import {
   reservationEstimateForAttempts,
   reserveMonthlyAiBudget,
   clearLocalAiSpendState,
+  type MonthlyBudgetDecision,
   type SpendClass,
 } from "./spend-guard";
+import { canSpendHelp, type AllowanceStatus } from "./daily-allowance";
 
 export type {
   AnalogySections,
@@ -190,6 +192,7 @@ export interface AiGatewayExecutionResult {
     | "model_error"
     | "unusable_model_output"
     | "wallet_exhausted"
+    | "daily_allowance"
     | null;
   geminiErrorClass: GeminiErrorClass | null;
   providerErrorClass: ProviderErrorClass | null;
@@ -216,6 +219,8 @@ export interface AiGatewayRequest {
   activePageText?: string;
   candidateChunks?: CitationReadyChunk[];
   walletCapInr?: number;
+  /** Today's AI help allowance for this student. When set and used up, no paid call is made. */
+  dailyAllowance?: AllowanceStatus;
   billingMonth?: string;
   documentClass?: DocumentClass;
   instituteMembership?: InstituteCacheMembership | null;
@@ -606,7 +611,8 @@ async function finishGatewayResult(params: {
   providerErrorDetail?: AiGatewayExecutionResult["providerErrorDetail"];
   payload: AiLensResponsePayload;
 }): Promise<AiGatewayExecutionResult> {
-  if (!params.cacheHit) {
+  // Never save a "you're out of helps" fallback as the answer for this passage.
+  if (!params.cacheHit && !params.budgetBlocked) {
     await storeCachedResponse({
       supabase: params.request.supabase,
       cacheKey: params.cacheKey,
@@ -846,14 +852,27 @@ export async function executeControlledAiGateway(
     completionEst,
     walletCapInr - monthlySpendBeforeInr
   );
-  const decision = reserveMonthlyAiBudget({
-    userId: request.userId,
-    billingMonth,
-    spentInr: monthlySpendBeforeInr,
-    estimateInr: reserveEstimate,
-    capInr: walletCapInr,
-    spendClass: spendClassForLens(request.lensType),
-  });
+  // Saved answers were already returned above, so only new (paid) answers reach this check.
+  const allowanceBlocked = request.dailyAllowance
+    ? !canSpendHelp(request.dailyAllowance, request.lensType)
+    : false;
+  const decision: MonthlyBudgetDecision = allowanceBlocked
+    ? {
+        allowed: false,
+        reason: "monthly_cap",
+        reservation: null,
+        reservedPlusSpentInr: monthlySpendBeforeInr,
+        remainingInr: Number((walletCapInr - monthlySpendBeforeInr).toFixed(4)),
+        warned80: false,
+      }
+    : reserveMonthlyAiBudget({
+        userId: request.userId,
+        billingMonth,
+        spentInr: monthlySpendBeforeInr,
+        estimateInr: reserveEstimate,
+        capInr: walletCapInr,
+        spendClass: spendClassForLens(request.lensType),
+      });
 
   let generatedPayload: AiLensResponsePayload = fallbackPayload;
   let usedDeterministicFallback = true;
@@ -894,7 +913,9 @@ export async function executeControlledAiGateway(
     costInr = 0;
   };
 
-  if (!decision.allowed) {
+  if (allowanceBlocked) {
+    applyDeterministic("daily_allowance", true);
+  } else if (!decision.allowed) {
     applyDeterministic("wallet_exhausted", true);
   } else {
     try {

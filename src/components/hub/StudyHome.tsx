@@ -79,7 +79,7 @@ const CARDS = [
   },
   {
     href: "/notes",
-    title: "My Notebook",
+    title: "My Notes",
     detail: "Highlights, notes, and saved study material.",
     testId: "hub-notes-link",
     icon: "notebook",

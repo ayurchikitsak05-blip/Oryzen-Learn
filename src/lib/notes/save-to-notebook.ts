@@ -22,17 +22,17 @@ export async function saveToNotebook(params: {
     error:
       json?.error ??
       (response.status === 401
-        ? "Sign in to keep this in My Notebook."
-        : "My Notebook could not save this yet."),
+        ? "Sign in to keep this in My Notes."
+        : "My Notes could not save this yet."),
   };
 }
 
 export function notebookSaveMessage(
   result: Awaited<ReturnType<typeof saveToNotebook>>
 ): string {
-  if (result.ok) return "Saved to My Notebook.";
+  if (result.ok) return "Saved to My Notes.";
   if (result.status === 401) {
-    return "Saved only on this screen. Sign in to keep it in My Notebook.";
+    return "Saved only on this screen. Sign in to keep it in My Notes.";
   }
   return result.error;
 }

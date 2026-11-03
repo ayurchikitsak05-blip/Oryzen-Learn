@@ -30,7 +30,7 @@ export const PRACTICE_ITEMS: readonly LinkListItem[] = [
   },
   {
     href: "/notes",
-    title: "My notebook",
+    title: "My Notes",
     detail: "Highlights and notes to revise from",
     testId: "practice-notes",
   },
@@ -42,7 +42,7 @@ export const ME_ITEMS: readonly LinkListItem[] = [
   { href: "/video", title: "Lecture notes", detail: "Notes from YouTube lectures", testId: "me-lectures" },
   { href: "/synthesis", title: "Chapter study book", detail: "Your highlights, notes and lecture notes in one place", testId: "me-study-book" },
   { href: "/vaults", title: "My PDFs by subject", detail: "Your uploaded books, sorted by subject", testId: "me-vaults" },
-  { href: "/notes", title: "Notebook", detail: "All your notes and highlights", testId: "me-notes" },
+  { href: "/notes", title: "My Notes", detail: "All your notes and highlights", testId: "me-notes" },
   { href: "/body-type", title: "Study style (optional)", detail: "Spark, Laser or Anchor tips", testId: "me-study-style" },
   { href: "/personalize", title: "Personalize my space", detail: "Colours, reading size, focus sounds", testId: "me-personalize" },
   { href: "/pricing", title: "Plan and payment", detail: "Free or Pro", testId: "me-plan-payment" },

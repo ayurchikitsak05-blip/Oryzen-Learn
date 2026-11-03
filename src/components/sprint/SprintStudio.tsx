@@ -238,13 +238,13 @@ export function SprintStudio({ userId }: { userId: string }) {
                   },
                   userId
                 );
-                setNoteStatus("Saved to your notebook with the book and page as the source.");
+                setNoteStatus("Saved to My Notes with the book and page as the source.");
               }}
             >
               Save notes
             </button>
             <Link href={notesHref(live)} className={ui.ghost}>
-              Open notebook
+              Open My Notes
             </Link>
             <Link href="/companion" className={ui.ghost}>
               Ask companion

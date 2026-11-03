@@ -144,7 +144,7 @@ export default function ParallelNotes({
                   onClick={() => onSaveNote(note)}
                   className="btn-secondary text-xs"
                 >
-                  Save to Notebook
+                  Save to My Notes
                 </button>
               ) : null}
             </article>

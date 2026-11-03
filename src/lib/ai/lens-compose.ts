@@ -1767,7 +1767,7 @@ function saveBody(request: ComposeLensRequest): { markdown: string; keyPoints: s
   const excerpt = excerptForDisplay(request.selectedText, 180);
   return {
     markdown: [
-      `### Saved to My Notebook`,
+      `### Saved to My Notes`,
       `Kept a short pointer to page ${request.pageNumber} so you can return to this idea.`,
       `- **Section:** ${request.sectionHeading}`,
       `- **Excerpt:** ${excerpt}`,
@@ -1907,7 +1907,7 @@ export function composeDeterministicLensPayload(params: {
       return {
         ...base,
         lens_type: "save_passage",
-        title: "Saved to My Notebook",
+        title: "Saved to My Notes",
         markdown_body: body.markdown,
         key_points: body.keyPoints,
       };

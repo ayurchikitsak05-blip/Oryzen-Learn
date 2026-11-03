@@ -494,7 +494,7 @@ export const READING_COGNITIVE_QUESTIONS: AssessmentQuestion[] = [
     number: 12,
     domainId: "smriti_retention",
     domainLabel: "Recall Power (Retention / Smriti)",
-    prompt: "How often do you need to revisit highlights you saved in your notebook?",
+    prompt: "How often do you need to revisit highlights you saved in your notes?",
     options: {
       Vata: "Frequent, bite-sized 5-minute flashcard bursts every 1–3 days",
       Pitta: "Structured weekly mastery review of flagged high-yield tables",
