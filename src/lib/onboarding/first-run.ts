@@ -19,9 +19,10 @@ export interface ExamOption {
 }
 
 export const EXAM_OPTIONS: readonly ExamOption[] = [
-  { id: "class10", label: "Class 10", subjects: ["Science", "Maths", "Social Science", "English"], preselected: ["Science", "Maths"], usualMonth: 3 },
+  // Board exams usually start mid-February, so plans for Class 10 and 12 finish by 1 February.
+  { id: "class10", label: "Class 10", subjects: ["Science", "Maths", "Social Science", "English"], preselected: ["Science", "Maths"], usualMonth: 2 },
   { id: "class11", label: "Class 11", subjects: ["Physics", "Chemistry", "Biology", "Maths", "English"], preselected: ["Physics", "Chemistry"], usualMonth: 3 },
-  { id: "class12", label: "Class 12", subjects: ["Physics", "Chemistry", "Biology", "Maths", "English"], preselected: ["Physics", "Chemistry"], usualMonth: 3 },
+  { id: "class12", label: "Class 12", subjects: ["Physics", "Chemistry", "Biology", "Maths", "English"], preselected: ["Physics", "Chemistry"], usualMonth: 2 },
   { id: "neet", label: "NEET", subjects: ["Physics", "Chemistry", "Biology"], preselected: ["Physics", "Chemistry", "Biology"], usualMonth: 5 },
   { id: "jee", label: "JEE", subjects: ["Physics", "Chemistry", "Maths"], preselected: ["Physics", "Chemistry", "Maths"], usualMonth: 1 },
   { id: "college", label: "College", subjects: [], preselected: [], usualMonth: null },
@@ -55,18 +56,26 @@ function pad(value: number): string {
   return String(value).padStart(2, "0");
 }
 
-/** "YYYY-MM" for the next `count` months, starting next month. */
+/** A plan needs at least four weeks before the exam month starts. */
+export const MIN_LEAD_DAYS = 28;
+
+function daysBetween(fromIso: string, toIso: string): number {
+  return Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000);
+}
+
+/** "YYYY-MM" for the next `count` exam months whose 1st is at least four weeks away. */
 export function upcomingMonths(today: string, count = 18): string[] {
   const [year, month] = today.split("-").map(Number);
   const out: string[] = [];
-  for (let i = 1; i <= count; i += 1) {
+  for (let i = 1; out.length < count && i <= count + 2; i += 1) {
     const index = month - 1 + i;
-    out.push(`${year + Math.floor(index / 12)}-${pad((index % 12) + 1)}`);
+    const value = `${year + Math.floor(index / 12)}-${pad((index % 12) + 1)}`;
+    if (daysBetween(today, `${value}-01`) >= MIN_LEAD_DAYS) out.push(value);
   }
   return out;
 }
 
-/** The next time the exam's usual month comes round (at least a month away); else 3 months away. */
+/** The next time the exam's usual month comes round (at least four weeks away); else 3 months away. */
 export function suggestedExamMonth(exam: ExamId, today: string): string {
   const months = upcomingMonths(today);
   const usual = examOption(exam)?.usualMonth;
@@ -74,7 +83,7 @@ export function suggestedExamMonth(exam: ExamId, today: string): string {
     const found = months.find((value) => Number(value.slice(5, 7)) === usual);
     if (found) return found;
   }
-  return months[2];
+  return months[2] ?? months[0];
 }
 
 export function monthLabel(yearMonth: string): string {
@@ -113,8 +122,9 @@ export function cleanSubjects(subjects: readonly string[]): string[] {
 
 export function buildQuickIntake(answers: FirstRunAnswers): RoadmapIntake {
   const option = examOption(answers.exam);
-  const subjects: RoadmapSubject[] = cleanSubjects(answers.subjects).map((name) => {
-    const id = `sub-${slug(name)}`;
+  const subjects: RoadmapSubject[] = cleanSubjects(answers.subjects).map((name, position) => {
+    // Position keeps ids unique even for names in Hindi or Marathi, which slug() can't spell.
+    const id = `sub-${position + 1}-${slug(name)}`;
     const count = chapterCount(answers.exam, name);
     return {
       id,
@@ -159,22 +169,41 @@ function storage(): Storage | null {
   }
 }
 
-export function saveFirstRunDraft(answers: FirstRunAnswers): void {
+/** Answers wait at most a day, and only for the student who gave them (phones get shared). */
+export const FIRST_RUN_DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+interface StoredDraft extends FirstRunAnswers {
+  owner: string;
+  savedAt: number;
+}
+
+export function saveFirstRunDraft(answers: FirstRunAnswers, owner: string, now: number = Date.now()): void {
   try {
-    storage()?.setItem(FIRST_RUN_DRAFT_KEY, JSON.stringify(answers));
+    const stored: StoredDraft = { ...answers, owner, savedAt: now };
+    storage()?.setItem(FIRST_RUN_DRAFT_KEY, JSON.stringify(stored));
   } catch {
     /* private mode: the student can still make the plan on /roadmap */
   }
 }
 
-export function readFirstRunDraft(): FirstRunAnswers | null {
+/**
+ * The waiting answers for this student, or null when there are none, they belong to someone
+ * else, they are over a day old, or the exam month has already come.
+ */
+export function readFirstRunDraft(owner: string, today?: string, now: number = Date.now()): FirstRunAnswers | null {
   try {
     const raw = storage()?.getItem(FIRST_RUN_DRAFT_KEY);
     if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<FirstRunAnswers>;
+    const value = JSON.parse(raw) as Partial<StoredDraft>;
+    if (value.owner !== owner) return null;
+    if (typeof value.savedAt !== "number" || now - value.savedAt > FIRST_RUN_DRAFT_MAX_AGE_MS || value.savedAt > now + 60_000) {
+      clearFirstRunDraft();
+      return null;
+    }
     if (!examOption(value.exam) || typeof value.examMonth !== "string" || !/^\d{4}-\d{2}$/.test(value.examMonth)) {
       return null;
     }
+    if (today && examDateFromMonth(value.examMonth) <= today) return null;
     const subjects = cleanSubjects(Array.isArray(value.subjects) ? value.subjects.filter((s) => typeof s === "string") : []);
     if (!subjects.length) return null;
     return { exam: value.exam as ExamId, subjects, examMonth: value.examMonth };

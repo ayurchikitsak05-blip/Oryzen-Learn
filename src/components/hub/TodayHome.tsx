@@ -14,8 +14,11 @@ export function TodayHome({
   continuation,
   record = "ready",
   onRetry,
+  draftOwner,
 }: {
   continuation: HomeContinuation;
+  /** Who is signed in ("local-anonymous" when nobody); first-run answers are shown only to them. */
+  draftOwner?: string | null;
   record?: "loading" | "opening" | "locked" | "ready";
   onRetry?: () => void;
 }) {
@@ -23,8 +26,11 @@ export function TodayHome({
   // Answers from the first-run screen that haven't become a plan yet.
   const [hasDraft, setHasDraft] = useState(false);
   useEffect(() => {
-    setHasDraft(Boolean(readFirstRunDraft()));
-  }, []);
+    if (!draftOwner) return;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    setHasDraft(Boolean(readFirstRunDraft(draftOwner, today)));
+  }, [draftOwner]);
   const hasPlan = ready && Boolean(continuation.nextBlock);
   const hasBook = ready && Boolean(continuation.bookTitle);
   const studied = continuation.studiedMinutes;

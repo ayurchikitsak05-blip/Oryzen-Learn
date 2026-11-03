@@ -100,7 +100,16 @@ function ReaderStudio() {
             </p>
             <button
               type="button"
-              onClick={() => setShowExplainTip(false)}
+              onClick={() => {
+                setShowExplainTip(false);
+                try {
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete("tip");
+                  window.history.replaceState(window.history.state, "", url.toString());
+                } catch {
+                  /* the tip simply shows again after a refresh */
+                }
+              }}
               className="shrink-0 font-medium text-accent underline-offset-4 hover:underline"
             >
               Got it

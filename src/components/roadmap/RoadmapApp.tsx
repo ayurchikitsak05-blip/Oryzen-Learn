@@ -53,6 +53,7 @@ export default function RoadmapApp() {
   const [serverUpdatedAt, setServerUpdatedAt] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [syncRetry, setSyncRetry] = useState<"hydrate" | "save" | null>(null);
+  const [draftNotice, setDraftNotice] = useState(false);
 
   const applyLocal = useCallback(
     (next: RoadmapRecord, scope = userId) => {
@@ -247,12 +248,16 @@ export default function RoadmapApp() {
   useEffect(() => {
     if (loading) return;
     if (syncPhase === "conflict" || syncPhase === "pending-import") return;
-    const draft = readFirstRunDraft();
+    // Offline: we don't yet know whether the account already has a plan, so keep the answers.
+    if (syncRetry === "hydrate") return;
+    const draft = readFirstRunDraft(userId, today);
     if (!draft) return;
     clearFirstRunDraft();
-    if (record) return;
+    if (record) {
+      setDraftNotice(true);
+      return;
+    }
     const quick = buildQuickIntake(draft);
-    if (quick.examDate <= today) return;
     persist(
       createRoadmapRecord({
         userId,
@@ -262,7 +267,7 @@ export default function RoadmapApp() {
     );
     // persist reads the latest sync state on each render; run once per load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, record, syncPhase, today, userId]);
+  }, [loading, record, syncPhase, syncRetry, today, userId]);
 
   const reset = () => {
     clearLocalRoadmap(userId);
@@ -385,6 +390,12 @@ export default function RoadmapApp() {
         </div>
 
         {loading && <p className={`${ui.loading} mt-8`}>Opening your roadmap...</p>}
+
+        {!loading && draftNotice && (
+          <p className={`${ui.notice} mt-6`} role="status" data-testid="roadmap-draft-notice">
+            You already have a plan, so we kept it. To use your new exam or subjects, change this plan below.
+          </p>
+        )}
 
         {!loading && syncMessage && (
           <RoadmapSyncNotice

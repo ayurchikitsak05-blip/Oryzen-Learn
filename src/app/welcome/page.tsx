@@ -18,6 +18,7 @@ import {
   type ExamId,
 } from "@/lib/onboarding/first-run";
 import { localIsoDate } from "@/lib/roadmap/time";
+import { fetchSignedInUser } from "@/lib/supabase/session";
 
 function chipClass(active: boolean): string {
   return `inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors ${
@@ -48,7 +49,7 @@ export default function WelcomePage() {
   const pickExam = (id: ExamId) => {
     setExam(id);
     setSubjects([...(examOption(id)?.preselected ?? [])]);
-    if (today) setExamMonth(suggestedExamMonth(id, today));
+    setExamMonth(suggestedExamMonth(id, today || localIsoDate()));
   };
 
   const toggleSubject = (name: string) => {
@@ -64,8 +65,17 @@ export default function WelcomePage() {
     setExtraSubject("");
   };
 
-  const finish = (next: string) => {
-    if (exam && ready) saveFirstRunDraft({ exam, subjects: cleanSubjects(subjects), examMonth });
+  const [saving, setSaving] = useState(false);
+  const finish = async (next: string) => {
+    if (saving) return;
+    setSaving(true);
+    if (exam && ready) {
+      const user = await fetchSignedInUser().catch(() => null);
+      saveFirstRunDraft(
+        { exam, subjects: cleanSubjects(subjects), examMonth },
+        user?.userId ?? "local-anonymous"
+      );
+    }
     router.push(next);
   };
 
@@ -201,7 +211,8 @@ export default function WelcomePage() {
 
             <button
               type="button"
-              onClick={() => finish("/reader?upload=1&tip=explain")}
+              onClick={() => void finish("/reader?upload=1&tip=explain")}
+              disabled={saving}
               className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-4 text-left"
               data-testid="welcome-upload"
             >
@@ -216,7 +227,8 @@ export default function WelcomePage() {
 
             <button
               type="button"
-              onClick={() => finish("/roadmap")}
+              onClick={() => void finish("/roadmap")}
+              disabled={saving}
               className={`${ui.secondary} min-h-[52px] w-full text-base`}
               data-testid="welcome-later"
             >

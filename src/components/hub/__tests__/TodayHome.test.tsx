@@ -17,11 +17,16 @@ describe("TodayHome", () => {
   it("offers to open the plan when first-run answers are waiting", async () => {
     window.localStorage.setItem(
       FIRST_RUN_DRAFT_KEY,
-      JSON.stringify({ exam: "class12", subjects: ["Physics"], examMonth: "2027-03" })
+      JSON.stringify({ exam: "class12", subjects: ["Physics"], examMonth: "2099-03", owner: "student-a", savedAt: Date.now() })
     );
-    render(<TodayHome continuation={empty} />);
+    const view = render(<TodayHome continuation={empty} draftOwner="student-a" />);
     expect(await screen.findByText("Show my plan")).toBeTruthy();
     expect(screen.getByTestId("today-make-plan").getAttribute("href")).toBe("/roadmap");
+    view.unmount();
+
+    // Another student signed in on the same phone doesn't see it.
+    render(<TodayHome continuation={empty} draftOwner="student-b" />);
+    expect(screen.getByTestId("today-make-plan").getAttribute("href")).toBe("/welcome");
   });
 
   it("asks a student with no plan to make one, and to add a first book", () => {

@@ -13,6 +13,10 @@ vi.mock("@/components/layout/AppChrome", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock("@/lib/supabase/session", () => ({
+  fetchSignedInUser: vi.fn(async () => ({ userId: "student-1" })),
+}));
+
 vi.mock("@/lib/roadmap/time", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/roadmap/time")>();
   return { ...actual, localIsoDate: () => "2026-11-03" };
@@ -33,7 +37,7 @@ describe("Welcome (first run)", () => {
 
     fireEvent.click(screen.getByTestId("welcome-exam-class12"));
     await waitFor(() =>
-      expect((screen.getByTestId("welcome-exam-month") as HTMLSelectElement).value).toBe("2027-03")
+      expect((screen.getByTestId("welcome-exam-month") as HTMLSelectElement).value).toBe("2027-02")
     );
     expect(screen.getByRole("button", { name: /Physics/ }).getAttribute("aria-pressed")).toBe("true");
 
@@ -46,12 +50,13 @@ describe("Welcome (first run)", () => {
     expect(screen.getByRole("heading", { name: "Add your first book" })).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("welcome-upload"));
-    expect(nav.push).toHaveBeenCalledWith("/reader?upload=1&tip=explain");
-    expect(readFirstRunDraft()).toEqual({
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/reader?upload=1&tip=explain"));
+    expect(readFirstRunDraft("student-1", "2026-11-03")).toEqual({
       exam: "class12",
       subjects: ["Physics", "Chemistry", "Hindi"],
-      examMonth: "2027-03",
+      examMonth: "2027-02",
     });
+    expect(readFirstRunDraft("someone-else", "2026-11-03")).toBeNull();
   });
 
   it("can't continue with every subject turned off, and Skip goes to Today", async () => {

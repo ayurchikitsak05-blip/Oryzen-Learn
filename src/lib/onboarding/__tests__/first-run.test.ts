@@ -26,9 +26,12 @@ describe("first-run setup", () => {
   });
 
   it("suggests the usual exam month", () => {
-    expect(suggestedExamMonth("class12", "2026-11-03")).toBe("2027-03");
+    // Boards start mid-February, so the plan finishes by 1 February.
+    expect(suggestedExamMonth("class12", "2026-11-03")).toBe("2027-02");
     expect(suggestedExamMonth("neet", "2026-11-03")).toBe("2027-05");
-    expect(suggestedExamMonth("jee", "2026-12-20")).toBe("2027-01");
+    // 1 January is only 12 days after 20 December: too close for a plan, so next year's.
+    expect(upcomingMonths("2026-12-20", 2)).toEqual(["2027-02", "2027-03"]);
+    expect(suggestedExamMonth("jee", "2026-12-20")).toBe("2028-01");
     expect(suggestedExamMonth("college", "2026-11-03")).toBe("2027-02");
   });
 
@@ -57,14 +60,37 @@ describe("first-run setup", () => {
     expect(record.plan.examDate).toBe("2027-03-01");
   });
 
+  it("keeps subjects with Hindi names apart", () => {
+    const intake = buildQuickIntake({ exam: "class10", subjects: ["हिंदी", "संस्कृत"], examMonth: "2027-02" });
+    expect(new Set(intake.subjects.map((s) => s.id)).size).toBe(2);
+    const record = createRoadmapRecord({ userId: "u1", intake, today: "2026-11-03" });
+    const planned = new Set(
+      record.plan.days.flatMap((day) => day.sessions).map((s) => s.subjectName).filter(Boolean)
+    );
+    expect(planned).toEqual(new Set(["हिंदी", "संस्कृत"]));
+  });
+
   it("keeps the answers on the device until the plan is made, and rejects bad data", () => {
-    saveFirstRunDraft({ exam: "neet", subjects: ["Biology"], examMonth: "2027-05" });
-    expect(readFirstRunDraft()).toEqual({ exam: "neet", subjects: ["Biology"], examMonth: "2027-05" });
+    const now = Date.parse("2026-11-03T10:00:00Z");
+    saveFirstRunDraft({ exam: "neet", subjects: ["Biology"], examMonth: "2027-05" }, "student-a", now);
+    expect(readFirstRunDraft("student-a", "2026-11-03", now)).toEqual({ exam: "neet", subjects: ["Biology"], examMonth: "2027-05" });
+    // Another student on the same phone never gets these answers.
+    expect(readFirstRunDraft("student-b", "2026-11-03", now)).toBeNull();
+    // Once the exam month has come, the answers are no use.
+    expect(readFirstRunDraft("student-a", "2027-05-01", now)).toBeNull();
+    // Over a day old: dropped.
+    expect(readFirstRunDraft("student-a", "2026-11-04", now + 25 * 60 * 60 * 1000)).toBeNull();
+    expect(window.localStorage.getItem(FIRST_RUN_DRAFT_KEY)).toBeNull();
+
+    saveFirstRunDraft({ exam: "neet", subjects: ["Biology"], examMonth: "2027-05" }, "student-a", now);
     clearFirstRunDraft();
-    expect(readFirstRunDraft()).toBeNull();
-    window.localStorage.setItem(FIRST_RUN_DRAFT_KEY, JSON.stringify({ exam: "hack", subjects: ["x"], examMonth: "2027-05" }));
-    expect(readFirstRunDraft()).toBeNull();
+    expect(readFirstRunDraft("student-a", undefined, now)).toBeNull();
+    window.localStorage.setItem(
+      FIRST_RUN_DRAFT_KEY,
+      JSON.stringify({ exam: "hack", subjects: ["x"], examMonth: "2027-05", owner: "student-a", savedAt: now })
+    );
+    expect(readFirstRunDraft("student-a", undefined, now)).toBeNull();
     window.localStorage.setItem(FIRST_RUN_DRAFT_KEY, "{not json");
-    expect(readFirstRunDraft()).toBeNull();
+    expect(readFirstRunDraft("student-a", undefined, now)).toBeNull();
   });
 });
