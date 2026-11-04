@@ -248,4 +248,29 @@ describe("lecture notes (server)", () => {
     expect(tables.lecture_note_requests.map((row) => row.id)).toEqual(["r0"]);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it("retries once at Google's default picture rate after a server error, and shows a code if that fails", async () => {
+    const { client, tables } = fakeAdmin();
+    const ok = geminiReply(SECTIONS);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "Internal", status: "INTERNAL" } }), { status: 500 }))
+      .mockImplementationOnce(ok);
+    const result = await makeLectureNotes({
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl,
+    });
+    expect(result.ok).toBe(true);
+    const second = JSON.parse(String((fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].body));
+    expect(second.contents[0].parts[0].videoMetadata).toEqual({ endOffset: "5400s" });
+
+    const failing = vi.fn(async () =>
+      new Response(JSON.stringify({ error: { message: "Internal", status: "INTERNAL" } }), { status: 500 })
+    );
+    const failed = await makeLectureNotes({
+      admin: client, userId: "a", videoId: "ccccccccccc", accessStatus: "active_paid", apiKey: "k", fetchImpl: failing,
+    });
+    expect(failed).toMatchObject({ ok: false, code: "provider_error", reference: "G500-INTERNAL" });
+    expect(failing).toHaveBeenCalledTimes(2);
+    expect(tables.lecture_note_requests.filter((row) => row.video_id === "ccccccccccc")).toHaveLength(0);
+  });
 });

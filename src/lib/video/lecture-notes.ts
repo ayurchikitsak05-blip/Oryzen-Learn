@@ -83,7 +83,8 @@ export const LECTURE_NOTES_SCHEMA = {
 } as const;
 
 /** The Gemini request: the YouTube link, clipped to 90 minutes, low detail, sparse frames. */
-export function lectureNotesRequestBody(videoId: string) {
+export function lectureNotesRequestBody(videoId: string, options: { sparseFrames?: boolean } = {}) {
+  const sparse = options.sparseFrames !== false;
   return {
     contents: [
       {
@@ -91,7 +92,9 @@ export function lectureNotesRequestBody(videoId: string) {
         parts: [
           {
             fileData: { fileUri: `https://www.youtube.com/watch?v=${videoId}` },
-            videoMetadata: { endOffset: `${LECTURE_MAX_SECONDS}s`, fps: LECTURE_FRAMES_PER_SECOND },
+            videoMetadata: sparse
+              ? { endOffset: `${LECTURE_MAX_SECONDS}s`, fps: LECTURE_FRAMES_PER_SECOND }
+              : { endOffset: `${LECTURE_MAX_SECONDS}s` },
           },
           { text: LECTURE_NOTES_PROMPT },
         ],
