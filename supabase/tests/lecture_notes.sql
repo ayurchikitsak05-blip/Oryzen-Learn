@@ -28,10 +28,12 @@ BEGIN
     json_build_object('sub', '11111111-1111-1111-1111-111111111111', 'role', 'authenticated')::text, true);
   SET LOCAL ROLE authenticated;
 
-  -- L1: a student can read shared lecture notes.
-  SELECT count(*) INTO n FROM public.lecture_notes_cache WHERE video_id = 'dQw4w9WgXcQ';
-  IF n <> 1 THEN out := out || 'L1 read shared notes: NOT VISIBLE (BAD); '; failures := failures + 1;
-  ELSE out := out || 'L1 read shared notes: ok; '; END IF;
+  -- L1: a student cannot read the shared table directly (who added a video, what it cost).
+  BEGIN
+    SELECT count(*) INTO n FROM public.lecture_notes_cache;
+    out := out || 'L1 read shared table: ALLOWED (BAD); '; failures := failures + 1;
+  EXCEPTION WHEN insufficient_privilege THEN out := out || 'L1 read shared table: denied; ';
+  END;
 
   -- L2: a student cannot write or change shared notes.
   BEGIN

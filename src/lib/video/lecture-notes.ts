@@ -11,7 +11,7 @@ export const LECTURE_NOTES_MODEL = "gemini-3.5-flash-lite" as const;
 export const LECTURE_MAX_SECONDS = 90 * 60;
 /** One picture every 5 seconds (plus all the audio) is enough for boards and slides. */
 export const LECTURE_FRAMES_PER_SECOND = 0.2;
-export const LECTURE_MAX_OUTPUT_TOKENS = 8192;
+export const LECTURE_MAX_OUTPUT_TOKENS = 16384;
 /** New lectures a month. Notes another student already made don't count. */
 export const MONTHLY_NEW_LECTURES = { free: 1, pro: 8 } as const;
 
@@ -52,7 +52,7 @@ export function lectureLimitMessage(allowance: LectureAllowance): string {
 export const LECTURE_NOTES_PROMPT = [
   "You are making study notes from a recorded class lecture for a student in India (Class 10 and up).",
   "Watch the video and listen to the teacher. Write notes in the same language the teacher mostly uses; if the teacher mixes Hindi and English, write in simple English and keep key Hindi terms.",
-  "Split the lecture into sections of roughly 3 to 8 minutes, in order. For each section give:",
+  "Split the lecture into sections of roughly 3 to 8 minutes, in order (at most 30 sections). For each section give:",
   "- start_seconds: when the section starts, in seconds from the beginning of the video;",
   "- heading: a short topic heading;",
   "- points: 2 to 6 short study points (definitions, formulas, steps, examples written on the board);",

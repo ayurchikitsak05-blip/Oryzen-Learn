@@ -9,6 +9,9 @@ import {
   lectureFailureMessage,
   lectureLimitMessage,
   lectureNotesRequestBody,
+  LECTURE_FRAMES_PER_SECOND,
+  LECTURE_MAX_OUTPUT_TOKENS,
+  LECTURE_MAX_SECONDS,
   LECTURE_NOTES_MODEL,
   parseLectureNotes,
   sanitizeStoredNotes,
@@ -18,6 +21,14 @@ import {
 /** Server side of lecture notes. The admin (service-role) client does every write. */
 
 export const LECTURE_CALL_TIMEOUT_MS = 270_000;
+/** A second request for the same video within this time is refused (it may still be running). */
+export const IN_PROGRESS_WINDOW_MS = 10 * 60 * 1000;
+
+/** What a lecture costs at most (90 minutes), used when we can't see the real figure. */
+export function worstCaseLectureCostInr(): number {
+  const promptTokens = Math.ceil(LECTURE_MAX_SECONDS * (LECTURE_FRAMES_PER_SECOND * 70 + 25)) + 1_000;
+  return calculateCallCostInr(LECTURE_NOTES_MODEL, promptTokens, LECTURE_MAX_OUTPUT_TOKENS);
+}
 
 export type LectureNotesOutcome =
   | {
@@ -40,6 +51,7 @@ export async function lectureNewCountThisMonth(
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .eq("cache_hit", false)
+    .eq("counted", true)
     .gte("created_at", indiaMonthStartIso(now));
   if (error) throw new Error("count_failed");
   return count ?? 0;
@@ -111,6 +123,25 @@ export async function makeLectureNotes(input: {
     return { ok: false, status: 503, code: "not_configured", error: "Lecture notes aren't switched on yet." };
   }
 
+  // Already making notes for this video (a second tap, or a second tab): don't pay twice.
+  const recent = new Date((input.now ?? new Date()).getTime() - IN_PROGRESS_WINDOW_MS).toISOString();
+  const { count: inProgress } = await admin
+    .from("lecture_note_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("video_id", videoId)
+    .eq("cache_hit", false)
+    .gte("created_at", recent);
+  if ((inProgress ?? 0) > 0) {
+    return {
+      ok: false,
+      status: 409,
+      code: "in_progress",
+      error: "Notes for this lecture are already being made, or were just tried. Please wait a few minutes.",
+      allowance: before,
+    };
+  }
+
   // 3. Hold a place first, so two taps at once can't both use the last lecture.
   const { data: held, error: holdError } = await admin
     .from("lecture_note_requests")
@@ -146,13 +177,20 @@ export async function makeLectureNotes(input: {
     );
   } catch {
     clearTimeout(timer);
-    await release();
-    return { ok: false, status: 504, code: "timeout", error: "The lecture took too long to read. Nothing was counted. Try a shorter video." };
+    // Google may still finish (and bill) the call after we stop waiting, so this counts.
+    await admin.from("lecture_note_requests").update({ cost_inr: worstCaseLectureCostInr() }).eq("id", heldId);
+    return {
+      ok: false,
+      status: 504,
+      code: "timeout",
+      error: "The lecture took too long to read, so this counted as one lecture. Try a shorter video.",
+      allowance: after,
+    };
   }
   clearTimeout(timer);
 
   const json = (await response.json().catch(() => ({}))) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> }; finishReason?: string }>;
     usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
     error?: { message?: string };
   };
@@ -166,7 +204,8 @@ export async function makeLectureNotes(input: {
     };
   }
 
-  const text = json.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+  const candidate = json.candidates?.[0];
+  const text = candidate?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
   let raw: unknown = null;
   try {
     raw = JSON.parse(text);
@@ -180,6 +219,17 @@ export async function makeLectureNotes(input: {
     (json.usageMetadata?.candidatesTokenCount ?? 0) + (json.usageMetadata?.thoughtsTokenCount ?? 0)
   );
   const costInr = calculateCallCostInr(LECTURE_NOTES_MODEL, promptTokens, completionTokens);
+
+  // Cut short by the AI (too long an answer): keep the cost, but don't charge the student a lecture.
+  if (candidate?.finishReason === "MAX_TOKENS" && parsed.notes.length === 0) {
+    await admin.from("lecture_note_requests").update({ cost_inr: costInr, counted: false }).eq("id", heldId);
+    return {
+      ok: false,
+      status: 502,
+      code: "cut_short",
+      error: "The notes for this lecture came out too long and were cut short. Nothing was counted. Please try again later.",
+    };
+  }
 
   await admin.from("lecture_note_requests").update({ cost_inr: costInr }).eq("id", heldId);
 

@@ -1,7 +1,8 @@
 -- YouTube lecture notes (3–4 Nov 2026).
 -- 1. lecture_notes_cache: one set of AI notes per public YouTube video, shared by every
 --    student (the first student pays; everyone after gets them free). Only the server
---    (service role) writes; signed-in students may read.
+--    (service role) reads and writes it; students get notes through the app's server,
+--    so they never see who added a video or what it cost.
 -- 2. lecture_note_requests: one row per student request, used to count new lectures per
 --    month. Students can read their own rows but cannot add, change or delete rows, so
 --    they cannot reset their own count.
@@ -25,6 +26,8 @@ CREATE TABLE IF NOT EXISTS public.lecture_note_requests (
   video_id TEXT NOT NULL,
   cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
   cost_inr NUMERIC(10, 4) NOT NULL DEFAULT 0 CHECK (cost_inr >= 0),
+  -- false when the AI's answer was cut short: the cost is kept, but the student isn't charged a lecture.
+  counted BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -36,14 +39,9 @@ ALTER TABLE public.lecture_note_requests ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON public.lecture_notes_cache FROM anon, authenticated;
 REVOKE ALL ON public.lecture_note_requests FROM anon, authenticated;
-GRANT SELECT ON public.lecture_notes_cache TO authenticated;
 GRANT SELECT ON public.lecture_note_requests TO authenticated;
 GRANT ALL ON public.lecture_notes_cache TO service_role;
 GRANT ALL ON public.lecture_note_requests TO service_role;
-
-DROP POLICY IF EXISTS lecture_notes_cache_read ON public.lecture_notes_cache;
-CREATE POLICY lecture_notes_cache_read ON public.lecture_notes_cache
-  FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS lecture_note_requests_read_own ON public.lecture_note_requests;
 CREATE POLICY lecture_note_requests_read_own ON public.lecture_note_requests

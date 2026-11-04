@@ -138,7 +138,9 @@ export function LectureNotesCard({
           data-testid="lecture-notes-make"
           className="btn-primary mt-3 min-h-11 w-full text-sm disabled:opacity-50"
         >
-          {status.cached ? "Add the notes" : "Make notes"}
+          {status.cached
+            ? "Add the notes (free)"
+            : `Make notes (uses 1 of ${status.allowance.left})`}
         </button>
       ) : null}
     </section>

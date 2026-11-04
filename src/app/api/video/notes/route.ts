@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { googleApiKey } from "@/lib/ai/providers";
+import { isEntitled } from "@/lib/access/gate";
 import { isVideoId } from "@/lib/video/lecture-notes";
 import { lectureNotesStatus, makeLectureNotes } from "@/lib/video/lecture-notes-server";
 
@@ -49,6 +50,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const student = await signedInStudent();
   if (!student) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+  if (!isEntitled(student.accessStatus)) {
+    return NextResponse.json({ error: "Choose a plan to use lecture notes.", code: "no_plan" }, { status: 403 });
+  }
   const body = (await request.json().catch(() => ({}))) as { videoId?: unknown };
   const videoId = typeof body.videoId === "string" ? body.videoId.trim() : "";
   const admin = createAdminClient();

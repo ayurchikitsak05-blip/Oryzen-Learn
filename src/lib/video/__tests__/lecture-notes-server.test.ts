@@ -49,7 +49,8 @@ function fakeAdmin() {
         return builder;
       },
       insert: (value: Row) => {
-        const row = { id: `r${nextId++}`, created_at: new Date().toISOString(), ...value };
+        const defaults = table === "lecture_note_requests" ? { counted: true } : {};
+        const row = { id: `r${nextId++}`, created_at: new Date().toISOString(), ...defaults, ...value };
         tables[table].push(row);
         const done = Promise.resolve({ data: null, error: null });
         return Object.assign(done, {
@@ -153,5 +154,53 @@ describe("lecture notes (server)", () => {
     const body = JSON.parse(String(init.body));
     expect(body.contents[0].parts[0].fileData.fileUri).toContain(VIDEO);
     expect(body.generationConfig.mediaResolution).toBe("MEDIA_RESOLUTION_LOW");
+  });
+
+  it("refuses a second request for the same video while the first may still be running", async () => {
+    const { client, tables } = fakeAdmin();
+    tables.lecture_note_requests.push({
+      id: "held", user_id: "a", video_id: VIDEO, cache_hit: false, counted: true, cost_inr: 0,
+      created_at: new Date().toISOString(),
+    });
+    const fetchImpl = geminiReply(SECTIONS);
+    const result = await makeLectureNotes({
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl,
+    });
+    expect(result).toMatchObject({ ok: false, status: 409, code: "in_progress" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("counts a timed-out lecture (Google may still bill it) with a worst-case cost", async () => {
+    const { client, tables } = fakeAdmin();
+    const fetchImpl = vi.fn(async () => {
+      throw new DOMException("aborted", "AbortError");
+    });
+    const result = await makeLectureNotes({
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl,
+    });
+    expect(result).toMatchObject({ ok: false, code: "timeout" });
+    expect(tables.lecture_note_requests).toHaveLength(1);
+    expect(Number(tables.lecture_note_requests[0].cost_inr)).toBeGreaterThan(0);
+  });
+
+  it("doesn't charge the student when the AI's answer is cut short, but keeps the cost", async () => {
+    const { client, tables } = fakeAdmin();
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: '{"title":"x","sections":[{"start' }] }, finishReason: "MAX_TOKENS" }],
+          usageMetadata: { promptTokenCount: 200_000, candidatesTokenCount: 16_384 },
+        }),
+        { status: 200 }
+      )
+    );
+    const result = await makeLectureNotes({
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl,
+    });
+    expect(result).toMatchObject({ ok: false, code: "cut_short" });
+    expect(tables.lecture_note_requests[0]).toMatchObject({ counted: false });
+    expect(Number(tables.lecture_note_requests[0].cost_inr)).toBeGreaterThan(0);
+    const status = await lectureNotesStatus({ admin: client, userId: "a", videoId: VIDEO, accessStatus: "free" });
+    expect(status.allowance.left).toBe(1);
   });
 });
