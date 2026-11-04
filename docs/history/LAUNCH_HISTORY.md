@@ -4,6 +4,26 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-04 · Redesign, part 5: notes from YouTube lectures
+
+**Owner decision (4 Nov):** go ahead with YouTube lecture notes, with costs shown first. Estimated cost: about ₹5 per hour of lecture (₹7 for the 90-minute cap) at the price in our code, about 1.8× if Google charges its higher listed price.
+
+### Change: "Notes from this lecture"
+- **What:** on the video screen, a student pastes a public YouTube link and taps "Make notes". Google's Gemini watches the first 90 minutes (low detail, one picture every 5 seconds plus the audio) and returns timed notes: headings, study points and the likely exam point, each with a timestamp.
+- **Cost controls:** notes are made once per video and shared, so the next student gets them free. New lectures a month: Free 1, Pro 8 (one file: `src/lib/video/lecture-notes.ts`). Not counted in daily AI helps or the reading AI limit; this is its own budget. Students can't see or change the shared table, and can't reset their count. A second tap on the same video is refused for 10 minutes. Failed or private videos aren't counted; a timed-out call is counted at the worst-case cost, because Google may still bill it.
+- **Share with a friend (owner idea, 4 Nov):** after notes are made, a "Share with a friend" button opens the phone's share sheet (or WhatsApp) with a link to the same lecture. The friend's copy is free and doesn't use their lectures, so sharing saves us money and brings in new students.
+- **Files:** `src/lib/video/lecture-notes.ts`, `src/lib/video/lecture-notes-server.ts`, `src/app/api/video/notes/route.ts`, `src/components/video/LectureNotesCard.tsx`; migration `20261104000001_lecture_notes.sql` with database test `supabase/tests/lecture_notes.sql`.
+- **Needs to work:** the migration applied, `SUPABASE_SERVICE_ROLE_KEY` and `GEMINI_API_KEY` set. Without them the card says "not switched on yet" and nothing is spent.
+- **Tested:** unit tests (parsing, limits, sharing, private videos, timeouts, cut-short answers, double taps) with a fake database; database test for the access rules. **Not tested:** a real Gemini call (needs owner approval, about ₹5 on Preview). Whether Google accepts "one picture every 5 seconds" for YouTube links is unconfirmed; if not, costs are about 2×.
+- **Observer:** CHANGES NEEDED on the first pass. Fixed: timed-out calls could be repeated for free while Google still billed them; answers cut short were charged to the student; a double tap paid twice; any student could read who added which video and what it cost; non-entitled accounts could use the free lecture.
+
+### Owner decisions
+- Monthly lecture numbers, and whether to sell a "Lecture Pack" (about 30 new lectures for ₹149 a month) for coaching students. One student using it for every class alone costs ₹130–900 a month; sharing in a batch brings that to about ₹25.
+- Approve one real test on Preview (about ₹5).
+- Legal check: notes made from YouTube videos (already on the list).
+
+---
+
 ## 2026-11-03 (night) · Redesign, part 4: Personalize my space
 
 ### Change: a simpler Personalize screen
@@ -118,4 +138,6 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - [ ] Pin the Supabase CLI version in CI
 - [ ] Owner: review the Take My Study safety word list
 - [ ] Owner: decide parent consent for under-18 students (DPDP) before public launch
+- [ ] Apply `20261104000001` (lecture notes) to Preview, then Production
+- [ ] Lecture notes: a way to redo bad shared notes for a video
 - [ ] Live end-to-end testing on Preview with a test student account
