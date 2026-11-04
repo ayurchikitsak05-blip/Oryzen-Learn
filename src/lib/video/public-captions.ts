@@ -76,7 +76,7 @@ export function captionFailureCopy(
   reason: PublicCaptionResult["reason"] | "unavailable"
 ): string {
   if (reason === "no_public_captions") {
-    return "YouTube did not provide a public caption track for this video. ORYZEN does not listen to the audio or invent a transcript. Choose a sample lecture that already has notes, or use a video that publishes captions.";
+    return "This video has no public captions. Use \"Make notes\" above to get notes from the lecture.";
   }
-  return "The caption track could not be read, so no lecture notes were created. ORYZEN does not invent a transcript.";
+  return "The captions for this video couldn't be read. Use \"Make notes\" above to get notes from the lecture.";
 }

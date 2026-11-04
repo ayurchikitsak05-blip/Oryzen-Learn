@@ -11,7 +11,7 @@ type Status =
   | { kind: "ready"; cached: boolean; allowance: LectureAllowance }
   | { kind: "working" }
   | { kind: "done"; text: string }
-  | { kind: "error"; text: string; allowance?: LectureAllowance; cached?: boolean };
+  | { kind: "error"; text: string; allowance?: LectureAllowance; cached?: boolean; reference?: string };
 
 function leftText(allowance: LectureAllowance): string {
   if (allowance.left === 0) return "You've used this month's new lectures.";
@@ -97,12 +97,14 @@ export function LectureNotesCard({
         cached?: boolean;
         allowance?: LectureAllowance;
         error?: string;
+        reference?: string;
       };
       if (!response.ok || !data.ok || !Array.isArray(data.notes)) {
         setStatus({
           kind: "error",
           text: data.error ?? "Lecture notes couldn't be made just now. Please try again later.",
           allowance: data.allowance,
+          reference: data.reference ?? (response.ok ? undefined : `H${response.status}`),
         });
         return;
       }
@@ -156,6 +158,7 @@ export function LectureNotesCard({
           {status.kind === "error" ? (
             <p className="text-sm text-danger" role="alert">
               {status.text}
+              {status.reference ? <span className="ml-1 text-xs text-muted">(code {status.reference})</span> : null}
             </p>
           ) : null}
         </div>

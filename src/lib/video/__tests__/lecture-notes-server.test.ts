@@ -13,7 +13,18 @@ function fakeAdmin() {
     let mode: "select" | "update" | "delete" = "select";
     let patch: Row = {};
     let countOnly = false;
-    const rows = () => tables[table].filter((row) => filters.every((f) => f(row)));
+    const sorts: Array<[string, boolean]> = [];
+    const rows = () =>
+      tables[table]
+        .filter((row) => filters.every((f) => f(row)))
+        .sort((a, b) => {
+          for (const [col, asc] of sorts) {
+            const x = String(a[col]);
+            const y = String(b[col]);
+            if (x !== y) return (x < y ? -1 : 1) * (asc ? 1 : -1);
+          }
+          return 0;
+        });
     const run = () => {
       if (mode === "delete") {
         tables[table] = tables[table].filter((row) => !filters.every((f) => f(row)));
@@ -36,6 +47,10 @@ function fakeAdmin() {
       },
       gte: (col: string, value: string) => {
         filters.push((row) => String(row[col]) >= value);
+        return builder;
+      },
+      order: (col: string, opts?: { ascending?: boolean }) => {
+        sorts.push([col, opts?.ascending !== false]);
         return builder;
       },
       maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
@@ -202,5 +217,60 @@ describe("lecture notes (server)", () => {
     expect(Number(tables.lecture_note_requests[0].cost_inr)).toBeGreaterThan(0);
     const status = await lectureNotesStatus({ admin: client, userId: "a", videoId: VIDEO, accessStatus: "free" });
     expect(status.allowance.left).toBe(1);
+  });
+
+  it("when two requests race for the last lecture, the earlier one goes ahead", async () => {
+    const { client, tables } = fakeAdmin();
+    // Another request for a different video was held a moment earlier and is still running.
+    tables.lecture_note_requests.push({
+      id: "r0", user_id: "a", video_id: "bbbbbbbbbbb", cache_hit: false, counted: true, cost_inr: 0,
+      created_at: new Date(Date.now() - 1000).toISOString(),
+    });
+    const fetchImpl = geminiReply(SECTIONS);
+    // Free plan, and the first count was read before r0 was saved (it saw 0 used).
+    const realFrom = (client as unknown as { from: (t: string) => Record<string, unknown> }).from;
+    let staleCount = true;
+    const racing = {
+      from: (table: string) => {
+        const builder = realFrom(table);
+        if (table === "lecture_note_requests" && staleCount) {
+          staleCount = false;
+          const stale = { eq: () => stale, gte: async () => ({ count: 0, error: null }) };
+          builder.select = () => stale;
+        }
+        return builder;
+      },
+    } as unknown as SupabaseClient;
+    const result = await makeLectureNotes({
+      admin: racing, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl,
+    });
+    expect(result).toMatchObject({ ok: false, status: 429, code: "monthly_limit" });
+    expect(tables.lecture_note_requests.map((row) => row.id)).toEqual(["r0"]);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("retries once at Google's default picture rate after a server error, and shows a code if that fails", async () => {
+    const { client, tables } = fakeAdmin();
+    const ok = geminiReply(SECTIONS);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "Internal", status: "INTERNAL" } }), { status: 500 }))
+      .mockImplementationOnce(ok);
+    const result = await makeLectureNotes({
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl,
+    });
+    expect(result.ok).toBe(true);
+    const second = JSON.parse(String((fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].body));
+    expect(second.contents[0].parts[0].videoMetadata).toEqual({ endOffset: "5400s" });
+
+    const failing = vi.fn(async () =>
+      new Response(JSON.stringify({ error: { message: "Internal", status: "INTERNAL" } }), { status: 500 })
+    );
+    const failed = await makeLectureNotes({
+      admin: client, userId: "a", videoId: "ccccccccccc", accessStatus: "active_paid", apiKey: "k", fetchImpl: failing,
+    });
+    expect(failed).toMatchObject({ ok: false, code: "provider_error", reference: "G500-INTERNAL" });
+    expect(failing).toHaveBeenCalledTimes(2);
+    expect(tables.lecture_note_requests.filter((row) => row.video_id === "ccccccccccc")).toHaveLength(0);
   });
 });
