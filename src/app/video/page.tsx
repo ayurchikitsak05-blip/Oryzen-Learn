@@ -13,6 +13,7 @@ import {
 import {
   createStudentLecture,
   DEFAULT_VIDEO_LECTURES,
+  extractYouTubeVideoId,
   formatTimestampBadge,
   type VideoLectureRecord,
 } from "@/lib/video/sync-engine";
@@ -41,6 +42,26 @@ export default function ParallelVideoStudioPage() {
     null
   );
   const ownerIdRef = useRef<string | null>(null);
+
+  // A shared link (/video?v=VIDEO_ID) opens that lecture, ready to add its notes free.
+  useEffect(() => {
+    let sharedId: string | null = null;
+    try {
+      sharedId = extractYouTubeVideoId(new URLSearchParams(window.location.search).get("v") ?? "");
+    } catch {
+      sharedId = null;
+    }
+    if (!sharedId) return;
+    const lecture = createStudentLecture({
+      sourceType: "youtube",
+      youtubeVideoId: sharedId,
+      youtubeUrl: `https://www.youtube.com/watch?v=${sharedId}`,
+      title: "Shared lecture",
+    });
+    setLectures((prev) => (prev.some((row) => row.id === lecture.id) ? prev : [...prev, lecture]));
+    setActiveLectureId(lecture.id);
+    setCurrentTimeSeconds(0);
+  }, []);
 
   useEffect(() => {
     let active = true;

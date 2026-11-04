@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Share2, Sparkles } from "lucide-react";
 import type { TimestampedLectureNote } from "@/lib/video/sync-engine";
 import type { LectureAllowance } from "@/lib/video/lecture-notes";
 
@@ -16,6 +16,29 @@ type Status =
 function leftText(allowance: LectureAllowance): string {
   if (allowance.left === 0) return "You've used this month's new lectures.";
   return allowance.left === 1 ? "1 new lecture left this month." : `${allowance.left} new lectures left this month.`;
+}
+
+export function lectureShareText(videoId: string, origin: string): { text: string; url: string } {
+  const url = `${origin}/video?v=${encodeURIComponent(videoId)}`;
+  return {
+    url,
+    text: "I made notes for this lecture on ORYZEN Learn. Open them free (it won't use your lecture notes):",
+  };
+}
+
+/** Phone share sheet when there is one, otherwise WhatsApp. */
+export async function shareLecture(videoId: string): Promise<"shared" | "whatsapp" | "cancelled"> {
+  const { text, url } = lectureShareText(videoId, window.location.origin);
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title: "Lecture notes", text, url });
+      return "shared";
+    } catch {
+      return "cancelled";
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`, "_blank", "noopener,noreferrer");
+  return "whatsapp";
 }
 
 /** "Make notes from this lecture": asks the server, which uses shared notes when they exist. */
@@ -122,7 +145,14 @@ export function LectureNotesCard({
           {status.kind === "working" ? (
             <p className="text-sm text-muted">Reading the lecture. This can take 1 to 3 minutes; keep this page open.</p>
           ) : null}
-          {status.kind === "done" ? <p className="text-sm text-success">{status.text}</p> : null}
+          {status.kind === "done" ? (
+            <>
+              <p className="text-sm text-success">{status.text}</p>
+              <p className="text-sm text-muted" data-testid="lecture-share-hint">
+                Studying with friends? Share these notes: they open free for them and don&apos;t use their lectures.
+              </p>
+            </>
+          ) : null}
           {status.kind === "error" ? (
             <p className="text-sm text-danger" role="alert">
               {status.text}
@@ -141,6 +171,17 @@ export function LectureNotesCard({
           {status.cached
             ? "Add the notes (free)"
             : `Make notes (uses 1 of ${status.allowance.left})`}
+        </button>
+      ) : null}
+      {status.kind === "done" ? (
+        <button
+          type="button"
+          onClick={() => void shareLecture(videoId)}
+          data-testid="lecture-notes-share"
+          className="btn-secondary mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 text-sm"
+        >
+          <Share2 className="h-4 w-4" aria-hidden="true" />
+          Share with a friend
         </button>
       ) : null}
     </section>
