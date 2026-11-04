@@ -155,11 +155,38 @@ export async function makeLectureNotes(input: {
   const release = async () => {
     await admin.from("lecture_note_requests").delete().eq("id", heldId);
   };
-  const after = lectureAllowance(plan, await lectureNewCountThisMonth(admin, userId, input.now));
-  if (after.used > after.limit) {
+  // Two requests at the same moment: the earlier row wins, so one always goes ahead.
+  const { data: monthRows, error: rankError } = await admin
+    .from("lecture_note_requests")
+    .select("id, video_id, created_at")
+    .eq("user_id", userId)
+    .eq("cache_hit", false)
+    .eq("counted", true)
+    .gte("created_at", indiaMonthStartIso(input.now))
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (rankError || !Array.isArray(monthRows)) {
+    await release();
+    return { ok: false, status: 503, code: "store_failed", error: "Lecture notes couldn't be made just now. Nothing was counted." };
+  }
+  const ordered = monthRows as Array<{ id: string; video_id: string; created_at: string }>;
+  const position = ordered.findIndex((row) => row.id === heldId);
+  const sameVideoFirst = ordered.find((row) => row.video_id === videoId && row.created_at >= recent);
+  if (sameVideoFirst && sameVideoFirst.id !== heldId) {
+    await release();
+    return {
+      ok: false,
+      status: 409,
+      code: "in_progress",
+      error: "Notes for this lecture are already being made. Please wait a minute or two.",
+      allowance: before,
+    };
+  }
+  if (position < 0 || position >= before.limit) {
     await release();
     return { ok: false, status: 429, code: "monthly_limit", error: lectureLimitMessage(before), allowance: before };
   }
+  const after = lectureAllowance(plan, ordered.length);
 
   // 4. Ask Gemini.
   const controller = new AbortController();

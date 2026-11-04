@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw } from "lucide-react";
+import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw, Youtube } from "lucide-react";
 import type { HomeContinuation } from "@/lib/hub/continuation";
 import { readFirstRunDraft } from "@/lib/onboarding/first-run";
 
@@ -132,6 +132,21 @@ export function TodayHome({
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-heading">Can&apos;t get started?</span>
           <span className="block text-sm text-muted">Take My Study helps you begin</span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
+      </Link>
+
+      <Link
+        href="/video"
+        data-testid="today-lecture-notes"
+        className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+      >
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-beige-2">
+          <Youtube className="h-5 w-5 text-accent" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-heading">Notes from a YouTube lecture</span>
+          <span className="block text-sm text-muted">Paste a link, get timed notes</span>
         </span>
         <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
       </Link>

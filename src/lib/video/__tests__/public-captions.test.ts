@@ -5,9 +5,9 @@ import { readVideoCaptionNotes, writeVideoCaptionNotes } from "../caption-notes-
 
 describe("public YouTube captions", () => {
   it("explains a missing caption track without claiming notes were written", () => {
-    expect(captionFailureCopy("no_public_captions")).toMatch(/did not provide a public caption track/i);
-    expect(captionFailureCopy("no_public_captions")).toMatch(/does not listen to the audio/i);
-    expect(captionFailureCopy("unavailable")).toMatch(/no lecture notes were created/i);
+    expect(captionFailureCopy("no_public_captions")).toMatch(/no public captions/i);
+    expect(captionFailureCopy("no_public_captions")).toMatch(/Make notes/);
+    expect(captionFailureCopy("unavailable")).toMatch(/couldn't be read/i);
   });
 
   it("keeps caption notes for the signed-in student and hides another account", async () => {
