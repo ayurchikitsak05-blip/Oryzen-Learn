@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import VideoPlayer from "@/components/video/VideoPlayer";
 import ParallelNotes from "@/components/video/ParallelNotes";
+import { LectureNotesCard } from "@/components/video/LectureNotesCard";
 import StudySidePanel from "@/components/study/StudySidePanel";
 import StudioFrame from "@/components/studio/StudioFrame";
 import {
@@ -136,6 +137,24 @@ export default function ParallelVideoStudioPage() {
     }).catch(() => {});
   };
 
+  const handleLectureNotes = async (
+    lecture: VideoLectureRecord,
+    title: string,
+    notes: TimestampedLectureNote[]
+  ) => {
+    setCaptionNotice(null);
+    setLectures((prev) => prev.map((row) => (row.id === lecture.id ? { ...row, title, notes } : row)));
+    const ownerId = ownerIdRef.current ?? (await fetchSignedInUser())?.userId ?? null;
+    if (!ownerId || !lecture.youtubeVideoId) return;
+    ownerIdRef.current = ownerId;
+    await writeVideoCaptionNotes(ownerId, {
+      videoId: lecture.youtubeVideoId,
+      url: lecture.youtubeUrl ?? `https://www.youtube.com/watch?v=${lecture.youtubeVideoId}`,
+      title,
+      notes,
+    });
+  };
+
   const handleSaveNote = async (note: TimestampedLectureNote) => {
     const result = await saveToNotebook({
       subjectTitle: activeLecture.title,
@@ -203,6 +222,16 @@ export default function ParallelVideoStudioPage() {
             {activeLecture.facultyName}
           </p>
         </div>
+
+        {activeLecture.sourceType === "youtube" &&
+        activeLecture.youtubeVideoId &&
+        activeLecture.id.startsWith("lec-student-") ? (
+          <LectureNotesCard
+            key={activeLecture.youtubeVideoId}
+            videoId={activeLecture.youtubeVideoId}
+            onNotes={(title, notes) => void handleLectureNotes(activeLecture, title, notes)}
+          />
+        ) : null}
 
         {telemetryToast && (
           <p className="text-center text-xs text-muted">{telemetryToast}</p>
