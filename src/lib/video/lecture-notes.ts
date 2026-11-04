@@ -52,8 +52,8 @@ export function lectureLimitMessage(allowance: LectureAllowance): string {
 export const LECTURE_NOTES_PROMPT = [
   "You are making study notes from a recorded class lecture for a student in India (Class 10 and up).",
   "Watch the video and listen to the teacher. Write notes in the same language the teacher mostly uses; if the teacher mixes Hindi and English, write in simple English and keep key Hindi terms.",
-  "Split the lecture into sections of roughly 3 to 8 minutes, in order (at most 30 sections). For each section give:",
-  "- start_seconds: when the section starts, in seconds from the beginning of the video;",
+  "Split the lecture into sections of roughly 3 to 8 minutes, in the order they happen in the video (at most 30 sections). For each section give:",
+  "- start_time: when the section starts, written as MM:SS (or H:MM:SS after an hour), exactly as the video's own progress bar would show it. Never give a time past the end of the video;",
   "- heading: a short topic heading;",
   "- points: 2 to 6 short study points (definitions, formulas, steps, examples written on the board);",
   "- key_point: the one thing most likely to be asked in an exam, or an empty string.",
@@ -70,12 +70,12 @@ export const LECTURE_NOTES_SCHEMA = {
       items: {
         type: "OBJECT",
         properties: {
-          start_seconds: { type: "NUMBER" },
+          start_time: { type: "STRING" },
           heading: { type: "STRING" },
           points: { type: "ARRAY", items: { type: "STRING" } },
           key_point: { type: "STRING" },
         },
-        required: ["start_seconds", "heading", "points"],
+        required: ["start_time", "heading", "points"],
       },
     },
   },
@@ -120,6 +120,17 @@ export interface ParsedLectureNotes {
   coveredSeconds: number;
 }
 
+/** "4:05", "04:05", "1:02:30" or a plain number of seconds → seconds; NaN when unreadable. */
+export function parseTimestamp(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return Number.NaN;
+  const text = value.trim().replace(/^\[|\]$/g, "");
+  if (/^\d+(\.\d+)?$/.test(text)) return Number(text);
+  const parts = text.split(":");
+  if (parts.length < 2 || parts.length > 3 || parts.some((part) => !/^\d{1,2}$/.test(part))) return Number.NaN;
+  return parts.map(Number).reduce((total, part) => total * 60 + part, 0);
+}
+
 /** Turns Gemini's JSON into the timed notes the video screen already shows. Never throws. */
 export function parseLectureNotes(raw: unknown, videoId: string): ParsedLectureNotes {
   const value = (raw && typeof raw === "object" ? raw : {}) as { title?: unknown; sections?: unknown };
@@ -127,7 +138,7 @@ export function parseLectureNotes(raw: unknown, videoId: string): ParsedLectureN
   const rows = sections
     .map((item) => {
       const section = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
-      const start = Number(section.start_seconds);
+      const start = parseTimestamp(section.start_time ?? section.start_seconds);
       const points = Array.isArray(section.points)
         ? section.points.map((point) => cleanText(point, 400)).filter(Boolean).slice(0, 8)
         : [];
@@ -139,7 +150,13 @@ export function parseLectureNotes(raw: unknown, videoId: string): ParsedLectureN
       };
     })
     .filter((row) => row.heading || row.points.length > 0)
-    .sort((a, b) => a.start - b.start);
+    // Keep the AI's order (the order things happen); a time that goes backwards is unreliable,
+    // so it takes the previous section's time instead of reordering the notes.
+    .reduce<Array<{ start: number; heading: string; points: string[]; key: string }>>((out, row) => {
+      const previous = out.length ? out[out.length - 1].start : 0;
+      out.push({ ...row, start: row.start < previous ? previous : row.start });
+      return out;
+    }, []);
 
   const lectureId = `lec-student-${videoId}`;
   const notes: TimestampedLectureNote[] = rows.map((row, index) => {

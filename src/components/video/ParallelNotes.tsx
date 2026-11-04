@@ -117,9 +117,11 @@ export default function ParallelNotes({
                 )}
               </div>
 
-              <blockquote className="border-l border-line pl-3.5 text-sm leading-relaxed italic text-muted">
-                &ldquo;{note.speakerTranscript}&rdquo;
-              </blockquote>
+              {note.speakerTranscript.trim() ? (
+                <blockquote className="border-l border-line pl-3.5 text-sm leading-relaxed italic text-muted">
+                  &ldquo;{note.speakerTranscript}&rdquo;
+                </blockquote>
+              ) : null}
 
               <div className="whitespace-pre-line text-sm leading-relaxed text-ink">
                 {note.studyNoteMarkdown}
