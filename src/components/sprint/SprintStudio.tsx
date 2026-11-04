@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { focusSounds, readUniversePrefs } from "@/lib/universe";
 import Link from "next/link";
 import { choiceClass, ui } from "@/components/ui/classes";
 import { readSavedBodyType } from "@/lib/study/body-type";
@@ -106,6 +107,22 @@ export function SprintStudio({ userId }: { userId: string }) {
       }
     }
   }, [live, now, store.sessions, userId]);
+
+  // Focus sound from Personalize plays only while a sprint is running.
+  const liveStatus = live?.status;
+  useEffect(() => {
+    if (liveStatus !== "running") {
+      focusSounds.stop();
+      return;
+    }
+    const prefs = readUniversePrefs(userId);
+    if (!prefs.soundEnabled || prefs.focusSound === "silence") return;
+    focusSounds.setVolume(prefs.focusVolume);
+    focusSounds.setMuted(prefs.focusMuted);
+    if (focusSounds.isPlaying() && focusSounds.currentSound() === prefs.focusSound) return;
+    void focusSounds.play(prefs.focusSound).catch(() => undefined);
+  }, [liveStatus, userId]);
+  useEffect(() => () => focusSounds.stop(), []);
 
   const studied = studiedMinutesOnDate(store.sessions, today);
   const pending = pendingSessions(store.sessions, today);

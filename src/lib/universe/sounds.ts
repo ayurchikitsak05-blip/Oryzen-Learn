@@ -68,6 +68,7 @@ export class FocusSoundEngine {
   private nodes: AudioNode[] = [];
   private timers: number[] = [];
   private playing = false;
+  private playToken = 0;
   private muted = false;
   private volume = 0.35;
   private sound: FocusSoundId = "silence";
@@ -104,9 +105,12 @@ export class FocusSoundEngine {
       return;
     }
     this.teardownGraph();
+    const token = ++this.playToken;
     this.sound = sound;
     const ctx = this.ensureContext();
     await ctx.resume();
+    // A stop() (or another play) while the browser held the audio wins.
+    if (token !== this.playToken) return;
     this.master = ctx.createGain();
     this.master.connect(ctx.destination);
     this.playing = true;
@@ -115,6 +119,7 @@ export class FocusSoundEngine {
   }
 
   stop(): void {
+    this.playToken += 1;
     this.teardownGraph();
     this.playing = false;
     this.sound = "silence";
