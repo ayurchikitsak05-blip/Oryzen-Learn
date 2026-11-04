@@ -4,6 +4,15 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-04 (night) · First real lecture-notes test on Preview
+
+- **Owner actions done:** migrations `20261104000001` (lecture notes) applied to Learn Preview; Preview keys confirmed set; owner's Preview account set to Pro for testing.
+- **First tries:** the first showed the "monthly limit" message with nothing counted (two requests at once cancelled each other). The second got a Google server error. Fixed in PR #8: the earlier request wins; one retry at Google's default picture rate; errors are logged and shown as a short code.
+- **Third try (PR #8 Preview): notes made.** Yale lecture `KOKnWaLiL8w` (72 minutes): 168,320 prompt tokens, 1,596 output tokens, **₹5.14** at the price in our code (about ₹9 at Google's higher listed price). About 31 tokens a second, so the one-picture-every-5-seconds setting was accepted. **Real cost: about ₹4.3 per hour of lecture.**
+- **To check:** the shared record says the notes cover 5,400 seconds (90 minutes) for a 72-minute video, so some timestamps may run past the end of the video. Checking the notes next.
+
+---
+
 ## 2026-11-04 · Redesign, part 5: notes from YouTube lectures
 
 **Owner decision (4 Nov):** go ahead with YouTube lecture notes, with costs shown first. Estimated cost: about ₹5 per hour of lecture (₹7 for the 90-minute cap) at the price in our code, about 1.8× if Google charges its higher listed price.
