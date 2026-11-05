@@ -25,10 +25,10 @@ describe("StudyStyleQuiz", () => {
     window.localStorage.clear();
   });
 
-  it("asks all 38 questions one at a time, then shows the style and applies settings", async () => {
+  it("asks all 39 questions one at a time, then shows the style and applies settings", async () => {
     await unlockTestVault("student-a");
     render(<StudyStyleQuiz />);
-    await waitFor(() => expect(screen.getByTestId("style-progress").textContent).toBe("1 of 38"));
+    await waitFor(() => expect(screen.getByTestId("style-progress").textContent).toBe("1 of 39"));
 
     let clock = Date.now();
     vi.spyOn(Date, "now").mockImplementation(() => (clock += 1000));
@@ -55,9 +55,21 @@ describe("StudyStyleQuiz", () => {
     render(<StudyStyleQuiz />);
     fireEvent.click(screen.getByText(BODY_QUESTIONS[0].options.Pitta));
     fireEvent.click(screen.getByText(BODY_QUESTIONS[1].options.Pitta));
-    expect(screen.getByTestId("style-progress").textContent).toBe("2 of 38");
+    expect(screen.getByTestId("style-progress").textContent).toBe("2 of 39");
     fireEvent.click(screen.getByTestId("style-back"));
     expect(screen.getByTestId("style-question").textContent).toBe(BODY_QUESTIONS[0].prompt);
     expect(screen.getByText(BODY_QUESTIONS[0].options.Pitta).closest("button")?.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("has a skip on every question; skipping most gives a rough-guide note", async () => {
+    let clock = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => (clock += 1000));
+    render(<StudyStyleQuiz />);
+    for (let i = 0; i < BODY_QUESTIONS.length + STUDY_QUESTIONS.length; i += 1) {
+      fireEvent.click(screen.getByTestId("style-skip"));
+    }
+    expect(await screen.findByTestId("style-result")).toBeTruthy();
+    expect(screen.getByTestId("style-rough")).toBeTruthy();
+    expect(screen.getByTestId("style-name").textContent).toBe("Even Blend");
   });
 });

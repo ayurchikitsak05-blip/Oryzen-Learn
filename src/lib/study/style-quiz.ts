@@ -67,8 +67,12 @@ export const BODY_QUESTIONS: readonly BodyQuestion[] = [
     "A moderate amount, but it starts slowly"),
   q("b-appetite", "Appetite", "What is your appetite like?",
     "Irregular; sometimes very hungry, sometimes I forget to eat",
-    "Strong; I get irritable if a meal is late",
-    "Steady but mild; I can skip a meal without trouble"),
+    "Strong; I get hungry often and eat well",
+    "Steady but mild"),
+  q("b-hunger", "Hunger", "When a meal is late, how do you feel?",
+    "Weak, shaky or anxious",
+    "Irritable or angry; sometimes I get a headache",
+    "Fine; I can wait for hours"),
   q("b-eating", "Appetite", "How do you usually eat?",
     "Quickly, small amounts at odd times",
     "A good amount, and I feel very hungry before meals",
@@ -216,8 +220,23 @@ export const STUDY_QUESTIONS: readonly StudyQuestion[] = [
   ] },
 ];
 
-export type BodyAnswers = Record<string, Dosha>;
+/** "skip" = the student didn't know; a skipped question simply isn't counted (owner, 5 Nov 2026). */
+export const SKIP = "skip" as const;
+export type BodyAnswers = Record<string, Dosha | typeof SKIP>;
 export type StudyAnswers = Record<string, string>;
+
+/** How many Part 1 questions were really answered (not skipped). */
+export function answeredBodyCount(answers: BodyAnswers): number {
+  return BODY_QUESTIONS.filter((question) => {
+    const answer = answers[question.id];
+    return answer === "Vata" || answer === "Pitta" || answer === "Kapha";
+  }).length;
+}
+
+/** Fewer than half answered: the result is shown, with a note that it may be less accurate. */
+export function resultIsRough(answers: BodyAnswers): boolean {
+  return answeredBodyCount(answers) < Math.ceil(BODY_QUESTIONS.length / 2);
+}
 
 /** Percent leaning to each style from Part 1 (sums to 100). */
 export function scoreBody(answers: BodyAnswers): DoshaScores {
@@ -364,8 +383,13 @@ const TIME_LABELS: Record<string, string> = {
 };
 
 /** Part 2 answers (with the style as a tie-breaker) become concrete study settings. */
-export function studySettings(answers: StudyAnswers, style: StyleResult): StudySettings {
+const EXPLAIN_FALLBACK: Record<string, string> = { story: "story", structured: "explain", steady: "explain", mixed: "explain" };
+const HELPERS: readonly CompanionStyle[] = ["teacher", "buddy", "coach", "guide"];
+
+export function studySettings(raw: StudyAnswers, style: StyleResult): StudySettings {
   const preset = UNIVERSE_PRESETS[style.profileId];
+  // Skipped answers fall back to what suits the style.
+  const answers: StudyAnswers = Object.fromEntries(Object.entries(raw).filter(([, value]) => value && value !== SKIP));
   const focus = Number(answers["s-focus"]);
   const sprintMinutes = ([15, 25, 45, 60] as const).find((value) => value === focus) ?? preset.sessionMinutes;
   const breakMinutes = Number(answers["s-break"]) || preset.breakMinutes;
@@ -378,17 +402,17 @@ export function studySettings(answers: StudyAnswers, style: StyleResult): StudyS
   if (answers["s-distraction"] === "thoughts") tips.push("Write the worry down in one line, then start a 10-minute sprint.");
   if (answers["s-recall"] === "little" || answers["s-recall"] === "some") tips.push("Do Morning revision every day: 5 cards, 3 minutes, from your own notes.");
   if (answers["s-exam"] === "very") tips.push("When exam fear rises, breathe in for 4, hold for 4, out for 6, five times. If it feels like too much, talk to someone you trust or call Tele-MANAS on 14416.");
-  if (answers["s-time"]) tips.push(`Plan your hardest subject for ${TIME_LABELS[answers["s-time"]] ?? "your best time"}.`);
+  if (TIME_LABELS[answers["s-time"]]) tips.push(`Plan your hardest subject for ${TIME_LABELS[answers["s-time"]]}.`);
   const sound: FocusSoundId = answers["s-sound"] === "rain" ? preset.suggestedSound === "silence" ? "rain" : preset.suggestedSound : "silence";
   return {
     sprintMinutes,
     breakMinutes: Math.min(15, Math.max(3, breakMinutes)),
     dailyMinutes,
     bestTime: answers["s-time"] ?? "",
-    explainFirst: answers["s-explain"] ?? preset.explanationFormat,
+    explainFirst: answers["s-explain"] ?? EXPLAIN_FALLBACK[preset.explanationFormat] ?? "explain",
     noteStyle: answers["s-notes"] ?? preset.noteStyle,
     focusSound: sound,
-    helper: (answers["s-help"] as CompanionStyle) || preset.companionStyle,
+    helper: HELPERS.includes(answers["s-help"] as CompanionStyle) ? (answers["s-help"] as CompanionStyle) : preset.companionStyle,
     guardOn: true,
     tips: tips.slice(0, 5),
   };

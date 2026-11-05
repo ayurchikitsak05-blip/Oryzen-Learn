@@ -6,6 +6,8 @@ import {
   studySettings,
   STYLE_DISCLAIMER,
   STYLE_PLANS,
+  answeredBodyCount,
+  resultIsRough,
   styleFromScores,
   type BodyAnswers,
 } from "../style-quiz";
@@ -15,10 +17,10 @@ function answerAll(pick: (index: number) => "Vata" | "Pitta" | "Kapha"): BodyAns
 }
 
 describe("study style questionnaire", () => {
-  it("has 26 questions about the body and 12 about studying, each with clear answers", () => {
-    expect(BODY_QUESTIONS).toHaveLength(26);
+  it("has 27 questions about the body and 12 about studying, each with clear answers", () => {
+    expect(BODY_QUESTIONS).toHaveLength(27);
     expect(STUDY_QUESTIONS).toHaveLength(12);
-    expect(new Set([...BODY_QUESTIONS, ...STUDY_QUESTIONS].map((q) => q.id)).size).toBe(38);
+    expect(new Set([...BODY_QUESTIONS, ...STUDY_QUESTIONS].map((q) => q.id)).size).toBe(39);
     for (const q of BODY_QUESTIONS) {
       expect(Object.values(q.options).every((text) => text.length > 5)).toBe(true);
     }
@@ -37,7 +39,7 @@ describe("study style questionnaire", () => {
   });
 
   it("scores the body answers into a mix that adds up to 100", () => {
-    const scores = scoreBody(answerAll((i) => (i < 18 ? "Vata" : i < 22 ? "Pitta" : "Kapha")));
+    const scores = scoreBody(answerAll((i) => (i < 19 ? "Vata" : i < 23 ? "Pitta" : "Kapha")));
     expect(scores.Vata + scores.Pitta + scores.Kapha).toBe(100);
     expect(scores.Vata).toBeGreaterThan(60);
     expect(styleFromScores(scores).name).toBe("Spark & Sprint");
@@ -93,5 +95,22 @@ describe("study style questionnaire", () => {
       expect(result.dayPlan.length).toBeGreaterThan(2);
       expect(result.strengths.length).toBeGreaterThan(1);
     }
+  });
+
+  it("skipped questions aren't counted, and many skips give a rough-guide note", () => {
+    const answers = Object.fromEntries(BODY_QUESTIONS.map((q, i) => [q.id, i < 5 ? "Kapha" : "skip"])) as BodyAnswers;
+    expect(answeredBodyCount(answers)).toBe(5);
+    expect(scoreBody(answers)).toEqual({ Vata: 0, Pitta: 0, Kapha: 100 });
+    expect(resultIsRough(answers)).toBe(true);
+    expect(resultIsRough(answerAll(() => "Pitta"))).toBe(false);
+  });
+
+  it("skipped study answers fall back to what suits the style", () => {
+    const style = styleFromScores(scoreBody(answerAll(() => "Vata")));
+    const settings = studySettings({ "s-focus": "skip", "s-help": "skip", "s-time": "skip", "s-explain": "skip" }, style);
+    expect(settings.sprintMinutes).toBe(25);
+    expect(settings.helper).toBe("buddy");
+    expect(settings.explainFirst).toBe("story");
+    expect(settings.tips.join(" ")).not.toMatch(/hardest subject/);
   });
 });
