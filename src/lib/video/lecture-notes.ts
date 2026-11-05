@@ -52,7 +52,7 @@ export function lectureLimitMessage(allowance: LectureAllowance): string {
 export const LECTURE_NOTES_PROMPT = [
   "You are making study notes from a recorded class lecture for a student in India (Class 10 and up).",
   "Watch the video and listen to the teacher. Write notes in the same language the teacher mostly uses; if the teacher mixes Hindi and English, write in simple English and keep key Hindi terms.",
-  "Split the lecture into sections of roughly 3 to 8 minutes, in the order they happen in the video (at most 30 sections). For each section give:",
+  "Cover the whole video from start to end. Start a new section about every 5 minutes or whenever the topic changes, in the order they happen (a 60-minute lecture should have about 10 to 14 sections; at most 30). For each section give:",
   "- start_time: when the section starts, written as MM:SS (or H:MM:SS after an hour), exactly as the video's own progress bar would show it. Never give a time past the end of the video;",
   "- heading: a short topic heading;",
   "- points: 2 to 6 short study points (definitions, formulas, steps, examples written on the board);",

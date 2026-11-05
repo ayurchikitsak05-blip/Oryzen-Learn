@@ -9,7 +9,8 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - **Owner actions done:** migrations `20261104000001` (lecture notes) applied to Learn Preview; Preview keys confirmed set; owner's Preview account set to Pro for testing.
 - **First tries:** the first showed the "monthly limit" message with nothing counted (two requests at once cancelled each other). The second got a Google server error. Fixed in PR #8: the earlier request wins; one retry at Google's default picture rate; errors are logged and shown as a short code.
 - **Third try (PR #8 Preview): notes made.** Yale lecture `KOKnWaLiL8w` (72 minutes): 168,320 prompt tokens, 1,596 output tokens, **₹5.14** at the price in our code (about ₹9 at Google's higher listed price). About 31 tokens a second, so the one-picture-every-5-seconds setting was accepted. **Real cost: about ₹4.3 per hour of lecture.**
-- **To check:** the shared record says the notes cover 5,400 seconds (90 minutes) for a 72-minute video, so some timestamps may run past the end of the video. Checking the notes next.
+- **Timestamps were wrong:** the AI's times in seconds ran past the end of the video (an opening topic showed 1:30:00), and sorting by them shuffled the notes. Fixed in PR #8: times are written as MM:SS like the video shows, and the notes keep the lecture's order.
+- **Retest (5 Nov, owner deleted the old notes and made them again):** times correct and in order (00:00 course overview, 03:08 course organisation, 38:34 constant acceleration). Only 5 sections for 72 minutes, so the AI is now asked for a section about every 5 minutes (output is a small part of the cost).
 
 ---
 
