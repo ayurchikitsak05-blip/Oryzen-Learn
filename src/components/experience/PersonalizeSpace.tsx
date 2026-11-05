@@ -8,6 +8,8 @@ import { activateCompanionStyle, readCompanionStore } from "@/lib/companion";
 import type { CompanionStyle } from "@/lib/companion/types";
 import { applyColour, COLOUR_CHOICES, colourForTheme, currentColour, type ColourId } from "@/lib/experience/colours";
 import { ensureAccountVault } from "@/lib/privacy/account-vault";
+import Link from "next/link";
+import { readFocusGuardPrefs, writeFocusGuardPrefs } from "@/lib/sprint/guard";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { readLocalPrakritiProfile } from "@/lib/supabase/profile-sync";
 import {
@@ -43,6 +45,8 @@ export function PersonalizeSpace() {
   const [universe, setUniverse] = useState<UniversePrefs | null>(null);
   const [helper, setHelper] = useState<CompanionStyle | null>(null);
   const [vaultOpen, setVaultOpen] = useState(false);
+  const [guardOn, setGuardOn] = useState(true);
+  useEffect(() => setGuardOn(readFocusGuardPrefs().enabled), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,6 +142,37 @@ export function PersonalizeSpace() {
           <p className="px-1 text-sm text-muted">The sound you pick plays while a study sprint is running.</p>
         </section>
       ) : null}
+
+      <section className={sectionClass} data-testid="personalize-guard">
+        <label className="flex min-h-11 items-start gap-3 text-sm text-ink">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4"
+            checked={guardOn}
+            onChange={(event) => {
+              setGuardOn(event.target.checked);
+              writeFocusGuardPrefs({ enabled: event.target.checked });
+            }}
+            data-testid="guard-toggle"
+          />
+          <span>
+            <span className="block font-semibold text-heading">Distraction guard in sprints</span>
+            <span className="block text-muted">
+              If you leave the app for more than a minute during a sprint, the timer pauses and welcomes you back.
+            </span>
+          </span>
+        </label>
+      </section>
+
+      <section className={sectionClass}>
+        <h2 className="font-semibold text-heading">Morning revision reminder</h2>
+        <p className="text-sm text-muted">
+          Set a time and add it to your phone&apos;s calendar.{" "}
+          <Link href="/revise" className="font-medium text-accent underline-offset-4 hover:underline">
+            Open Morning revision
+          </Link>
+        </p>
+      </section>
 
       <section className={sectionClass} aria-labelledby="personalize-helper" data-testid="personalize-helper">
         <h2 id="personalize-helper" className="font-semibold text-heading">Take My Study helper</h2>

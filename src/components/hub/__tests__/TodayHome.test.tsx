@@ -37,7 +37,7 @@ describe("TodayHome", () => {
     expect(screen.getByTestId("today-book").getAttribute("href")).toBe("/reader?upload=1");
     expect(screen.getByTestId("today-book").textContent).toMatch(/Add your first book/);
     expect(screen.getByTestId("today-take-my-study").getAttribute("href")).toBe("/companion");
-    expect(screen.getByTestId("today-revise").getAttribute("href")).toBe("/reader?lens=test_me");
+    expect(screen.getByTestId("today-revise").getAttribute("href")).toBe("/revise");
     expect(screen.getByTestId("today-lecture-notes").getAttribute("href")).toBe("/video");
     expect(screen.queryByRole("progressbar")).toBeNull();
   });

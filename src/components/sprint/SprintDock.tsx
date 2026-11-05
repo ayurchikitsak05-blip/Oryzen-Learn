@@ -18,6 +18,7 @@ import {
   upsertSprintSession,
   type SprintSession,
 } from "@/lib/sprint";
+import { SPRINT_CHANGED_EVENT } from "@/lib/sprint/guard";
 
 export function SprintDock({
   quizCompleted,
@@ -37,6 +38,15 @@ export function SprintDock({
     const fromUrl = store.sessions.find((item) => item.id === sprintId) ?? null;
     setSession(fromUrl ?? activeSession(store.sessions));
   }, [userId, sprintId]);
+
+  useEffect(() => {
+    const refresh = () => {
+      const store = readSprintStore(userId);
+      setSession((current) => (current ? store.sessions.find((item) => item.id === current.id) ?? current : current));
+    };
+    window.addEventListener(SPRINT_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(SPRINT_CHANGED_EVENT, refresh);
+  }, [userId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
