@@ -19,7 +19,9 @@ import { fetchSignedInUser } from "@/lib/supabase/session";
 import { readUniversePrefs, UNIVERSE_PRESETS, writeUniversePrefs } from "@/lib/universe";
 import {
   BODY_QUESTIONS,
+  resultIsRough,
   scoreBody,
+  SKIP,
   STUDY_QUESTIONS,
   studySettings,
   STYLE_DISCLAIMER,
@@ -177,6 +179,12 @@ export function StudyStyleQuiz() {
           <h1 className="font-display mt-1 text-3xl text-heading" data-testid="style-name">{style.name}</h1>
           <p className="mt-2 text-sm leading-relaxed text-ink">{style.tagline}</p>
         </header>
+        {resultIsRough(bodyAnswers) ? (
+          <p className={ui.notice} data-testid="style-rough">
+            You skipped many questions about yourself, so this result is a rough guide. Take it again when you can,
+            perhaps with a parent who knows your habits.
+          </p>
+        ) : null}
 
         <section className="space-y-2 rounded-2xl border border-line bg-surface p-4" aria-label="Your mix">
           {DOSHAS.map((dosha) => (
@@ -305,7 +313,7 @@ export function StudyStyleQuiz() {
       {index === 0 ? (
         <p className={ui.notice}>
           Answer for how you have <strong>usually</strong> been for most of your life, not just this week. There are no
-          right or wrong answers.
+          right or wrong answers, and you can skip any question you're not sure about.
         </p>
       ) : null}
       {index === BODY_QUESTIONS.length ? (
@@ -352,6 +360,22 @@ export function StudyStyleQuiz() {
                 </button>
               ))}
         </div>
+        <button
+          type="button"
+          data-testid="style-skip"
+          aria-pressed={(answeredBody ?? answeredStudy) === SKIP}
+          className={`w-full rounded-2xl border border-dashed px-4 py-3 text-sm ${
+            (answeredBody ?? answeredStudy) === SKIP ? "border-beige bg-selected text-heading" : "border-line text-muted hover:bg-beige-2"
+          }`}
+          onClick={() => {
+            if (Date.now() < lockedUntil.current) return;
+            if (bodyQuestion) setBodyAnswers((prev) => ({ ...prev, [bodyQuestion.id]: SKIP }));
+            if (studyQuestion) setStudyAnswers((prev) => ({ ...prev, [studyQuestion.id]: SKIP }));
+            next();
+          }}
+        >
+          I&apos;m not sure, skip this question
+        </button>
       </section>
 
       <div className="flex items-center justify-between">
