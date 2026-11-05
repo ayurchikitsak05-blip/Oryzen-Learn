@@ -250,29 +250,64 @@ export interface StyleResult {
   /** Plain-English strengths and watch-outs for studying. */
   strengths: string[];
   watchOuts: string[];
+  dayPlan: string[];
 }
 
-const STRENGTHS: Record<Dosha, string[]> = {
-  Vata: ["You pick up new ideas quickly", "You're creative and enjoy variety"],
-  Pitta: ["You focus sharply and like clear goals", "You understand and organise ideas well"],
-  Kapha: ["You can study steadily for long stretches", "What you learn properly stays with you"],
-};
+/**
+ * The 7 study styles (owner, 5 Nov 2026): three single types, three two-type mixes and the
+ * even mix of all three. Each has its own written plan; a mix is not just two lists joined.
+ */
+export interface StylePlan {
+  tagline: string;
+  strengths: string[];
+  watchOuts: string[];
+  /** How a normal study day looks for this style. */
+  dayPlan: string[];
+}
 
-const WATCH_OUTS: Record<Dosha, string[]> = {
-  Vata: ["You may forget quickly, so short, frequent revision helps", "Long sessions tire you; short sprints with breaks work better"],
-  Pitta: ["You can push too hard; plan breaks before you burn out", "Exam pressure may make you irritable; keep cool breaks"],
-  Kapha: ["Getting started is the hard part; begin with 10 easy minutes", "After heavy meals you may feel sleepy; study before eating"],
-};
-
-/** What each style means for studying, in the student's words. */
-const STYLE_TAGLINES: Record<UniverseProfileId, string> = {
-  vata: "You catch ideas quickly and like variety. Short sprints, stories and pictures, and little-and-often revision suit you.",
-  pitta: "You focus sharply and like clear targets. Longer sprints, step-by-step explanations and a quick test at the end suit you.",
-  kapha: "You start slowly, then keep going and remember well. A gentle 10-minute start, then longer steady reading suits you.",
-  vata_pitta: "Quick and sharp. Short varied sprints that end with a clear check suit you.",
-  pitta_kapha: "Focused and steady. Structured work at a calm pace, with a firm revision round, suits you.",
-  vata_kapha: "Creative, with a slow start. A soft start, stories and examples, then room to settle in suits you.",
-  balanced: "A bit of everything. Start with 25-minute sprints and adjust as you learn what works.",
+export const STYLE_PLANS: Record<UniverseProfileId, StylePlan> = {
+  vata: {
+    tagline: "You catch ideas quickly and like variety. Short sprints, stories and pictures, and little-and-often revision suit you.",
+    strengths: ["You pick up new ideas quickly", "You're creative and enjoy variety", "You get excited by new topics"],
+    watchOuts: ["You may forget quickly, so revise a little every day", "Long sessions tire you; stop before you're drained", "Worry can scatter your focus before exams"],
+    dayPlan: ["Short 25-minute sprints with 5-minute breaks", "Switch topic every one or two sprints to stay fresh", "Use Story and Illustrate first; Morning revision every day", "Keep a fixed study time and regular meals; irregular days hurt you most"],
+  },
+  pitta: {
+    tagline: "You focus sharply and like clear targets. Longer sprints, step-by-step explanations and a quick test at the end suit you.",
+    strengths: ["You focus sharply and like clear goals", "You understand and organise ideas well", "You enjoy a challenge"],
+    watchOuts: ["You can push too hard and burn out", "Exam pressure may make you irritable or impatient", "Skipping meals or sleep hits your focus hard"],
+    dayPlan: ["Longer 45-minute sprints with 5-minute breaks", "Set a target for each sprint, then Test me at the end", "Use Explain and Key points first; make tables for revision", "Take real, cool breaks and don't study through lunch"],
+  },
+  kapha: {
+    tagline: "You start slowly, then keep going and remember well. A gentle 10-minute start, then longer steady reading suits you.",
+    strengths: ["You can study steadily for long stretches", "What you learn properly stays with you", "You stay calm under pressure"],
+    watchOuts: ["Getting started is the hard part", "You may feel sleepy after heavy meals", "You can put things off until late"],
+    dayPlan: ["Start with 10 easy minutes, then 45-minute sprints with 8-minute breaks", "Study your hardest subject early in the day, before meals", "Use Explain first; short memory lines help recall", "Keep the plan moving: tick something off every day"],
+  },
+  vata_pitta: {
+    tagline: "Quick and sharp. Short varied sprints that end with a clear check suit you.",
+    strengths: ["You grasp ideas fast and understand them well", "You're full of energy when interested", "You like solving problems"],
+    watchOuts: ["You can rush and burn out quickly", "Stress may show as both worry and irritation", "Skipped meals and late nights hit you hard"],
+    dayPlan: ["25-minute sprints with 5-minute breaks", "Change topics often, but end each sprint with Test me", "Use Story or Illustrate to learn, Key points to revise", "Fixed sleep and meal times keep your focus steady"],
+  },
+  pitta_kapha: {
+    tagline: "Focused and steady. Structured work at a calm pace, with a firm revision round, suits you.",
+    strengths: ["You can focus long and well", "You plan well and finish what you start", "You remember what you study"],
+    watchOuts: ["You may get stuck on one way of doing things", "Heavy meals can slow you down", "You may skip breaks and tire late in the day"],
+    dayPlan: ["45-minute sprints with 8-minute breaks", "Follow the exam plan closely; it suits you", "Use Explain and Key points; make revision tables", "Add a short walk between long sprints"],
+  },
+  vata_kapha: {
+    tagline: "Creative, with a slow start. A soft start, stories and examples, then room to settle in suits you.",
+    strengths: ["You're creative and kind", "Once settled, you can keep going", "You remember what you understand through examples"],
+    watchOuts: ["Starting is hard and you may put things off", "Your energy goes up and down", "Cold, tiredness or a messy routine slow you down"],
+    dayPlan: ["Start with 10 easy minutes, then 25-minute sprints with 8-minute breaks", "Use Story first, then Explain", "A warm drink and the same study place every day", "Use Can't get started? on Today when you're stuck"],
+  },
+  balanced: {
+    tagline: "A bit of everything. Start with 25-minute sprints and adjust as you learn what works.",
+    strengths: ["You adapt to different subjects and ways of studying", "You have a good mix of speed, focus and memory", "You recover well from a bad day"],
+    watchOuts: ["Without a plan you may drift between styles", "Any one habit out of balance (sleep, food, screen time) shows quickly"],
+    dayPlan: ["25-minute sprints with 5-minute breaks to start", "Try Story, Illustrate and Explain and see which you use most", "Morning revision every day keeps everything in place", "Adjust sprint length after a week"],
+  },
 };
 
 const PAIR_IDS: Record<string, UniverseProfileId> = {
@@ -296,16 +331,15 @@ export function profileIdFromScores(scores: DoshaScores): UniverseProfileId {
 
 export function styleFromScores(scores: DoshaScores): StyleResult {
   const profileId = profileIdFromScores(scores);
-  const preset = UNIVERSE_PRESETS[profileId];
-  const ranked = (["Vata", "Pitta", "Kapha"] as const).slice().sort((a, b) => scores[b] - scores[a]);
-  const leading = profileId === "balanced" ? ranked : ranked.slice(0, profileId.includes("_") ? 2 : 1);
+  const plan = STYLE_PLANS[profileId];
   return {
     profileId,
-    name: preset.modernName,
-    tagline: STYLE_TAGLINES[profileId],
+    name: UNIVERSE_PRESETS[profileId].modernName,
+    tagline: plan.tagline,
     scores,
-    strengths: leading.flatMap((dosha) => STRENGTHS[dosha]).slice(0, 3),
-    watchOuts: leading.flatMap((dosha) => WATCH_OUTS[dosha]).slice(0, 3),
+    strengths: plan.strengths,
+    watchOuts: plan.watchOuts,
+    dayPlan: plan.dayPlan,
   };
 }
 

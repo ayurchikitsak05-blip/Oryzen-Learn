@@ -5,6 +5,7 @@ import {
   STUDY_QUESTIONS,
   studySettings,
   STYLE_DISCLAIMER,
+  STYLE_PLANS,
   styleFromScores,
   type BodyAnswers,
 } from "../style-quiz";
@@ -71,5 +72,26 @@ describe("study style questionnaire", () => {
   it("falls back to the style's own timings when study answers are missing", () => {
     const style = styleFromScores(scoreBody(answerAll(() => "Pitta")));
     expect(studySettings({}, style)).toMatchObject({ sprintMinutes: 45, focusSound: "silence" });
+  });
+
+  it("has its own written plan for each of the 7 styles", () => {
+    expect(Object.keys(STYLE_PLANS).sort()).toEqual(
+      ["balanced", "kapha", "pitta", "pitta_kapha", "vata", "vata_kapha", "vata_pitta"]
+    );
+    const cases: Array<[Record<"Vata" | "Pitta" | "Kapha", number>, string]> = [
+      [{ Vata: 70, Pitta: 20, Kapha: 10 }, "vata"],
+      [{ Vata: 10, Pitta: 70, Kapha: 20 }, "pitta"],
+      [{ Vata: 10, Pitta: 20, Kapha: 70 }, "kapha"],
+      [{ Vata: 45, Pitta: 40, Kapha: 15 }, "vata_pitta"],
+      [{ Vata: 10, Pitta: 45, Kapha: 45 }, "pitta_kapha"],
+      [{ Vata: 42, Pitta: 15, Kapha: 43 }, "vata_kapha"],
+      [{ Vata: 34, Pitta: 33, Kapha: 33 }, "balanced"],
+    ];
+    for (const [scores, id] of cases) {
+      const result = styleFromScores(scores);
+      expect(result.profileId).toBe(id);
+      expect(result.dayPlan.length).toBeGreaterThan(2);
+      expect(result.strengths.length).toBeGreaterThan(1);
+    }
   });
 });

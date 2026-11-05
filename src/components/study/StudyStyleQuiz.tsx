@@ -207,6 +207,13 @@ export function StudyStyleQuiz() {
           </div>
         </section>
 
+        <section className="rounded-2xl border border-line bg-surface p-4" data-testid="style-day-plan">
+          <h2 className="font-semibold text-heading">Your study day</h2>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-ink">
+            {style.dayPlan.map((item) => <li key={item}>{item}</li>)}
+          </ol>
+        </section>
+
         <section className="space-y-3 rounded-2xl border border-line bg-surface p-4" data-testid="style-settings">
           <h2 className="font-semibold text-heading">Your study settings</h2>
           <dl className="grid grid-cols-2 gap-2 text-sm">
