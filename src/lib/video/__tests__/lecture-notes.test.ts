@@ -8,6 +8,7 @@ import {
   lectureNotesRequestBody,
   LECTURE_MAX_SECONDS,
   parseLectureNotes,
+  parseTimestamp,
   sanitizeStoredNotes,
 } from "../lecture-notes";
 
@@ -29,27 +30,34 @@ describe("lecture notes helpers", () => {
     expect(body.generationConfig.mediaResolution).toBe("MEDIA_RESOLUTION_LOW");
   });
 
-  it("turns Gemini's sections into timed notes, in order, within 90 minutes", () => {
+  it("turns Gemini's sections into timed notes, in the order they happen, within 90 minutes", () => {
     const parsed = parseLectureNotes(
       {
         title: "  Laws of motion ",
         sections: [
-          { start_seconds: 600, heading: "Second law", points: ["F = ma", ""], key_point: "Units of force" },
-          { start_seconds: 0, heading: "Inertia", points: ["Objects resist change"], key_point: "" },
-          { start_seconds: 99999, heading: "Too late", points: ["x"] },
-          { start_seconds: 30, heading: "", points: [] },
+          { start_time: "00:00", heading: "Inertia", points: ["Objects resist change"], key_point: "" },
+          { start_time: "10:00", heading: "Second law", points: ["F = ma", ""], key_point: "Units of force" },
+          { start_time: "4:30", heading: "Back in time", points: ["x"] },
+          { start_time: "2:05:00", heading: "Too late", points: ["y"] },
+          { start_time: "1:00", heading: "", points: [] },
         ],
       },
       "dQw4w9WgXcQ"
     );
     expect(parsed.title).toBe("Laws of motion");
-    expect(parsed.notes.map((n) => n.heading)).toEqual(["Inertia", "Second law", "Too late"]);
+    expect(parsed.notes.map((n) => n.heading)).toEqual(["Inertia", "Second law", "Back in time", "Too late"]);
+    expect(parsed.notes.map((n) => n.startSeconds)).toEqual([0, 600, 600, LECTURE_MAX_SECONDS]);
     expect(parsed.notes[0].timestampBadge).toBe("[00:00]");
-    expect(parsed.notes[0].endSeconds).toBe(600);
     expect(parsed.notes[1].studyNoteMarkdown).toBe("- F = ma");
     expect(parsed.notes[1].highYieldKeyPoint).toBe("Units of force");
-    expect(parsed.notes[2].startSeconds).toBe(LECTURE_MAX_SECONDS);
     expect(parsed.notes[0].lectureId).toBe("lec-student-dQw4w9WgXcQ");
+  });
+
+  it("reads timestamps the way the video shows them", () => {
+    expect(parseTimestamp("4:05")).toBe(245);
+    expect(parseTimestamp("[01:02:30]")).toBe(3750);
+    expect(parseTimestamp(90)).toBe(90);
+    expect(parseTimestamp("ten minutes")).toBeNaN();
   });
 
   it("never throws on bad model output", () => {
