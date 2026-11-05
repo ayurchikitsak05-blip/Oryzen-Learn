@@ -20,6 +20,7 @@ vi.mock("@/lib/supabase/client", () => ({
 
 describe("StudyStyleQuiz", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     discardAccountVault();
     window.localStorage.clear();
   });
@@ -29,6 +30,8 @@ describe("StudyStyleQuiz", () => {
     render(<StudyStyleQuiz />);
     await waitFor(() => expect(screen.getByTestId("style-progress").textContent).toBe("1 of 38"));
 
+    let clock = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => (clock += 1000));
     for (const question of BODY_QUESTIONS) {
       expect(screen.getByTestId("style-question").textContent).toBe(question.prompt);
       fireEvent.click(screen.getByText(question.options.Vata));
@@ -48,9 +51,10 @@ describe("StudyStyleQuiz", () => {
     expect(readSprintStore("student-a").preferredDuration).toBe(15);
   });
 
-  it("lets the student go back and change an answer", async () => {
+  it("ignores a quick second tap, and lets the student go back and change an answer", async () => {
     render(<StudyStyleQuiz />);
     fireEvent.click(screen.getByText(BODY_QUESTIONS[0].options.Pitta));
+    fireEvent.click(screen.getByText(BODY_QUESTIONS[1].options.Pitta));
     expect(screen.getByTestId("style-progress").textContent).toBe("2 of 38");
     fireEvent.click(screen.getByTestId("style-back"));
     expect(screen.getByTestId("style-question").textContent).toBe(BODY_QUESTIONS[0].prompt);

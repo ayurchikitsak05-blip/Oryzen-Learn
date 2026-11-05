@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
 import { ui } from "@/components/ui/classes";
 import { activateCompanionStyle } from "@/lib/companion";
 import type { Dosha } from "@/lib/prakriti/config";
-import { ensureAccountVault } from "@/lib/privacy/account-vault";
+import { ensureAccountVault, isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
 import { patchSprintPrefs } from "@/lib/sprint/persist";
 import { writeFocusGuardPrefs } from "@/lib/sprint/guard";
 import { createClient } from "@/lib/supabase/client";
@@ -92,6 +92,9 @@ export function StudyStyleQuiz() {
   const [userId, setUserId] = useState<string | null>(null);
   const [saveNote, setSaveNote] = useState("");
   const [applied, setApplied] = useState(false);
+  const [canKeep, setCanKeep] = useState(true);
+  /** Ignores a second tap right after moving on, so a double tap can't answer the next question. */
+  const lockedUntil = useRef(0);
 
   useEffect(() => {
     void fetchSignedInUser()
@@ -110,6 +113,7 @@ export function StudyStyleQuiz() {
   const settings = useMemo(() => studySettings(studyAnswers, style), [studyAnswers, style]);
 
   const next = () => {
+    lockedUntil.current = Date.now() + 300;
     if (index + 1 >= TOTAL) {
       setDone(true);
       return;
@@ -124,6 +128,8 @@ export function StudyStyleQuiz() {
   }, [done]);
 
   async function save() {
+    const onDevice = Boolean(userId) && isAccountVaultUnlocked();
+    setCanKeep(onDevice);
     const scores = scoreBody(bodyAnswers);
     const result = styleFromScores(scores);
     const finalSettings = studySettings(studyAnswers, result);
@@ -150,12 +156,16 @@ export function StudyStyleQuiz() {
           basicScores: scores,
           readingScores: scores,
         });
-        setSaveNote("Saved to your account.");
+        setSaveNote(
+          onDevice
+            ? "Saved to your account and this device."
+            : "Saved to your account. Open the app again on this device to use these settings."
+        );
         return;
       }
-      setSaveNote("Saved on this device.");
+      setSaveNote(onDevice ? "Saved on this device." : "Sign in to keep your result and use these settings.");
     } catch {
-      setSaveNote("Saved on this device.");
+      setSaveNote(onDevice ? "Saved on this device." : "Sign in to keep your result and use these settings.");
     }
   }
 
@@ -215,7 +225,7 @@ export function StudyStyleQuiz() {
           <button
             type="button"
             className={`${ui.primary} min-h-12 w-full`}
-            disabled={applied}
+            disabled={applied || !canKeep}
             data-testid="style-apply"
             onClick={() => {
               applyStudySettings(settings, style, userId);
@@ -246,6 +256,9 @@ export function StudyStyleQuiz() {
               setDone(false);
               setIndex(0);
               setApplied(false);
+              setBodyAnswers({});
+              setStudyAnswers({});
+              setSaveNote("");
             }}
           >
             Take it again
@@ -307,6 +320,7 @@ export function StudyStyleQuiz() {
                   aria-checked={answeredBody === dosha}
                   className={optionClass(answeredBody === dosha)}
                   onClick={() => {
+                    if (Date.now() < lockedUntil.current) return;
                     setBodyAnswers((prev) => ({ ...prev, [bodyQuestion.id]: dosha }));
                     next();
                   }}
@@ -322,6 +336,7 @@ export function StudyStyleQuiz() {
                   aria-checked={answeredStudy === option.value}
                   className={optionClass(answeredStudy === option.value)}
                   onClick={() => {
+                    if (Date.now() < lockedUntil.current) return;
                     setStudyAnswers((prev) => ({ ...prev, [studyQuestion.id]: option.value }));
                     next();
                   }}

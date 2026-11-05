@@ -281,11 +281,14 @@ const PAIR_IDS: Record<string, UniverseProfileId> = {
   "Kapha+Vata": "vata_kapha",
 };
 
-/** Single style when one leads clearly; a mix when the top two are within 10 points; balanced when all are close. */
+/**
+ * Single style when one leads clearly; a mix when the top two are within 15 points (the same
+ * cut-off the saved profile uses, so the reader and plan agree); balanced when all are close.
+ */
 export function profileIdFromScores(scores: DoshaScores): UniverseProfileId {
   const ranked = (["Vata", "Pitta", "Kapha"] as const).slice().sort((a, b) => scores[b] - scores[a]);
   if (scores[ranked[0]] - scores[ranked[2]] <= 15) return "balanced";
-  if (scores[ranked[0]] - scores[ranked[1]] <= 10) {
+  if (scores[ranked[0]] - scores[ranked[1]] <= 15) {
     return PAIR_IDS[[ranked[0], ranked[1]].sort().join("+")];
   }
   return ranked[0].toLowerCase() as UniverseProfileId;

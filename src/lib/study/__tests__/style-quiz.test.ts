@@ -45,6 +45,8 @@ describe("study style questionnaire", () => {
   it("names mixes and balanced results", () => {
     const mixed = scoreBody(answerAll((i) => (i % 2 === 0 ? "Pitta" : "Kapha")));
     expect(styleFromScores(mixed).profileId).toBe("pitta_kapha");
+    // 12/8/6 → 46/31/23: within 15 points, so a mix (matches the saved profile)
+    expect(styleFromScores({ Vata: 46, Pitta: 31, Kapha: 23 }).profileId).toBe("vata_pitta");
     const even = scoreBody(answerAll((i) => (["Vata", "Pitta", "Kapha"] as const)[i % 3]));
     expect(styleFromScores(even).profileId).toBe("balanced");
   });
