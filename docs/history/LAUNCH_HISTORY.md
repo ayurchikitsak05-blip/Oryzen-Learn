@@ -13,6 +13,7 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - **Result:** one of 7 styles (Spark & Sprint, Laser & Logic, Anchor & Endurance, Spark with Structure, Clear and Steady, Warm Lift, Even Blend) with the mix, strengths, watch-outs, "Your study day", study settings and tips. "Use these settings" sets the sprint timer, break, daily goal, focus sound, Take My Study helper and the distraction guard. Mix rule: top two within 15 points; all three within 15 points = Even Blend (same rule as the saved profile).
 - **Files:** `src/lib/study/style-quiz.ts`, `src/components/study/StudyStyleQuiz.tsx`, `src/app/onboarding/page.tsx`, `src/app/body-type/page.tsx`. The old 45-question flow is no longer shown.
 - **Owner review:** all questions and the 7 plans are in the doc "My study style: questions for review" (https://claude.ai/artifact/GUvDkFVGLZzwfDjKgsiDrv).
+- **Owner review done (5 Nov):** answers confirmed; every question counts the same; no questions removed for under-18s, but every question now has "I'm not sure, skip this question" (skips aren't counted; skipping more than half of Part 1 shows a rough-guide note); no nails or teeth; a hunger-tolerance question added (now 27 + 12 = 39); names and descriptions confirmed.
 
 ### Change: Highlights
 - Today and Me now start with a "Highlights" heading: YouTube lecture notes (larger card) and My study style.
