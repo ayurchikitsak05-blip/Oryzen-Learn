@@ -11,6 +11,12 @@ export const APP_LINKS = [
 
 export const PRACTICE_ITEMS: readonly LinkListItem[] = [
   {
+    href: "/revise",
+    title: "Morning revision",
+    detail: "5 quick cards from your notes, with a daily reminder",
+    testId: "practice-revise",
+  },
+  {
     href: "/reader?lens=test_me",
     title: "Test me",
     detail: "One question at a time on the pages you read",

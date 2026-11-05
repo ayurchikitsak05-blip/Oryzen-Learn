@@ -107,7 +107,7 @@ export function TodayHome({
       </section>
 
       <Link
-        href="/reader?lens=test_me"
+        href="/revise"
         data-testid="today-revise"
         className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
       >
@@ -115,8 +115,8 @@ export function TodayHome({
           <RotateCcw className="h-5 w-5 text-accent" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-semibold text-heading">Revise what I read</span>
-          <span className="block text-sm text-muted">Quick questions on your last pages</span>
+          <span className="block font-semibold text-heading">Morning revision</span>
+          <span className="block text-sm text-muted">5 quick cards from your notes, 3 minutes</span>
         </span>
         <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
       </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { FocusGuard } from "@/components/sprint/FocusGuard";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
@@ -83,6 +84,7 @@ export default function AppChrome({
         </div>
       ) : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">{children}</div>
+      <FocusGuard />
       {showAppNav ? (
         <nav
           aria-label="Primary"

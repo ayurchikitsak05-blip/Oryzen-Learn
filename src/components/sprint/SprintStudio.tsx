@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { focusSounds, readUniversePrefs } from "@/lib/universe";
+import { SPRINT_CHANGED_EVENT } from "@/lib/sprint/guard";
 import Link from "next/link";
 import { choiceClass, ui } from "@/components/ui/classes";
 import { readSavedBodyType } from "@/lib/study/body-type";
@@ -61,6 +62,13 @@ export function SprintStudio({ userId }: { userId: string }) {
     setReady(true);
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
+  }, [userId]);
+
+  // The distraction guard may pause the sprint from outside this screen.
+  useEffect(() => {
+    const refresh = () => setStore(readSprintStore(userId));
+    window.addEventListener(SPRINT_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(SPRINT_CHANGED_EVENT, refresh);
   }, [userId]);
 
   useEffect(() => {
