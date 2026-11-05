@@ -4,6 +4,14 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-05 (late morning) · "Me" renamed "Tools"; pricing worked out
+
+- **Tab rename (owner):** "Me" is now **Tools** (page title "Study tools"), grouped as Highlights (YouTube lecture notes, My study style), Plan and notes, and Settings (Personalize, Plan and payment, Account). The address stays `/me`.
+- **Pricing:** worked out in the doc "ORYZEN Learn pricing: students and coaching classes" (https://claude.ai/artifact/2VVuguFkZeDf3M6g4RFCAp). Recommendation: Pro ₹149 a month or ₹1,499 a year (incl. GST); coaching ₹79 / ₹69 / ₹59 per student a month + GST by size. ₹999 a year is not recommended (thin or loss-making). To confirm in the first month: Google's real bill and real usage.
+- **Colleague link:** the Preview branch address is `oryzen-learn-git-feature-45518b-ayurchikitsak05-8316s-projects.vercel.app`; it is behind Vercel sign-in, so colleagues need a share link (23 hours) or Vercel Authentication turned off for the project.
+
+---
+
 ## 2026-11-05 (morning) · Redesign, part 7: My study style (38 questions, 7 styles) and Highlights
 
 **Owner decisions (5 Nov):** the questionnaire must be full-length, using the classical body-type questions without calling them Prakriti, plus our own study questions; most people are a mix, so there are 7 types (three single, three two-type mixes, and all three even), each with its own combined plan. YouTube lecture notes must be easy to find, with a clear heading on the first page.
