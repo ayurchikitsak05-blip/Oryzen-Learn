@@ -24,7 +24,12 @@ describe("study style questionnaire", () => {
   });
 
   it("uses plain English: no Sanskrit terms or the word Prakriti in what students read", () => {
-    const text = JSON.stringify([BODY_QUESTIONS, STUDY_QUESTIONS, STYLE_DISCLAIMER]).toLowerCase();
+    const shown = [
+      ...BODY_QUESTIONS.flatMap((q) => [q.topic, q.prompt, ...Object.values(q.options)]),
+      ...STUDY_QUESTIONS.flatMap((q) => [q.topic, q.prompt, ...q.options.map((o) => o.label)]),
+      STYLE_DISCLAIMER,
+    ];
+    const text = shown.join(" ").toLowerCase();
     for (const word of ["prakriti", "dosha", "vata", "pitta", "kapha", "agni", "dhriti", "smriti", "dinacharya"]) {
       expect(text).not.toContain(word);
     }
