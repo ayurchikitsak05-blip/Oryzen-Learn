@@ -39,6 +39,8 @@ describe("TodayHome", () => {
     expect(screen.getByTestId("today-take-my-study").getAttribute("href")).toBe("/companion");
     expect(screen.getByTestId("today-revise").getAttribute("href")).toBe("/revise");
     expect(screen.getByTestId("today-lecture-notes").getAttribute("href")).toBe("/video");
+    expect(screen.getByTestId("today-highlights").textContent).toMatch(/Highlights/);
+    expect(screen.getByTestId("today-study-style").getAttribute("href")).toBe("/body-type");
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
 

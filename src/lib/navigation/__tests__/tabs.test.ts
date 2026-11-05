@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { APP_LINKS } from "@/lib/navigation/tabs";
 import { decideAccessRedirect, isHiddenRoute } from "@/lib/access/gate";
-import { ME_ITEMS, PRACTICE_ITEMS } from "@/lib/navigation/tabs";
+import { ME_HIGHLIGHTS,
+  ME_ITEMS, PRACTICE_ITEMS } from "@/lib/navigation/tabs";
 
 describe("four-tab navigation", () => {
   it("has exactly Today, Books, Practice and Me", () => {
@@ -10,7 +11,7 @@ describe("four-tab navigation", () => {
   });
 
   it("reaches the kept features from Practice and Me", () => {
-    const hrefs = [...PRACTICE_ITEMS, ...ME_ITEMS].map((item) => item.href);
+    const hrefs = [...PRACTICE_ITEMS, ...ME_HIGHLIGHTS, ...ME_ITEMS].map((item) => item.href);
     for (const href of ["/revise", "/reader?lens=test_me", "/sprint", "/progress", "/notes", "/roadmap", "/companion", "/video", "/synthesis", "/body-type", "/personalize", "/pricing"]) {
       expect(hrefs).toContain(href);
     }

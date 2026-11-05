@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw, Video } from "lucide-react";
+import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw, Sparkles, Video } from "lucide-react";
 import type { HomeContinuation } from "@/lib/hub/continuation";
 import { readFirstRunDraft } from "@/lib/onboarding/first-run";
 
@@ -106,6 +106,46 @@ export function TodayHome({
         )}
       </section>
 
+      <section aria-labelledby="today-highlights" className="space-y-2" data-testid="today-highlights">
+        <h2 id="today-highlights" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+          Highlights
+        </h2>
+        <Link
+          href="/video"
+          data-testid="today-lecture-notes"
+          className="block rounded-2xl border-2 border-accent/40 bg-surface p-4"
+        >
+          <span className="flex items-center gap-3">
+            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-beige-2">
+              <Video className="h-6 w-6 text-accent" aria-hidden="true" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-lg font-semibold text-heading">YouTube lecture notes</span>
+              <span className="block text-sm text-muted">
+                Paste a lecture link. Get timed notes you can revise from, and share them free with friends.
+              </span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+          </span>
+        </Link>
+        <Link
+          href="/body-type"
+          data-testid="today-study-style"
+          className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+        >
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-beige-2">
+            <Sparkles className="h-5 w-5 text-accent" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-heading">My study style</span>
+            <span className="block text-sm text-muted">How long you focus best, and settings that suit you</span>
+          </span>
+          <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
+        </Link>
+      </section>
+
+      <h2 className="pt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Every day</h2>
+
       <Link
         href="/revise"
         data-testid="today-revise"
@@ -132,21 +172,6 @@ export function TodayHome({
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-heading">Can&apos;t get started?</span>
           <span className="block text-sm text-muted">Take My Study helps you begin</span>
-        </span>
-        <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
-      </Link>
-
-      <Link
-        href="/video"
-        data-testid="today-lecture-notes"
-        className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
-      >
-        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-beige-2">
-          <Video className="h-5 w-5 text-accent" aria-hidden="true" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-semibold text-heading">Notes from a YouTube lecture</span>
-          <span className="block text-sm text-muted">Paste a link, get timed notes</span>
         </span>
         <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
       </Link>
