@@ -11,9 +11,14 @@ import {
   upsertSprintSession,
   type SprintSession,
 } from "@/lib/sprint";
+import { isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
 import {
   applyAway,
   bumpAwayCount,
+  effectiveLeftAt,
+  HEARTBEAT_MS,
+  readVisibleHeartbeat,
+  writeVisibleHeartbeat,
   creditAwayTime,
   minutesLabel,
   readFocusGuardPrefs,
@@ -36,6 +41,10 @@ export function FocusGuard() {
   const [away, setAway] = useState<(AwayOutcome & { count: number }) | null>(null);
   const hiddenAt = useRef<number | null>(null);
 
+  const dialogRef = useRef<HTMLElement | null>(null);
+  /** Last time any app tab was seen, read the moment this tab came back (before it writes its own). */
+  const seenElsewhere = useRef(0);
+
   useEffect(() => {
     // A reload while away (phones often reload a background tab) still remembers when they left.
     try {
@@ -45,21 +54,48 @@ export function FocusGuard() {
       /* ignore */
     }
 
-    const check = () => {
-      const leftAt = hiddenAt.current;
+    const forget = () => {
       hiddenAt.current = null;
       try {
         window.sessionStorage.removeItem(HIDDEN_AT_KEY);
       } catch {
         /* ignore */
       }
-      if (leftAt === null || !readFocusGuardPrefs().enabled) return;
+    };
+
+    /** Returns false when the student's record isn't open yet, so the check can wait. */
+    const check = (): boolean => {
+      const leftAt = hiddenAt.current;
+      if (leftAt === null) return true;
+      if (!readFocusGuardPrefs().enabled) {
+        forget();
+        return true;
+      }
+      if (userId === "local-anonymous" || !isAccountVaultUnlocked()) return false;
+      forget();
+      const now = Date.now();
       const store = readSprintStore(userId);
-      const outcome = applyAway(activeSession(store.sessions), leftAt, Date.now());
-      if (!outcome) return;
+      const outcome = applyAway(
+        activeSession(store.sessions),
+        effectiveLeftAt(leftAt, seenElsewhere.current, now),
+        now
+      );
+      if (!outcome) return true;
       upsertSprintSession(outcome.paused, userId);
       announce();
       setAway({ ...outcome, count: bumpAwayCount(outcome.paused.id) });
+      return true;
+    };
+
+    let retry: number | undefined;
+    const checkWhenReady = () => {
+      window.clearInterval(retry);
+      if (check()) return;
+      let tries = 0;
+      retry = window.setInterval(() => {
+        tries += 1;
+        if (check() || tries > 20) window.clearInterval(retry);
+      }, 1_000);
     };
 
     const onVisibility = () => {
@@ -71,14 +107,37 @@ export function FocusGuard() {
           /* ignore */
         }
       } else {
-        check();
+        seenElsewhere.current = readVisibleHeartbeat();
+        writeVisibleHeartbeat();
+        checkWhenReady();
       }
     };
 
-    if (document.visibilityState === "visible" && hiddenAt.current !== null) check();
+    const beat = window.setInterval(() => {
+      if (document.visibilityState === "visible") writeVisibleHeartbeat();
+    }, HEARTBEAT_MS);
+    if (document.visibilityState === "visible") {
+      seenElsewhere.current = readVisibleHeartbeat();
+      writeVisibleHeartbeat();
+      if (hiddenAt.current !== null) checkWhenReady();
+    }
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(beat);
+      window.clearInterval(retry);
+    };
   }, [userId]);
+
+  useEffect(() => {
+    if (!away) return;
+    dialogRef.current?.querySelector<HTMLButtonElement>("[data-testid='focus-guard-continue']")?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAway(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [away]);
 
   if (!away) return null;
 
@@ -92,6 +151,7 @@ export function FocusGuard() {
   return (
     <div className={ui.backdrop} role="presentation">
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="focus-guard-title"

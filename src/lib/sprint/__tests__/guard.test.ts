@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSprintSession, startSprint } from "../engine";
-import { applyAway, AWAY_THRESHOLD_MS, creditAwayTime, minutesLabel } from "../guard";
+import { applyAway, AWAY_THRESHOLD_MS, creditAwayTime, effectiveLeftAt, minutesLabel } from "../guard";
 
 const T0 = Date.parse("2026-11-05T10:00:00Z");
 
@@ -30,5 +30,12 @@ describe("distraction guard", () => {
     const outcome = applyAway(running(), T0 + 5 * 60_000, T0 + 11 * 60_000)!;
     expect(creditAwayTime(outcome.paused, outcome.awayMs).elapsedMs).toBe(11 * 60_000);
     expect(creditAwayTime(outcome.paused, 60 * 60_000).elapsedMs).toBe(25 * 60_000 - 1_000);
+  });
+
+  it("time spent in another ORYZEN tab isn't counted as away", () => {
+    const hidden = T0 + 60_000;
+    expect(effectiveLeftAt(hidden, hidden + 9 * 60_000, hidden + 10 * 60_000)).toBe(hidden + 9 * 60_000);
+    expect(effectiveLeftAt(hidden, hidden - 3_000, hidden + 10 * 60_000)).toBe(hidden);
+    expect(effectiveLeftAt(hidden, hidden + 99 * 60_000, hidden + 10 * 60_000)).toBe(hidden);
   });
 });

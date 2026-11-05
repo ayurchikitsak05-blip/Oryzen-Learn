@@ -13,6 +13,33 @@ export const SPRINT_CHANGED_EVENT = "oryzen-sprint-changed";
 /** Shorter trips (checking the time, a quick reply) don't count. */
 export const AWAY_THRESHOLD_MS = 60_000;
 
+/** Every visible ORYZEN tab writes this every few seconds, so studying in another tab isn't "away". */
+export const APP_VISIBLE_HEARTBEAT_KEY = "oryzen_app_visible_at_v1";
+export const HEARTBEAT_MS = 5_000;
+
+export function writeVisibleHeartbeat(now: number = Date.now()): void {
+  try {
+    window.localStorage.setItem(APP_VISIBLE_HEARTBEAT_KEY, String(now));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readVisibleHeartbeat(): number {
+  try {
+    const value = Number(window.localStorage.getItem(APP_VISIBLE_HEARTBEAT_KEY));
+    return Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** When the student really left the app: the later of this tab hiding and any other app tab last being seen. */
+export function effectiveLeftAt(hiddenAt: number, lastSeenAnyTab: number, now: number): number {
+  const seen = lastSeenAnyTab > hiddenAt && lastSeenAnyTab <= now ? lastSeenAnyTab : hiddenAt;
+  return seen;
+}
+
 export interface FocusGuardPrefs {
   enabled: boolean;
 }

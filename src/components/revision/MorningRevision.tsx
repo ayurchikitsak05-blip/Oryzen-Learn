@@ -8,6 +8,9 @@ import { ensureAccountVault } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { localIsoDate } from "@/lib/roadmap/time";
 import {
+  googleCalendarReminderUrl,
+  markRevisionDone,
+  revisionDoneToday,
   gradeCard,
   pickTodayCards,
   readRevisionState,
@@ -23,7 +26,7 @@ type Load =
   | { kind: "loading" }
   | { kind: "signed-out" }
   | { kind: "error"; text: string }
-  | { kind: "ready"; cards: RevisionNote[]; userId: string };
+  | { kind: "ready"; cards: RevisionNote[]; userId: string; hasNotes: boolean; doneToday: boolean; locked: boolean };
 
 interface ApiNotes {
   subjects?: Array<{ id: string; title: string }>;
@@ -62,7 +65,15 @@ function ReminderSetup() {
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setMessage("Open the downloaded file and tap Add. Your phone will remind you every day at this time.");
+    setMessage("Open the downloaded file and tap Add to Calendar. On Android, use the Google Calendar button instead.");
+  };
+  const google = () => {
+    writeRevisionTime(time);
+    window.open(
+      googleCalendarReminderUrl({ time, startDay: localIsoDate(), url: `${window.location.origin}/revise` }),
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   return (
@@ -88,7 +99,10 @@ function ReminderSetup() {
           />
         </label>
         <button type="button" onClick={download} className={`${ui.secondary} min-h-11`} data-testid="revision-add-calendar">
-          Add to my phone&apos;s calendar
+          iPhone / other calendar
+        </button>
+        <button type="button" onClick={google} className={`${ui.secondary} min-h-11`} data-testid="revision-add-google">
+          Google Calendar (Android)
         </button>
       </div>
       {message ? <p className="text-sm text-success">{message}</p> : null}
@@ -112,7 +126,7 @@ export function MorningRevision() {
         if (!cancelled) setLoad({ kind: "signed-out" });
         return;
       }
-      await ensureAccountVault().catch(() => false);
+      const opened = await ensureAccountVault().catch(() => false);
       const response = await fetch("/api/notes", { credentials: "same-origin" }).catch(() => null);
       const data = (response ? await response.json().catch(() => ({})) : {}) as ApiNotes;
       if (cancelled) return;
@@ -122,7 +136,16 @@ export function MorningRevision() {
       }
       const saved = readRevisionState(user.userId);
       setState(saved);
-      setLoad({ kind: "ready", userId: user.userId, cards: pickTodayCards(toRevisionNotes(data), saved, localIsoDate()) });
+      const notes = toRevisionNotes(data);
+      const today = localIsoDate();
+      setLoad({
+        kind: "ready",
+        userId: user.userId,
+        cards: pickTodayCards(notes, saved, today),
+        hasNotes: notes.some((note) => note.title.trim() && note.body.trim()),
+        doneToday: revisionDoneToday(user.userId, today),
+        locked: !opened,
+      });
     })();
     return () => {
       cancelled = true;
@@ -137,6 +160,7 @@ export function MorningRevision() {
     writeRevisionState(next, load.userId);
     if (yes) setRemembered((count) => count + 1);
     setShown(false);
+    if (index + 1 >= load.cards.length) markRevisionDone(load.userId, localIsoDate());
     setIndex((value) => value + 1);
   };
 
@@ -156,14 +180,30 @@ export function MorningRevision() {
       ) : null}
       {load.kind === "error" ? <p className={ui.alert}>{load.text}</p> : null}
 
-      {load.kind === "ready" && load.cards.length === 0 ? (
-        <section className={ui.empty} data-testid="revision-empty">
-          Nothing to revise today. Save notes from your books or lectures (&quot;Save to My Notes&quot;) and they
-          become revision cards here.
+      {load.kind === "ready" && load.locked ? (
+        <p className={ui.notice}>Your private study record is locked on this device, so today&apos;s answers won&apos;t be remembered.</p>
+      ) : null}
+
+      {load.kind === "ready" && load.doneToday && index === 0 ? (
+        <section className={ui.empty} data-testid="revision-done-today">
+          You&apos;ve done today&apos;s revision. New cards come tomorrow.
+          {load.cards.length > 0 ? (
+            <button type="button" className={`${ui.ghost} mt-2`} onClick={() => setLoad({ ...load, doneToday: false })}>
+              Revise a few more anyway
+            </button>
+          ) : null}
         </section>
       ) : null}
 
-      {load.kind === "ready" && load.cards.length > 0 && index < load.cards.length ? (
+      {load.kind === "ready" && !load.doneToday && load.cards.length === 0 ? (
+        <section className={ui.empty} data-testid="revision-empty">
+          {load.hasNotes
+            ? "Nothing is due today. Cards you remembered come back in a few days."
+            : "Nothing to revise yet. Save notes from your books or lectures (\"Save to My Notes\") and they become revision cards here."}
+        </section>
+      ) : null}
+
+      {load.kind === "ready" && !load.doneToday && load.cards.length > 0 && index < load.cards.length ? (
         <section className={`${ui.cardPad} space-y-4`} data-testid="revision-card">
           <p className={ui.eyebrow}>
             Card {index + 1} of {load.cards.length}

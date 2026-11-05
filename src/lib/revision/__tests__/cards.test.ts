@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDaysIso, gradeCard, pickTodayCards, revisionReminderIcs, type RevisionNote } from "../cards";
+import { addDaysIso, googleCalendarReminderUrl, gradeCard, pickTodayCards, revisionReminderIcs, type RevisionNote } from "../cards";
 
 const note = (id: string, updatedAt: string, body = "answer"): RevisionNote => ({
   id, title: `Note ${id}`, body, subject: "Physics", updatedAt,
@@ -42,5 +42,9 @@ describe("morning revision cards", () => {
     expect(ics).toContain("URL:https://learn.example/revise");
     expect(ics).toContain("BEGIN:VALARM");
     expect(ics.split("\r\n")[0]).toBe("BEGIN:VCALENDAR");
+    expect(ics).toContain("UID:oryzen-morning-revision@oryzen-learn");
+    const google = new URL(googleCalendarReminderUrl({ time: "23:58", startDay: "2026-11-06", url: "https://learn.example/revise" }));
+    expect(google.searchParams.get("dates")).toBe("20261106T235800/20261107T000300");
+    expect(google.searchParams.get("recur")).toBe("RRULE:FREQ=DAILY");
   });
 });

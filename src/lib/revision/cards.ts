@@ -78,6 +78,44 @@ export function writeRevisionState(state: RevisionState, userId?: string | null)
   }
 }
 
+/** Google Calendar link for Android phones, which can't open .ics files. */
+export function googleCalendarReminderUrl(input: { time: string; startDay: string; url: string }): string {
+  const [hour, minute] = input.time.split(":");
+  const day = input.startDay.replace(/-/g, "");
+  const start = `${day}T${hour}${minute}00`;
+  const endAt = new Date(`${input.startDay}T${hour}:${minute}:00Z`);
+  endAt.setUTCMinutes(endAt.getUTCMinutes() + 5);
+  const end = endAt.toISOString().replace(/[-:]/g, "").slice(0, 15);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: "Morning revision (ORYZEN Learn)",
+    details: `5 quick cards from your notes, about 3 minutes. Open: ${input.url}`,
+    dates: `${start}/${end}`,
+    recur: "RRULE:FREQ=DAILY",
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+/** Remembers that today's round is done, so a reload doesn't start a new one. */
+export const REVISION_DONE_KEY = "oryzen_revision_done_v1";
+
+export function markRevisionDone(userId: string, today: string): void {
+  try {
+    window.localStorage.setItem(REVISION_DONE_KEY, JSON.stringify({ userId, today }));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function revisionDoneToday(userId: string, today: string): boolean {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(REVISION_DONE_KEY) ?? "null") as { userId?: string; today?: string } | null;
+    return value?.userId === userId && value?.today === today;
+  } catch {
+    return false;
+  }
+}
+
 /* Daily reminder in the phone's own calendar: reliable on every phone, needs no server. */
 
 export const REVISION_TIME_KEY = "oryzen_revision_time_v1";
@@ -114,7 +152,8 @@ export function revisionReminderIcs(input: { time: string; startDay: string; url
     "PRODID:-//ORYZEN Learn//Morning revision//EN",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
-    `UID:oryzen-morning-revision-${day}@oryzen-learn`,
+    // One fixed id: adding it again with a new time replaces the old reminder instead of adding a second.
+    "UID:oryzen-morning-revision@oryzen-learn",
     `DTSTAMP:${icsStamp(input.now ?? new Date())}`,
     `DTSTART:${day}T${hour}${minute}00`,
     "DURATION:PT5M",
