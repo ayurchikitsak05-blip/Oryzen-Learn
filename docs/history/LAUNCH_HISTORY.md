@@ -4,6 +4,21 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-05 · Redesign, part 6: morning revision and the distraction guard (no AI)
+
+### Change: Morning revision
+- **What:** `/revise` shows 5 quick cards a day from the student's own My Notes (title on the front, the note on the back). "I remembered" brings a card back after 1, 3, 7, then 14 days; "Not yet" brings it back tomorrow. Today's "Revise" button now opens this free screen instead of AI questions (Test me stays under Practice). Files: `src/lib/revision/cards.ts`, `src/components/revision/MorningRevision.tsx`.
+- **Daily reminder ("alarm"):** added to the phone's own calendar, so it rings with the app closed and needs no server or push service: a calendar file for iPhone and other calendars, and a Google Calendar button for Android.
+
+### Change: Distraction guard
+- **What:** if a student leaves the app for more than a minute during a sprint, the timer pauses from the moment they left. On return a "Welcome back" box says how long they were away and how much is left, and offers Continue, "I was studying (count that time)" for paper books, Stay paused, or End sprint. Works on the sprint screen and in the reader; time in another ORYZEN tab doesn't count. On/off in Personalize. Files: `src/lib/sprint/guard.ts`, `src/components/sprint/FocusGuard.tsx`.
+
+- **Tested:** unit tests (card spacing, calendar file, pause timing, credit, other tabs) and screen tests (revision round, welcome-back flow, guard off, short trips). CI passed (one database-job setup flake, re-run green).
+- **Observer:** APPROVE WITH FOLLOW-UPS. Fixed: a reload while away lost the away time; studying in a second tab caused false pauses; the dialog didn't take focus or close with Escape; re-adding the reminder stacked a second one; Android couldn't open the calendar file; reloading started a new round; locked record lost progress silently.
+- **Follow-ups:** picking a PDF or using the camera for over a minute can pause a sprint ("I was studying" fixes it); My Notes and the plan screen don't run the guard; reminders not yet tried on real phones.
+
+---
+
 ## 2026-11-04 (night) · First real lecture-notes test on Preview
 
 - **Owner actions done:** migrations `20261104000001` (lecture notes) applied to Learn Preview; Preview keys confirmed set; owner's Preview account set to Pro for testing.
