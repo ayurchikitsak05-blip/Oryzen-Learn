@@ -4,6 +4,24 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-05 (morning) · Redesign, part 7: My study style (38 questions, 7 styles) and Highlights
+
+**Owner decisions (5 Nov):** the questionnaire must be full-length, using the classical body-type questions without calling them Prakriti, plus our own study questions; most people are a mix, so there are 7 types (three single, three two-type mixes, and all three even), each with its own combined plan. YouTube lecture notes must be easy to find, with a clear heading on the first page.
+
+### Change: My study style
+- **What:** 38 questions, one per screen with a back button: 26 about the student (body build, skin, hair, eyes, temperature, weather, sweat, appetite, eating, thirst, digestion, food, sleep, dreams, energy, movement, speech, voice, learning, stress, decisions, routine, money, friendships) and 12 about studying (focus span, breaks, daily hours, best time, starting, distractions, understanding, notes, memory, exam nerves, sound, help). Plain English; no Sanskrit and no "Prakriti" on screen.
+- **Result:** one of 7 styles (Spark & Sprint, Laser & Logic, Anchor & Endurance, Spark with Structure, Clear and Steady, Warm Lift, Even Blend) with the mix, strengths, watch-outs, "Your study day", study settings and tips. "Use these settings" sets the sprint timer, break, daily goal, focus sound, Take My Study helper and the distraction guard. Mix rule: top two within 15 points; all three within 15 points = Even Blend (same rule as the saved profile).
+- **Files:** `src/lib/study/style-quiz.ts`, `src/components/study/StudyStyleQuiz.tsx`, `src/app/onboarding/page.tsx`, `src/app/body-type/page.tsx`. The old 45-question flow is no longer shown.
+- **Owner review:** all questions and the 7 plans are in the doc "My study style: questions for review" (https://claude.ai/artifact/GUvDkFVGLZzwfDjKgsiDrv).
+
+### Change: Highlights
+- Today and Me now start with a "Highlights" heading: YouTube lecture notes (larger card) and My study style.
+
+- **Tested:** unit tests (38 questions, no Sanskrit on screen, scoring, all 7 styles, settings and tips) and a screen test answering all 38 questions. CI passed.
+- **Observer:** APPROVE WITH FOLLOW-UPS. Fixed: the mix cut-off differed from the saved profile (reader and plan disagreed); save messages claimed success when the private record was locked or the student was signed out; a double tap could answer the next question; "Take it again" kept old answers.
+
+---
+
 ## 2026-11-05 · Redesign, part 6: morning revision and the distraction guard (no AI)
 
 ### Change: Morning revision

@@ -6,50 +6,36 @@ import { ArrowRight } from "lucide-react";
 import AccountMenu from "@/components/auth/AccountMenu";
 import AppChrome from "@/components/layout/AppChrome";
 import { ui } from "@/components/ui/classes";
+import { BODY_QUESTIONS, STUDY_QUESTIONS, STYLE_DISCLAIMER } from "@/lib/study/style-quiz";
 
-export default function BodyTypeIntroPage() {
+export default function StudyStyleIntroPage() {
+  const total = BODY_QUESTIONS.length + STUDY_QUESTIONS.length;
   return (
-    <AppChrome
-      nav="marketing"
-      subtitle="Your Learning Rhythm"
-      maxWidthClass="max-w-3xl"
-      actions={<AccountMenu />}
-    >
-      <main className={ui.mainNarrow}>
-        <p className={ui.eyebrow}>Your Learning Rhythm</p>
-        <h1 className={`${ui.heading} mt-3 text-4xl`}>
-          Discover Your Learning Rhythm
-        </h1>
-        <div className={`${ui.cardPad} mt-6 space-y-4 text-base leading-relaxed text-ink`}>
+    <AppChrome subtitle="My study style" actions={<AccountMenu />}>
+      <main className="mx-auto w-full max-w-xl space-y-5 px-4 py-6 md:py-10">
+        <header>
+          <p className={ui.eyebrow}>Optional · about 8 minutes</p>
+          <h1 className={`${ui.heading} mt-2 text-3xl`}>Find your study style</h1>
+        </header>
+        <div className={`${ui.cardPad} space-y-3 text-base leading-relaxed text-ink`}>
           <p>
-            This explores your preferences, routines, and focus habits, together
-            with an Ayurveda-inspired perspective on energy and pace.
+            People study from different kinds of energy. Some catch ideas quickly and need short, lively
+            sprints. Some focus sharply for longer. Some start slowly, then keep going and remember for a long time.
           </p>
           <p>
-            People do not study from the same kind of energy. Some catch an idea
-            quickly and need short, lively bursts before their attention moves on.
-            Others settle into a long, precise stretch. Others begin slowly, then
-            hold what they have truly worked through.
-          </p>
-          <p>
-            Those differences show up in how you read, how long you can stay with
-            a page, and how you get the idea back later. This reading names one
-            primary pattern, then suggests focus length and explanations you can try.
-          </p>
-          <p>
-            It is a starting point for how you learn, not a limit on what you
-            can study. It is not a scientific measure of intelligence, memory,
-            or academic performance.
+            Answer {total} quick questions: {BODY_QUESTIONS.length} about you, based on the body types described in
+            traditional Ayurveda, and {STUDY_QUESTIONS.length} about how you study. You get your style (Spark,
+            Laser, Anchor or a mix) and study settings that suit you: sprint length, breaks, daily goal and more.
           </p>
         </div>
-
-        <div className="mt-10 flex flex-col items-start gap-3">
-          <Link href="/onboarding" className={`${ui.primary} min-h-[52px] text-base`}>
-            Begin the reading
-            <ArrowRight className="h-4 w-4" />
+        <p className="text-xs leading-relaxed text-muted">{STYLE_DISCLAIMER}</p>
+        <div className="grid gap-2">
+          <Link href="/onboarding" className={`${ui.primary} min-h-[52px] text-base`} data-testid="style-start">
+            Start
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
           <Link href="/hub" className={`${ui.secondary} min-h-[52px] text-base`}>
-            Skip for now
+            Not now
           </Link>
         </div>
       </main>
