@@ -57,6 +57,7 @@ function notesError(message: string): string {
 }
 
 export default function MyNotes() {
+  const userId = useSignedInScope();
   const [subjects, setSubjects] = useState<NoteSubject[]>([]);
   const [notes, setNotes] = useState<StudyNote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
