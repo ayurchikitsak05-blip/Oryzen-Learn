@@ -19,7 +19,7 @@ describe("ListenButton", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("reads the text aloud and turns into Stop", () => {
-    const synth = { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [] };
+    const synth = { speak: vi.fn(), cancel: vi.fn(), speaking: false, pending: false, getVoices: () => [] };
     vi.stubGlobal("speechSynthesis", synth);
     vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
     render(<ListenButton text="Newton's first law" />);

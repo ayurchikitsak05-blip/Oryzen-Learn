@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { languageFor, plainForSpeech, setVoiceGuide, speak, speechSupported, stopSpeaking, voiceGuideOn } from "../speak";
+import { languageFor, plainForSpeech, setVoiceGuide, speak, speechChunks, speechSupported, stopSpeaking, voiceGuideOn } from "../speak";
 
 class FakeUtterance {
   text: string;
@@ -29,7 +29,7 @@ describe("read aloud", () => {
   });
 
   it("speaks with the device voice and can stop", () => {
-    const synth = { speak: vi.fn(), cancel: vi.fn(), getVoices: () => [{ lang: "en-IN", name: "Indian" }] };
+    const synth = { speak: vi.fn(), cancel: vi.fn(), speaking: false, pending: false, getVoices: () => [{ lang: "en-IN", name: "Indian" }] };
     vi.stubGlobal("speechSynthesis", synth);
     vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
     expect(speechSupported()).toBe(true);
@@ -39,6 +39,14 @@ describe("read aloud", () => {
     expect(spoken.lang).toBe("en-IN");
     stopSpeaking();
     expect(synth.cancel).toHaveBeenCalled();
+  });
+
+  it("splits long text at sentence ends so Chrome reads it all", () => {
+    const long = Array.from({ length: 12 }, (_, i) => `Sentence number ${i} is here.`).join(" ");
+    const pieces = speechChunks(long, 80);
+    expect(pieces.length).toBeGreaterThan(3);
+    expect(pieces.every((piece) => piece.length <= 80)).toBe(true);
+    expect(pieces.join(" ")).toBe(long);
   });
 
   it("'Read each step aloud' is off until turned on", () => {

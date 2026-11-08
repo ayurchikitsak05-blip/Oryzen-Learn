@@ -32,12 +32,48 @@ export function languageFor(text: string): "hi-IN" | "en-IN" {
   return letters > 0 && devanagari / letters > 0.4 ? "hi-IN" : "en-IN";
 }
 
+let cachedVoices: SpeechSynthesisVoice[] = [];
+let voicesHooked = false;
+
+function voices(): SpeechSynthesisVoice[] {
+  if (!voicesHooked && speechSupported()) {
+    voicesHooked = true;
+    // Chrome loads voices a moment later; keep the list fresh.
+    window.speechSynthesis.addEventListener?.("voiceschanged", () => {
+      cachedVoices = window.speechSynthesis.getVoices();
+    });
+  }
+  const now = window.speechSynthesis.getVoices();
+  if (now.length) cachedVoices = now;
+  return cachedVoices;
+}
+
+/** Splits long text at sentence ends into pieces Chrome will finish (it stops ~15 s into one piece). */
+export function speechChunks(text: string, max = 220): string[] {
+  const sentences = text.match(/[^.!?।]+[.!?।]*\s*/g) ?? [text];
+  const chunks: string[] = [];
+  let current = "";
+  for (const sentence of sentences) {
+    if ((current + sentence).length > max && current) {
+      chunks.push(current.trim());
+      current = "";
+    }
+    if (sentence.length > max) {
+      for (let i = 0; i < sentence.length; i += max) chunks.push(sentence.slice(i, i + max).trim());
+      continue;
+    }
+    current += sentence;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks.filter(Boolean);
+}
+
 function pickVoice(lang: string): SpeechSynthesisVoice | undefined {
-  const voices = window.speechSynthesis.getVoices();
+  const list = voices();
   return (
-    voices.find((voice) => voice.lang === lang) ??
-    voices.find((voice) => voice.lang.startsWith(lang.slice(0, 2)) && voice.lang.endsWith("IN")) ??
-    voices.find((voice) => voice.lang.startsWith(lang.slice(0, 2)))
+    list.find((voice) => voice.lang === lang) ??
+    list.find((voice) => voice.lang.startsWith(lang.slice(0, 2)) && voice.lang.endsWith("IN")) ??
+    list.find((voice) => voice.lang.startsWith(lang.slice(0, 2)))
   );
 }
 
@@ -63,23 +99,36 @@ export function speak(text: string, id = "speech", rate = 0.95): boolean {
   if (!speechSupported()) return false;
   const clean = plainForSpeech(text);
   if (!clean) return false;
-  window.speechSynthesis.cancel();
-  const utterance = new window.SpeechSynthesisUtterance(clean);
+  const synth = window.speechSynthesis;
+  const busy = synth.speaking || synth.pending;
+  synth.cancel();
   const lang = languageFor(clean);
-  utterance.lang = lang;
   const voice = pickVoice(lang);
-  if (voice) utterance.voice = voice;
-  utterance.rate = rate;
-  utterance.onend = () => {
-    if (speakingId === id) {
-      speakingId = null;
-      announce();
-    }
-  };
-  utterance.onerror = utterance.onend;
+  const pieces = speechChunks(clean);
   speakingId = id;
-  window.speechSynthesis.speak(utterance);
   announce();
+  const queue = () => {
+    if (speakingId !== id) return;
+    pieces.forEach((piece, index) => {
+      const utterance = new window.SpeechSynthesisUtterance(piece);
+      utterance.lang = lang;
+      if (voice) utterance.voice = voice;
+      utterance.rate = rate;
+      if (index === pieces.length - 1) {
+        utterance.onend = () => {
+          if (speakingId === id) {
+            speakingId = null;
+            announce();
+          }
+        };
+        utterance.onerror = utterance.onend;
+      }
+      synth.speak(utterance);
+    });
+  };
+  // Android Chrome can drop speech queued straight after cancel(); give it a moment.
+  if (busy) window.setTimeout(queue, 80);
+  else queue();
   return true;
 }
 

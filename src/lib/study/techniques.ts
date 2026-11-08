@@ -28,15 +28,15 @@ export const TECHNIQUES: readonly Technique[] = [
   {
     id: "long-block",
     name: "Long focus block (45 + 15)",
-    oneLine: "Longer deep work for steady minds, close to the well-known 52/17 rhythm.",
+    oneLine: "Longer deep work for steady minds, with a proper break after each block.",
     steps: ["Choose your hardest topic", "Study for 45 minutes without switching", "Take a proper 15-minute break: walk, water, no phone", "Do two or three blocks a day at most"],
     bestFor: ["pitta", "kapha", "pitta_kapha"],
     sprint: { minutes: 45, breakMinutes: 15 },
   },
   {
     id: "warm-start",
-    name: "Warm start (10 then go)",
-    oneLine: "Beat a slow start: promise only 10 minutes, then let momentum carry you.",
+    name: "Warm start (15 then go)",
+    oneLine: "Beat a slow start: promise only one short sprint, then let momentum carry you.",
     steps: ["Open the page and read just the headings", "Set the timer for 15 minutes", "When it ends, decide: stop or one more round", "Most days you'll choose to keep going"],
     bestFor: ["kapha", "vata_kapha"],
     sprint: { minutes: 15, breakMinutes: 5 },

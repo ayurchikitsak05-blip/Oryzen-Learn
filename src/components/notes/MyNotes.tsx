@@ -1,5 +1,6 @@
 "use client";
 
+import { unpinNote } from "@/lib/notes/pins";
 import { ListenButton } from "@/components/speech/ListenButton";
 import { PinButton } from "@/components/notes/StickyNotes";
 import React, { Suspense, useEffect, useState } from "react";
@@ -183,6 +184,7 @@ export default function MyNotes() {
       return;
     }
     if (openNoteId === noteId) setOpenNoteId(null);
+    unpinNote(noteId, userId);
     await loadSubjects(selectedId);
   };
 

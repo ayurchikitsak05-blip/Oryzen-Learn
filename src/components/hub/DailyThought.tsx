@@ -5,16 +5,17 @@ import { Sun } from "lucide-react";
 import { useSignedInScope } from "@/components/coach/CoachHost";
 import { ListenButton } from "@/components/speech/ListenButton";
 import { tipForToday } from "@/lib/motivation/tips";
-import { isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
+import { usePrivateReady } from "@/lib/privacy/use-private-ready";
 import { readStudyProfile } from "@/lib/study/style-quiz";
 
 export function DailyThought() {
   const userId = useSignedInScope();
+  const ready = usePrivateReady(userId);
   const [tip, setTip] = useState<string | null>(null);
   useEffect(() => {
-    const profile = isAccountVaultUnlocked() ? readStudyProfile(userId) : null;
+    const profile = ready ? readStudyProfile(userId) : null;
     setTip(tipForToday(profile?.profileId ?? null));
-  }, [userId]);
+  }, [userId, ready]);
   if (!tip) return null;
   return (
     <section
