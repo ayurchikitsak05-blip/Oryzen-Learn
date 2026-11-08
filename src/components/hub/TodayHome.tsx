@@ -1,5 +1,6 @@
 "use client";
 
+import { formatHours } from "@/lib/roadmap/time";
 import { DailyThought } from "@/components/hub/DailyThought";
 import { PinnedNotes } from "@/components/notes/StickyNotes";
 import React, { useEffect, useState } from "react";
@@ -150,6 +151,24 @@ export function TodayHome({
       </section>
 
       <h2 className="pt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Every day</h2>
+
+      {continuation.backlog ? (
+        <Link
+          href="/roadmap#backlog"
+          data-testid="today-backlog"
+          className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+        >
+          <span>
+            <span className="block font-semibold text-heading">
+              Backlog: {continuation.backlog.topics} topic{continuation.backlog.topics === 1 ? "" : "s"}
+            </span>
+            <span className="block text-sm text-muted">
+              About {formatHours(continuation.backlog.minutes)} to catch up. Tick or replan.
+            </span>
+          </span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+        </Link>
+      ) : null}
 
       <Link
         href="/revise"

@@ -1,5 +1,7 @@
 "use client";
 
+import { VoiceNotePlayer } from "@/components/voice/VoiceNotes";
+import { listVoiceNotes } from "@/lib/voice-notes/store";
 import { ListenButton } from "@/components/speech/ListenButton";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -15,6 +17,9 @@ import {
   gradeCard,
   pickTodayCards,
   readRevisionState,
+  strengthsAndWeakSpots,
+  subjectProgress,
+  type SubjectProgress,
   readRevisionTime,
   revisionReminderIcs,
   writeRevisionState,
@@ -27,7 +32,15 @@ type Load =
   | { kind: "loading" }
   | { kind: "signed-out" }
   | { kind: "error"; text: string }
-  | { kind: "ready"; cards: RevisionNote[]; userId: string; hasNotes: boolean; doneToday: boolean; locked: boolean };
+  | {
+      kind: "ready";
+      cards: RevisionNote[];
+      notes: RevisionNote[];
+      userId: string;
+      hasNotes: boolean;
+      doneToday: boolean;
+      locked: boolean;
+    };
 
 interface ApiNotes {
   subjects?: Array<{ id: string; title: string }>;
@@ -111,6 +124,67 @@ function ReminderSetup() {
   );
 }
 
+const STAGE_COLS: Array<[keyof SubjectProgress, string]> = [
+  ["memorised", "Memorised"],
+  ["learning", "Learning"],
+  ["notYet", "Not yet"],
+  ["fresh", "New"],
+];
+
+/** Memorisation tracker and strengths / weak spots, from the student's own answers. */
+function RevisionProgress({ notes, state }: { notes: RevisionNote[]; state: RevisionState }) {
+  const rows = subjectProgress(notes, state);
+  const { strong, weak } = strengthsAndWeakSpots(rows);
+  const memorised = rows.reduce((sum, row) => sum + row.memorised, 0);
+  const total = rows.reduce((sum, row) => sum + row.total, 0);
+  return (
+    <section className="space-y-3 rounded-2xl border border-line bg-surface p-4" data-testid="revision-progress">
+      <div>
+        <h2 className="font-semibold text-heading">Memorised so far</h2>
+        <p className="text-sm text-muted" data-testid="revision-memorised">
+          {memorised} of {total} notes memorised (remembered three times in a row).
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="text-xs text-muted">
+              <th className="py-1 pr-2 font-medium">Subject</th>
+              {STAGE_COLS.map(([, label]) => (
+                <th key={label} className="px-2 py-1 text-right font-medium">{label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.subject} className="border-t border-line">
+                <td className="py-1.5 pr-2 font-medium text-heading">{row.subject}</td>
+                {STAGE_COLS.map(([key, label]) => (
+                  <td key={label} className="px-2 py-1.5 text-right text-ink">{row[key]}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {strong.length || weak.length ? (
+        <div className="grid gap-2 sm:grid-cols-2" data-testid="revision-strengths">
+          <div className="rounded-xl bg-beige-2 p-3 text-sm">
+            <p className="text-xs text-muted">Strong</p>
+            <p className="font-semibold text-heading">{strong.join(", ") || "Keep revising to find out"}</p>
+          </div>
+          <div className="rounded-xl bg-beige-2 p-3 text-sm">
+            <p className="text-xs text-muted">Needs more revision</p>
+            <p className="font-semibold text-heading">{weak.join(", ") || "Nothing yet"}</p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-muted">Strengths and weak spots appear after you revise a few cards in each subject.</p>
+      )}
+    </section>
+  );
+}
+
 /** Five quick cards from the student's own notes. No AI. */
 export function MorningRevision() {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
@@ -137,13 +211,25 @@ export function MorningRevision() {
       }
       const saved = readRevisionState(user.userId);
       setState(saved);
-      const notes = toRevisionNotes(data);
+      const voice = await listVoiceNotes(user.userId);
+      const notes = [
+        ...toRevisionNotes(data),
+        ...voice.map((note) => ({
+          id: note.id,
+          title: note.title,
+          body: "Your voice note",
+          subject: "Voice notes",
+          updatedAt: note.createdAt,
+          audioId: note.id,
+        })),
+      ];
       const today = localIsoDate();
       setLoad({
         kind: "ready",
         userId: user.userId,
         cards: pickTodayCards(notes, saved, today),
-        hasNotes: notes.some((note) => note.title.trim() && note.body.trim()),
+        notes,
+        hasNotes: notes.some((note) => !note.audioId && note.title.trim() && note.body.trim()),
         doneToday: revisionDoneToday(user.userId, today),
         locked: !opened,
       });
@@ -213,14 +299,18 @@ export function MorningRevision() {
           <h2 className={`${ui.heading} text-xl`}>{load.cards[index].title}</h2>
           <ListenButton
             key={`${index}-${shown}`}
-            text={shown ? `${load.cards[index].title}. ${load.cards[index].body}` : load.cards[index].title}
+            text={shown && !load.cards[index].audioId ? `${load.cards[index].title}. ${load.cards[index].body}` : load.cards[index].title}
           />
           <p className="text-sm text-muted">Say the answer in your head first.</p>
           {shown ? (
             <>
-              <div className="whitespace-pre-line rounded-xl bg-beige-2 p-3 text-sm leading-relaxed text-ink" data-testid="revision-answer">
-                {load.cards[index].body}
-              </div>
+              {load.cards[index].audioId ? (
+                <VoiceNotePlayer id={load.cards[index].audioId as string} userId={load.userId} />
+              ) : (
+                <div className="whitespace-pre-line rounded-xl bg-beige-2 p-3 text-sm leading-relaxed text-ink" data-testid="revision-answer">
+                  {load.cards[index].body}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" className={`${ui.primary} min-h-12`} onClick={() => grade(true)} data-testid="revision-yes">
                   I remembered
@@ -249,6 +339,8 @@ export function MorningRevision() {
           </Link>
         </section>
       ) : null}
+
+      {load.kind === "ready" && load.hasNotes && !load.locked ? <RevisionProgress notes={load.notes} state={state} /> : null}
 
       <ReminderSetup />
     </main>

@@ -11,6 +11,7 @@ import {
   dayByDate,
   daysInRange,
   detectMissedDates,
+  backlogItems,
   planProgress,
   workSessions,
 } from "@/lib/roadmap/engine";
@@ -147,6 +148,35 @@ export default function RoadmapStudio({
     onChange(next);
   };
 
+  const backlog = useMemo(
+    () => backlogItems(record.plan, record.completions, today),
+    [record.plan, record.completions, today]
+  );
+  const [lastCatchUp, setLastCatchUp] = useState<{ ids: string[]; title: string } | null>(null);
+  const catchUp = (sessionIds: string[], title: string) => {
+    const now = new Date().toISOString();
+    const completions = { ...record.completions };
+    for (const id of sessionIds) completions[id] = { completedAt: now };
+    onChange({ ...record, completions, updatedAt: now });
+    setLastCatchUp({ ids: sessionIds, title });
+  };
+  const undoCatchUp = () => {
+    if (!lastCatchUp) return;
+    const completions = { ...record.completions };
+    for (const id of lastCatchUp.ids) delete completions[id];
+    onChange({ ...record, completions, updatedAt: new Date().toISOString() });
+    setLastCatchUp(null);
+  };
+
+  // Opened from Today's Backlog card: scroll to the Backlog once the plan is on screen.
+  useEffect(() => {
+    if (typeof window === "undefined" || window.location.hash !== "#backlog") return;
+    const timer = window.setTimeout(() => {
+      document.getElementById("backlog")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const openReplan = (preset: string[] = missed) => {
     setSelectedMissed(preset.length > 0 ? preset : [today]);
     setDailyHours(record.intake.dailyHours);
@@ -260,6 +290,49 @@ export default function RoadmapStudio({
             Replan My Studies
           </button>
         </div>
+      )}
+
+      {(backlog.length > 0 || lastCatchUp) && (
+        <section id="backlog" className={`${ui.cardPad} space-y-3`} data-testid="roadmap-backlog" aria-labelledby="backlog-title">
+          <div>
+            <h2 id="backlog-title" className={`${ui.heading} text-xl`}>
+              Backlog: {backlog.length} topic{backlog.length === 1 ? "" : "s"}
+            </h2>
+            <p className="text-sm text-muted">
+              Planned on past days and not ticked off yet, oldest first. Tick what you&apos;ve already done; for the rest,
+              tap Replan My Studies to spread it over the coming days.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {backlog.map((item) => (
+              <li key={item.key} className="flex items-center justify-between gap-3 rounded-xl bg-beige-2 px-3 py-2" data-testid="backlog-item">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-heading">
+                    {item.subjectName ? `${item.subjectName}: ` : ""}
+                    {item.title}
+                  </span>
+                  <span className="block text-xs text-muted">
+                    {item.minutes} min · since {formatDisplayDate(item.oldestDate)}
+                  </span>
+                </span>
+                <button type="button" className={ui.ghost} onClick={() => catchUp(item.sessionIds, item.title)} data-testid="backlog-done">
+                  I&apos;ve done it
+                </button>
+              </li>
+            ))}
+          </ul>
+          {lastCatchUp ? (
+            <p className="text-sm text-muted" role="status" data-testid="backlog-undo">
+              Ticked off {lastCatchUp.title}.{" "}
+              <button type="button" className="font-medium text-accent underline-offset-4 hover:underline" onClick={undoCatchUp}>
+                Undo
+              </button>
+            </p>
+          ) : null}
+          <button type="button" className={ui.secondary} onClick={() => openReplan(missed)}>
+            Replan My Studies
+          </button>
+        </section>
       )}
 
       <CoachHost

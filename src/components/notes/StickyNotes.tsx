@@ -2,8 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Pin, PinOff } from "lucide-react";
+import { Brain, Pin, PinOff } from "lucide-react";
 import { useSignedInScope } from "@/components/coach/CoachHost";
+import { memoriseNow, readRevisionState, writeRevisionState } from "@/lib/revision/cards";
+import { localIsoDate } from "@/lib/roadmap/time";
 import { usePrivateReady } from "@/lib/privacy/use-private-ready";
 import { isPinned, MAX_PINS, pinNote, PINS_EVENT, readPins, unpinNote, type PinnedNote } from "@/lib/notes/pins";
 
@@ -81,5 +83,28 @@ export function PinnedNotes() {
         ))}
       </div>
     </section>
+  );
+}
+
+/** "Memorise this": puts the note first in the next Morning revision round. */
+export function MemoriseButton({ noteId }: { noteId: string }) {
+  const userId = useSignedInScope();
+  const ready = usePrivateReady(userId);
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      data-testid="memorise-note"
+      disabled={done || !ready}
+      className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-xs font-medium text-heading hover:bg-beige-2 disabled:opacity-60"
+      onClick={() => {
+        const today = localIsoDate();
+        writeRevisionState(memoriseNow(readRevisionState(userId), noteId, today), userId);
+        setDone(true);
+      }}
+    >
+      <Brain className="h-3.5 w-3.5" aria-hidden="true" />
+      {done ? "Added to revision" : "Memorise this"}
+    </button>
   );
 }

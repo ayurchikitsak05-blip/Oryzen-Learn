@@ -70,4 +70,10 @@ describe("TodayHome", () => {
     expect(screen.queryByTestId("today-start")).toBeNull();
     expect(screen.queryByTestId("today-make-plan")).toBeNull();
   });
+
+  it("shows the backlog when plan topics were missed", () => {
+    render(<TodayHome continuation={{ ...empty, backlog: { topics: 3, minutes: 150 } }} />);
+    expect(screen.getByTestId("today-backlog").textContent).toMatch(/Backlog: 3 topics/);
+    expect(screen.getByTestId("today-backlog").getAttribute("href")).toBe("/roadmap#backlog");
+  });
 });

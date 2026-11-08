@@ -2,7 +2,7 @@
 
 import { unpinNote } from "@/lib/notes/pins";
 import { ListenButton } from "@/components/speech/ListenButton";
-import { PinButton } from "@/components/notes/StickyNotes";
+import { MemoriseButton, PinButton } from "@/components/notes/StickyNotes";
 import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PenLine, Trash2 } from "lucide-react";
@@ -343,6 +343,7 @@ export default function MyNotes() {
                             <div className="mt-3 flex flex-wrap gap-2">
                               <ListenButton text={`${note.title}. ${note.body ?? ""}`} />
                               <PinButton note={{ id: note.id, title: note.title, body: note.body ?? "" }} />
+                              <MemoriseButton noteId={note.id} />
                             </div>
                           </>
                         )}

@@ -620,3 +620,51 @@ export function detectMissedDates(
 export function dayByDate(plan: RoadmapPlan, date: string): RoadmapDayPlan | undefined {
   return plan.days.find((day) => day.date === date);
 }
+
+/** One backlog line: a topic with planned sessions in the past that weren't ticked off. */
+export interface BacklogItem {
+  key: string;
+  subjectName: string;
+  title: string;
+  sessionIds: string[];
+  minutes: number;
+  oldestDate: string;
+}
+
+/**
+ * Backlog (owner list A, 8 Nov 2026): missed work from past days, grouped by topic,
+ * oldest first. Nothing is guessed; it is exactly the plan's unticked past sessions.
+ */
+export function backlogItems(
+  plan: RoadmapPlan,
+  completions: Record<string, { completedAt: string }>,
+  today: string
+): BacklogItem[] {
+  const groups = new Map<string, BacklogItem>();
+  for (const day of plan.days) {
+    if (day.date >= today) continue;
+    for (const session of workSessions(day.sessions)) {
+      if (completions[session.id]) continue;
+      const key = session.chapterId ?? `${session.kind}:${session.title}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.sessionIds.push(session.id);
+        existing.minutes += session.minutes;
+        continue;
+      }
+      groups.set(key, {
+        key,
+        subjectName: session.subjectName ?? "",
+        title: session.chapterName ?? session.title,
+        sessionIds: [session.id],
+        minutes: session.minutes,
+        oldestDate: day.date,
+      });
+    }
+  }
+  return [...groups.values()].sort((a, b) => a.oldestDate.localeCompare(b.oldestDate));
+}
+
+export function backlogSummary(items: readonly BacklogItem[]): { topics: number; minutes: number } {
+  return { topics: items.length, minutes: items.reduce((sum, item) => sum + item.minutes, 0) };
+}
