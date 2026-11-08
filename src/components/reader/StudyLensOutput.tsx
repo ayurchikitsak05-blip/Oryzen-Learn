@@ -1,5 +1,6 @@
 "use client";
 
+import { ListenButton } from "@/components/speech/ListenButton";
 import React, { useMemo, useState } from "react";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 import {
@@ -545,7 +546,25 @@ function TestMeOutput({
   );
 }
 
-export function StudyLensOutput({
+/** Every AI answer can be read aloud (except the quiz, which the student answers). */
+export function StudyLensOutput(props: Parameters<typeof StudyLensOutputBody>[0]) {
+  const { result, lens } = props;
+  const spoken =
+    lens === "ask_my_book"
+      ? result.payload.askMyBook?.answer ?? result.payload.markdown_body
+      : result.payload.markdown_body;
+  if (lens === "test_me" || result.payload.lens_type === "test_me") return <StudyLensOutputBody {...props} />;
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <ListenButton text={spoken ?? ""} testId="lens-listen" />
+      </div>
+      <StudyLensOutputBody {...props} />
+    </div>
+  );
+}
+
+function StudyLensOutputBody({
   result,
   lens,
   selectedMcqOptions,

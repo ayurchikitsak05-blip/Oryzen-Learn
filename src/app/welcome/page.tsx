@@ -1,5 +1,6 @@
 "use client";
 
+import { StepVoice } from "@/components/speech/ListenButton";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -97,6 +98,12 @@ export default function WelcomePage() {
           <>
             <header>
               <h1 className="font-display text-3xl text-heading">What are you studying for?</h1>
+              <div className="mt-2">
+                <StepVoice
+                  stepKey="welcome-exam"
+                  text="Welcome to ORYZEN Learn. Tap your class or exam, choose your subjects, and pick your exam month. We'll turn it into a daily plan of about two hours."
+                />
+              </div>
               <p className="mt-2 text-sm leading-relaxed text-muted">
                 We&apos;ll turn this into a daily plan of about 2 hours. Change it any time.
               </p>
@@ -207,6 +214,12 @@ export default function WelcomePage() {
           <>
             <header>
               <h1 className="font-display text-3xl text-heading">Add your first book</h1>
+              <div className="mt-2">
+                <StepVoice
+                  stepKey="welcome-book"
+                  text="Now add your first book. Upload any textbook or notes as a PDF. Then press and hold any line, and tap Explain."
+                />
+              </div>
               <p className="mt-2 text-sm leading-relaxed text-muted">
                 Any textbook, guide or notes as a PDF. It stays private to you. Then press and hold any line and tap
                 Explain.

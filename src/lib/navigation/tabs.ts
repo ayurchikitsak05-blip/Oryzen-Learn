@@ -11,6 +11,12 @@ export const APP_LINKS = [
 
 export const PRACTICE_ITEMS: readonly LinkListItem[] = [
   {
+    href: "/techniques",
+    title: "Study techniques",
+    detail: "Pomodoro, active recall and more, matched to your study style",
+    testId: "practice-techniques",
+  },
+  {
     href: "/revise",
     title: "Morning revision",
     detail: "5 quick cards from your notes, with a daily reminder",

@@ -1,5 +1,6 @@
 "use client";
 
+import { setVoiceGuide, voiceGuideOn } from "@/lib/speech/speak";
 import React, { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { ReadingSizeControl } from "@/components/reading/ReadingSizeControl";
@@ -46,6 +47,8 @@ export function PersonalizeSpace() {
   const [helper, setHelper] = useState<CompanionStyle | null>(null);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [guardOn, setGuardOn] = useState(true);
+  const [voiceOn, setVoiceOn] = useState(false);
+  useEffect(() => setVoiceOn(voiceGuideOn()), []);
   useEffect(() => setGuardOn(readFocusGuardPrefs().enabled), []);
 
   useEffect(() => {
@@ -159,6 +162,27 @@ export function PersonalizeSpace() {
             <span className="block font-semibold text-heading">Distraction guard in sprints</span>
             <span className="block text-muted">
               If you leave the app for more than a minute during a sprint, the timer pauses and welcomes you back.
+            </span>
+          </span>
+        </label>
+      </section>
+
+      <section className={sectionClass} data-testid="personalize-voice">
+        <label className="flex min-h-11 items-start gap-3 text-sm text-ink">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4"
+            checked={voiceOn}
+            onChange={(event) => {
+              setVoiceOn(event.target.checked);
+              setVoiceGuide(event.target.checked);
+            }}
+            data-testid="voice-guide-toggle"
+          />
+          <span>
+            <span className="block font-semibold text-heading">Read each step aloud</span>
+            <span className="block text-muted">
+              Questions and steps are read out in your phone&apos;s own voice. You can also tap Listen on any note.
             </span>
           </span>
         </label>

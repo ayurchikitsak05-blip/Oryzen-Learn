@@ -1,5 +1,7 @@
 "use client";
 
+import { ListenButton } from "@/components/speech/ListenButton";
+import { PinButton } from "@/components/notes/StickyNotes";
 import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PenLine, Trash2 } from "lucide-react";
@@ -331,9 +333,15 @@ export default function MyNotes() {
                           </button>
                         </div>
                         {open && (
-                          <p className="font-reading mt-3 whitespace-pre-wrap text-ink">
-                            {note.body || "This note has no written body yet."}
-                          </p>
+                          <>
+                            <p className="font-reading mt-3 whitespace-pre-wrap text-ink">
+                              {note.body || "This note has no written body yet."}
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <ListenButton text={`${note.title}. ${note.body ?? ""}`} />
+                              <PinButton note={{ id: note.id, title: note.title, body: note.body ?? "" }} />
+                            </div>
+                          </>
                         )}
                       </article>
                     );

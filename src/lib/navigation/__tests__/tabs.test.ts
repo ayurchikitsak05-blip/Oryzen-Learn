@@ -12,7 +12,7 @@ describe("four-tab navigation", () => {
 
   it("reaches the kept features from Practice and Me", () => {
     const hrefs = [...PRACTICE_ITEMS, ...ME_HIGHLIGHTS, ...ME_ITEMS].map((item) => item.href);
-    for (const href of ["/revise", "/reader?lens=test_me", "/sprint", "/progress", "/notes", "/roadmap", "/companion", "/video", "/synthesis", "/body-type", "/personalize", "/pricing"]) {
+    for (const href of ["/techniques", "/revise", "/reader?lens=test_me", "/sprint", "/progress", "/notes", "/roadmap", "/companion", "/video", "/synthesis", "/body-type", "/personalize", "/pricing"]) {
       expect(hrefs).toContain(href);
     }
     for (const href of hrefs) {
