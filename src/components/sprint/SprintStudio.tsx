@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { focusSounds, readUniversePrefs } from "@/lib/universe";
 import { SPRINT_CHANGED_EVENT } from "@/lib/sprint/guard";
 import Link from "next/link";
+import { readStrictMode, StrictModeOverlay, StrictModeToggle } from "@/components/sprint/StrictMode";
 import { choiceClass, ui } from "@/components/ui/classes";
 import { readSavedBodyType } from "@/lib/study/body-type";
 import { listLocalPdfDocuments, type LocalPdfDocumentRecord } from "@/lib/reader/storage";
@@ -148,6 +149,9 @@ export function SprintStudio({ userId }: { userId: string }) {
     : [];
   const selectedDoc = documents.find((item) => item.id === documentId);
 
+  const [strict, setStrict] = useState(false);
+  useEffect(() => setStrict(readStrictMode()), []);
+
   const saveSession = (session: SprintSession) => {
     setStore(upsertSprintSession(session, userId));
   };
@@ -171,6 +175,14 @@ export function SprintStudio({ userId }: { userId: string }) {
 
   return (
     <div data-testid="sprint-studio" className="space-y-6">
+      {strict && live && live.status === "running" ? (
+        <StrictModeOverlay
+          session={live}
+          clock={formatSprintClock(live, now)}
+          bookHref={readerHref(live)}
+          onEndEarly={() => saveSession(completeSprint(live, Date.now()))}
+        />
+      ) : null}
       <div>
         <p className={ui.eyebrow}>StudySprint</p>
         <h1 className={`${ui.heading} mt-2 text-3xl`}>A timed study block from your book</h1>
@@ -412,6 +424,7 @@ export function SprintStudio({ userId }: { userId: string }) {
               ))}
             </div>
           </fieldset>
+          <StrictModeToggle value={strict} onChange={setStrict} />
           <button type="button" data-testid="sprint-start" className={ui.primary} onClick={create}>
             Start StudySprint
           </button>

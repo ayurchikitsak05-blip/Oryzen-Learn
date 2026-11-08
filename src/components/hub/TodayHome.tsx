@@ -1,5 +1,6 @@
 "use client";
 
+import { CountdownCard } from "@/components/countdown/CountdownCard";
 import { DailyThought } from "@/components/hub/DailyThought";
 import { PinnedNotes } from "@/components/notes/StickyNotes";
 import React, { useEffect, useState } from "react";
@@ -108,6 +109,7 @@ export function TodayHome({
         )}
       </section>
 
+      {continuation.exam ? <CountdownCard examName={continuation.exam.name} examDate={continuation.exam.date} /> : null}
       <DailyThought />
       <PinnedNotes />
 
