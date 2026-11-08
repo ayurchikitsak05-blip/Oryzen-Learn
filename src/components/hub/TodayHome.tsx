@@ -1,6 +1,7 @@
 "use client";
 
 import { CountdownCard } from "@/components/countdown/CountdownCard";
+import { formatHours } from "@/lib/roadmap/time";
 import { DailyThought } from "@/components/hub/DailyThought";
 import { PinnedNotes } from "@/components/notes/StickyNotes";
 import React, { useEffect, useState } from "react";
@@ -164,8 +165,7 @@ export function TodayHome({
               Backlog: {continuation.backlog.topics} topic{continuation.backlog.topics === 1 ? "" : "s"}
             </span>
             <span className="block text-sm text-muted">
-              About {Math.max(1, Math.round(continuation.backlog.minutes / 60))} hour
-              {Math.round(continuation.backlog.minutes / 60) > 1 ? "s" : ""} to catch up. Tick or replan.
+              About {formatHours(continuation.backlog.minutes)} to catch up. Tick or replan.
             </span>
           </span>
           <ChevronRight className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />

@@ -165,6 +165,16 @@ describe("roadmap scheduling engine", () => {
     expect(remainingStudy).toBeGreaterThanOrEqual(missedMinutes);
   });
 
+  it("doesn't place work again that was ticked off on a missed day", () => {
+    const current = recordFrom(sixtyDayIntake());
+    const missed = current.plan.days[0].date;
+    const first = workSessions(current.plan.days[0].sessions).filter((session) => session.kind === "study");
+    const before = proposeReplan(current, { today: "2026-11-03", missedDates: [missed] }).recoveredMinutes;
+    const ticked = { ...current, completions: { [first[0].id]: { completedAt: "2026-11-03T08:00:00Z" } } } as typeof current;
+    const after = proposeReplan(ticked, { today: "2026-11-03", missedDates: [missed] }).recoveredMinutes;
+    expect(before - after).toBe(first[0].minutes);
+  });
+
   it("keeps a student confirmation step separate from applying the replan", () => {
     const current = recordFrom(sixtyDayIntake());
     const proposal = proposeReplan(current, {
