@@ -143,6 +143,7 @@ export function buildQuickIntake(answers: FirstRunAnswers): RoadmapIntake {
   });
   return {
     ...defaultIntake(examDateFromMonth(answers.examMonth)),
+    examMonth: answers.examMonth,
     examName: option?.label ?? "My exam",
     subjects,
     dailyHours: FIRST_PLAN_DAILY_HOURS,

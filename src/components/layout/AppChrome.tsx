@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { FocusGuard } from "@/components/sprint/FocusGuard";
+import { StrictBar, useStrictSprint } from "@/components/sprint/StrictMode";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
@@ -37,7 +38,9 @@ export default function AppChrome({
   const pathname = usePathname() ?? "";
   const [navReady, setNavReady] = useState(false);
   const navPath = navReady ? pathname : "";
-  const showAppNav = nav === "app";
+  const strict = useStrictSprint(pathname);
+  // While a strict sprint runs (e.g. in the book), the app menus are replaced by the strict bar.
+  const showAppNav = nav === "app" && !strict;
 
   useEffect(() => {
     setNavReady(true);
@@ -49,7 +52,7 @@ export default function AppChrome({
   }, [showAppNav]);
 
   return (
-    <div className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink ${showAppNav ? "pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0" : ""}`}>
+    <div className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink ${showAppNav ? "pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0" : strict ? "pb-[calc(3.75rem+env(safe-area-inset-bottom))]" : ""}`}>
       <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-canvas/92 backdrop-blur-md">
         <div
           className={`mx-auto flex min-h-12 w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1 md:flex-nowrap md:px-4 lg:gap-2 lg:px-6 ${maxWidthClass}`}
@@ -85,6 +88,7 @@ export default function AppChrome({
       ) : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">{children}</div>
       <FocusGuard />
+      {strict ? <StrictBar session={strict.session} clock={strict.clock} userId={strict.userId} /> : null}
       {showAppNav ? (
         <nav
           aria-label="Primary"

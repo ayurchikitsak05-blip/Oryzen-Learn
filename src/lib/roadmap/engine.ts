@@ -164,6 +164,7 @@ export function sanitizeIntake(value: unknown, fallbackExamDate: string): Roadma
   return {
     examName: String(raw.examName || "").slice(0, 80),
     examDate,
+    ...(typeof raw.examMonth === "string" && /^\d{4}-\d{2}$/.test(raw.examMonth) ? { examMonth: raw.examMonth } : {}),
     horizon: sanitizeHorizon(raw.horizon),
     subjects: subjects.length > 0 ? subjects : base.subjects,
     prepLevel,

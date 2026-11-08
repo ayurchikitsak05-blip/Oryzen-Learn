@@ -181,6 +181,7 @@ export function SprintStudio({ userId }: { userId: string }) {
           clock={formatSprintClock(live, now)}
           bookHref={readerHref(live)}
           onEndEarly={() => saveSession(completeSprint(live, Date.now()))}
+          stillRunning={() => activeSession(readSprintStore(userId).sessions)?.status === "running"}
         />
       ) : null}
       <div>

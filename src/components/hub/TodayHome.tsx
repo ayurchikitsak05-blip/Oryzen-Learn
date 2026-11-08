@@ -110,7 +110,7 @@ export function TodayHome({
         )}
       </section>
 
-      {continuation.exam ? <CountdownCard examName={continuation.exam.name} examDate={continuation.exam.date} /> : null}
+      {continuation.exam ? <CountdownCard examName={continuation.exam.name} examDate={continuation.exam.date} examMonth={continuation.exam.month} /> : null}
       <DailyThought />
       <PinnedNotes />
 

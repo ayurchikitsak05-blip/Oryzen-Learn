@@ -15,7 +15,7 @@ export interface HomeContinuation {
   /** Missed plan topics, for the Backlog card on Today. */
   backlog?: { topics: number; minutes: number } | null;
   /** The exam on the plan, for the countdown. */
-  exam?: { name: string; date: string } | null;
+  exam?: { name: string; date: string; month?: string } | null;
 }
 
 function unfinishedStudy(sessions: readonly RoadmapSession[], completions: RoadmapRecord["completions"]) {
@@ -83,7 +83,12 @@ export function describeHomeContinuation(input: {
         })()
       : null,
     exam: input.roadmap
-      ? { name: input.roadmap.intake.examName.trim() || "Exam", date: input.roadmap.intake.examDate }
+      ? (() => {
+          const intake = input.roadmap.intake;
+          // Only the month is known if the plan still ends on the 1st of the month the student chose.
+          const month = intake.examMonth && intake.examDate === `${intake.examMonth}-01` ? intake.examMonth : undefined;
+          return { name: intake.examName.trim() || "Exam", date: intake.examDate, ...(month ? { month } : {}) };
+        })()
       : null,
   };
 }

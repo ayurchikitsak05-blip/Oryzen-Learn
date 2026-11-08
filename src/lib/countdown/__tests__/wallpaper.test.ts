@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { countdownLine, daysUntil, drawWallpaper, formatExamDate } from "../wallpaper";
+import { countdownLine, countdownView, daysUntil, drawWallpaper, formatExamDate } from "../wallpaper";
 
 describe("exam countdown", () => {
   it("counts whole days to the exam", () => {
@@ -30,5 +30,16 @@ describe("exam countdown", () => {
     expect(calls).toContain("175");
     expect(calls).toContain("days to go");
     expect(calls.join(" ")).toMatch(/finished syllabus/);
+  });
+
+  it("says 'about' when only the exam month is known, and keeps showing through that month", () => {
+    expect(countdownView("2027-05-01", "2026-11-08", "2027-05")).toMatchObject({
+      line: "about 174 days to go",
+      dateLabel: "May 2027",
+    });
+    expect(countdownView("2027-05-01", "2027-05-10", "2027-05")).toMatchObject({ line: "Exam month. You've got this." });
+    expect(countdownView("2027-05-01", "2027-06-01", "2027-05")).toBeNull();
+    expect(countdownView("2027-05-02", "2027-05-03")).toBeNull();
+    expect(countdownView("2027-05-02", "2027-05-02")).toMatchObject({ big: "Today", unit: "Exam day" });
   });
 });
