@@ -7,7 +7,7 @@ import { useSignedInScope } from "@/components/coach/CoachHost";
 import AppChrome from "@/components/layout/AppChrome";
 import { ListenButton } from "@/components/speech/ListenButton";
 import { ui } from "@/components/ui/classes";
-import { isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
+import { usePrivateReady } from "@/lib/privacy/use-private-ready";
 import { patchSprintPrefs } from "@/lib/sprint/persist";
 import { readStudyProfile } from "@/lib/study/style-quiz";
 import { techniquesFor, type Technique } from "@/lib/study/techniques";
@@ -39,15 +39,16 @@ function TechniqueCard({ technique, onTry }: { technique: Technique; onTry: (t: 
 export default function TechniquesPage() {
   const router = useRouter();
   const userId = useSignedInScope();
+  const ready = usePrivateReady(userId);
   const [profileId, setProfileId] = useState<UniverseProfileId | null>(null);
   useEffect(() => {
-    setProfileId(isAccountVaultUnlocked() ? readStudyProfile(userId)?.profileId ?? null : null);
-  }, [userId]);
+    setProfileId(ready ? readStudyProfile(userId)?.profileId ?? null : null);
+  }, [userId, ready]);
   const { suited, others } = techniquesFor(profileId);
 
   const tryIt = (technique: Technique) => {
     if (!technique.sprint) return;
-    patchSprintPrefs({ preferredDuration: technique.sprint.minutes, preferredBreakMinutes: technique.sprint.breakMinutes }, userId);
+    if (ready) patchSprintPrefs({ preferredDuration: technique.sprint.minutes, preferredBreakMinutes: technique.sprint.breakMinutes }, userId);
     router.push("/sprint");
   };
 

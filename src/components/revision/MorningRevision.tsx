@@ -298,6 +298,7 @@ export function MorningRevision() {
           </p>
           <h2 className={`${ui.heading} text-xl`}>{load.cards[index].title}</h2>
           <ListenButton
+            key={`${index}-${shown}`}
             text={shown && !load.cards[index].audioId ? `${load.cards[index].title}. ${load.cards[index].body}` : load.cards[index].title}
           />
           <p className="text-sm text-muted">Say the answer in your head first.</p>

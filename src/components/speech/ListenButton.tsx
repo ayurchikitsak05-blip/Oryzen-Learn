@@ -10,13 +10,17 @@ export function ListenButton({
   label = "Listen",
   className = "",
   testId = "listen-button",
+  speechId,
 }: {
   text: string;
   label?: string;
   className?: string;
   testId?: string;
+  /** Share an id with a component that speaks by itself, so this button shows Stop. */
+  speechId?: string;
 }) {
-  const id = useId();
+  const autoId = useId();
+  const id = speechId ?? autoId;
   const [supported, setSupported] = useState(false);
   const [playing, setPlaying] = useState(false);
 
@@ -50,10 +54,14 @@ export function ListenButton({
  * Personalize, it also speaks by itself when the step appears (after the student's tap).
  */
 export function StepVoice({ text, stepKey }: { text: string; stepKey: string }) {
+  const id = `step-${stepKey}`;
   useEffect(() => {
     if (!voiceGuideOn() || !speechSupported()) return;
-    const timer = window.setTimeout(() => speak(text, `step-${stepKey}`), 150);
-    return () => window.clearTimeout(timer);
-  }, [text, stepKey]);
-  return <ListenButton text={text} label="Hear this step" testId="step-voice" />;
+    const timer = window.setTimeout(() => speak(text, id), 150);
+    return () => {
+      window.clearTimeout(timer);
+      if (currentSpeechId() === id) stopSpeaking();
+    };
+  }, [text, id]);
+  return <ListenButton text={text} label="Hear this step" testId="step-voice" speechId={id} />;
 }
