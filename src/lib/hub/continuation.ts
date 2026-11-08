@@ -1,4 +1,5 @@
 import { readLocalRoadmap } from "@/lib/roadmap/persist";
+import { backlogItems, backlogSummary } from "@/lib/roadmap/engine";
 import type { RoadmapRecord, RoadmapSession } from "@/lib/roadmap/types";
 import { activeSession, nextRecommendedBlock, studiedMinutesOnDate } from "@/lib/sprint/plan";
 import { readSprintStore } from "@/lib/sprint/persist";
@@ -11,6 +12,10 @@ export interface HomeContinuation {
   nextBlock: string | null;
   studiedMinutes: number | null;
   dailyGoal: number | null;
+  /** Missed plan topics, for the Backlog card on Today. */
+  backlog?: { topics: number; minutes: number } | null;
+  /** The exam on the plan, for the countdown. */
+  exam?: { name: string; date: string } | null;
 }
 
 function unfinishedStudy(sessions: readonly RoadmapSession[], completions: RoadmapRecord["completions"]) {
@@ -71,6 +76,15 @@ export function describeHomeContinuation(input: {
     nextBlock: planLine ?? activityHint,
     studiedMinutes: hasSprint ? studiedMinutesOnDate(input.sessions, input.date) : null,
     dailyGoal: input.dayGoalMinutes ?? (hasSprint ? input.dailyTargetMinutes : null),
+    backlog: input.roadmap
+      ? (() => {
+          const summary = backlogSummary(backlogItems(input.roadmap.plan, input.roadmap.completions, input.date));
+          return summary.topics > 0 ? summary : null;
+        })()
+      : null,
+    exam: input.roadmap
+      ? { name: input.roadmap.intake.examName.trim() || "Exam", date: input.roadmap.intake.examDate }
+      : null,
   };
 }
 

@@ -16,6 +16,8 @@ export interface RevisionNote {
   body: string;
   subject: string;
   updatedAt: string;
+  /** Set for a voice note: the answer is the student's own recording. */
+  audioId?: string;
 }
 
 export interface CardState {
@@ -170,4 +172,65 @@ export function revisionReminderIcs(input: { time: string; startDay: string; url
     "END:VCALENDAR",
     "",
   ].join("\r\n");
+}
+
+/* Memorisation tracker (owner list A, 8 Nov 2026) */
+
+/** Remembered three times in a row (now on a 7- or 14-day gap) = memorised. */
+export const MEMORISED_BOX = 3;
+
+/** "Memorise this": the note comes up in the very next revision round. */
+export function memoriseNow(state: RevisionState, noteId: string, today: string): RevisionState {
+  const current = state[noteId];
+  return { ...state, [noteId]: { box: current?.box ?? 0, due: today, lastSeen: current?.lastSeen ?? "" } };
+}
+
+export type CardStage = "new" | "not_yet" | "learning" | "memorised";
+
+export function cardStage(state: RevisionState, noteId: string): CardStage {
+  const card = state[noteId];
+  if (!card || !card.lastSeen) return "new";
+  if (card.box >= MEMORISED_BOX) return "memorised";
+  if (card.box === 0) return "not_yet";
+  return "learning";
+}
+
+export interface SubjectProgress {
+  subject: string;
+  total: number;
+  memorised: number;
+  learning: number;
+  notYet: number;
+  fresh: number;
+}
+
+/** Per subject: how many notes are memorised, being learned, not remembered yet, or new. */
+export function subjectProgress(notes: readonly RevisionNote[], state: RevisionState): SubjectProgress[] {
+  const rows = new Map<string, SubjectProgress>();
+  for (const note of notes) {
+    if (!note.title.trim()) continue;
+    const subject = note.subject || "Other";
+    const row = rows.get(subject) ?? { subject, total: 0, memorised: 0, learning: 0, notYet: 0, fresh: 0 };
+    row.total += 1;
+    const stage = cardStage(state, note.id);
+    if (stage === "memorised") row.memorised += 1;
+    else if (stage === "learning") row.learning += 1;
+    else if (stage === "not_yet") row.notYet += 1;
+    else row.fresh += 1;
+    rows.set(subject, row);
+  }
+  return [...rows.values()].sort((a, b) => a.subject.localeCompare(b.subject));
+}
+
+/**
+ * Strengths and weak spots from the student's own revision answers (no AI): strongest =
+ * most memorised for its size; weakest = most "Not yet". Needs at least 2 revised cards.
+ */
+export function strengthsAndWeakSpots(rows: readonly SubjectProgress[]): { strong: string[]; weak: string[] } {
+  const revised = rows.filter((row) => row.memorised + row.learning + row.notYet >= 2);
+  const score = (row: SubjectProgress) => (row.memorised * 2 + row.learning - row.notYet * 2) / Math.max(1, row.total);
+  const ranked = [...revised].sort((a, b) => score(b) - score(a));
+  const strong = ranked.filter((row) => score(row) > 0).slice(0, 3).map((row) => row.subject);
+  const weak = [...ranked].reverse().filter((row) => row.notYet > 0 && !strong.includes(row.subject)).slice(0, 3).map((row) => row.subject);
+  return { strong, weak };
 }

@@ -11,6 +11,7 @@ import {
   dayByDate,
   daysInRange,
   detectMissedDates,
+  backlogItems,
   planProgress,
   workSessions,
 } from "@/lib/roadmap/engine";
@@ -147,6 +148,17 @@ export default function RoadmapStudio({
     onChange(next);
   };
 
+  const backlog = useMemo(
+    () => backlogItems(record.plan, record.completions, today),
+    [record.plan, record.completions, today]
+  );
+  const catchUp = (sessionIds: string[]) => {
+    const now = new Date().toISOString();
+    const completions = { ...record.completions };
+    for (const id of sessionIds) completions[id] = { completedAt: now };
+    onChange({ ...record, completions, updatedAt: now });
+  };
+
   const openReplan = (preset: string[] = missed) => {
     setSelectedMissed(preset.length > 0 ? preset : [today]);
     setDailyHours(record.intake.dailyHours);
@@ -260,6 +272,41 @@ export default function RoadmapStudio({
             Replan My Studies
           </button>
         </div>
+      )}
+
+      {backlog.length > 0 && (
+        <section id="backlog" className={`${ui.cardPad} space-y-3`} data-testid="roadmap-backlog" aria-labelledby="backlog-title">
+          <div>
+            <h2 id="backlog-title" className={`${ui.heading} text-xl`}>
+              Backlog: {backlog.length} topic{backlog.length === 1 ? "" : "s"}
+            </h2>
+            <p className="text-sm text-muted">
+              Planned on past days and not ticked off yet, oldest first. Tick what you've already done; for the rest,
+              tap Replan My Studies to spread it over the coming days.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {backlog.map((item) => (
+              <li key={item.key} className="flex items-center justify-between gap-3 rounded-xl bg-beige-2 px-3 py-2" data-testid="backlog-item">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-heading">
+                    {item.subjectName ? `${item.subjectName}: ` : ""}
+                    {item.title}
+                  </span>
+                  <span className="block text-xs text-muted">
+                    {item.minutes} min · since {formatDisplayDate(item.oldestDate)}
+                  </span>
+                </span>
+                <button type="button" className={ui.ghost} onClick={() => catchUp(item.sessionIds)} data-testid="backlog-done">
+                  I&apos;ve done it
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className={ui.secondary} onClick={() => openReplan(missed)}>
+            Replan My Studies
+          </button>
+        </section>
       )}
 
       <CoachHost

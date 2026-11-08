@@ -11,6 +11,12 @@ export const APP_LINKS = [
 
 export const PRACTICE_ITEMS: readonly LinkListItem[] = [
   {
+    href: "/voice-notes",
+    title: "Voice notes",
+    detail: "Record formulas and definitions in your own voice for revision",
+    testId: "practice-voice-notes",
+  },
+  {
     href: "/techniques",
     title: "Study techniques",
     detail: "Pomodoro, active recall and more, matched to your study style",
