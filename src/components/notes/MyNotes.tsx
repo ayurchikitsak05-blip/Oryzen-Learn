@@ -1,5 +1,8 @@
 "use client";
 
+import { unpinNote } from "@/lib/notes/pins";
+import { ListenButton } from "@/components/speech/ListenButton";
+import { PinButton } from "@/components/notes/StickyNotes";
 import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PenLine, Trash2 } from "lucide-react";
@@ -54,6 +57,7 @@ function notesError(message: string): string {
 }
 
 export default function MyNotes() {
+  const userId = useSignedInScope();
   const [subjects, setSubjects] = useState<NoteSubject[]>([]);
   const [notes, setNotes] = useState<StudyNote[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -181,6 +185,7 @@ export default function MyNotes() {
       return;
     }
     if (openNoteId === noteId) setOpenNoteId(null);
+    unpinNote(noteId, userId);
     await loadSubjects(selectedId);
   };
 
@@ -331,9 +336,15 @@ export default function MyNotes() {
                           </button>
                         </div>
                         {open && (
-                          <p className="font-reading mt-3 whitespace-pre-wrap text-ink">
-                            {note.body || "This note has no written body yet."}
-                          </p>
+                          <>
+                            <p className="font-reading mt-3 whitespace-pre-wrap text-ink">
+                              {note.body || "This note has no written body yet."}
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <ListenButton text={`${note.title}. ${note.body ?? ""}`} />
+                              <PinButton note={{ id: note.id, title: note.title, body: note.body ?? "" }} />
+                            </div>
+                          </>
                         )}
                       </article>
                     );

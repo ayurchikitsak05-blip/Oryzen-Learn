@@ -1,5 +1,7 @@
 "use client";
 
+import { DailyThought } from "@/components/hub/DailyThought";
+import { PinnedNotes } from "@/components/notes/StickyNotes";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw, Sparkles, Video } from "lucide-react";
@@ -105,6 +107,9 @@ export function TodayHome({
           </>
         )}
       </section>
+
+      <DailyThought />
+      <PinnedNotes />
 
       <section aria-labelledby="today-highlights" className="space-y-2" data-testid="today-highlights">
         <h2 id="today-highlights" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">

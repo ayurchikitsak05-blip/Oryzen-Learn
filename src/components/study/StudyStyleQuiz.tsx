@@ -1,5 +1,6 @@
 "use client";
 
+import { StepVoice } from "@/components/speech/ListenButton";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
@@ -260,6 +261,9 @@ export function StudyStyleQuiz() {
           ) : null}
         </section>
 
+        <Link href="/techniques" className={`${ui.secondary} min-h-12 w-full`} data-testid="style-techniques">
+          See study techniques for my style
+        </Link>
         <p className="text-xs leading-relaxed text-muted" data-testid="style-disclaimer">{STYLE_DISCLAIMER}</p>
         {saveNote ? <p className="text-xs text-muted">{saveNote}</p> : null}
         <div className="grid gap-2 sm:grid-cols-2">
@@ -325,6 +329,14 @@ export function StudyStyleQuiz() {
         <h1 className={`${ui.heading} text-2xl`} data-testid="style-question">
           {bodyQuestion?.prompt ?? studyQuestion?.prompt}
         </h1>
+        <StepVoice
+          stepKey={bodyQuestion?.id ?? studyQuestion?.id ?? "q"}
+          text={
+            bodyQuestion
+              ? `${bodyQuestion.prompt} ${DOSHAS.map((d) => bodyQuestion.options[d]).join(". Or, ")}.`
+              : `${studyQuestion?.prompt ?? ""} ${(studyQuestion?.options ?? []).map((o) => o.label).join(". Or, ")}.`
+          }
+        />
         <div className="space-y-2" role="radiogroup" aria-label={bodyQuestion?.prompt ?? studyQuestion?.prompt}>
           {bodyQuestion
             ? DOSHAS.map((dosha) => (

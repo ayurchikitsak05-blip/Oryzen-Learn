@@ -1,5 +1,6 @@
 "use client";
 
+import { ListenButton } from "@/components/speech/ListenButton";
 import React, { useMemo, useState } from "react";
 import { Clock, Eye } from "lucide-react";
 import type { PrakritiThemePalette } from "@/lib/prakriti/config";
@@ -108,6 +109,7 @@ export default function ParallelNotes({
                   <h4 className="font-display text-sm text-heading">
                     {note.heading}
                   </h4>
+                  <ListenButton text={`${note.heading}. ${note.studyNoteMarkdown} ${note.highYieldKeyPoint}`} />
                 </div>
 
                 {isSpeakingNow && (

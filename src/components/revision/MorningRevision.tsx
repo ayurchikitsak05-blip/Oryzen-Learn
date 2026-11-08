@@ -1,5 +1,6 @@
 "use client";
 
+import { ListenButton } from "@/components/speech/ListenButton";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { BellRing } from "lucide-react";
@@ -210,6 +211,10 @@ export function MorningRevision() {
             {load.cards[index].subject ? ` · ${load.cards[index].subject}` : ""}
           </p>
           <h2 className={`${ui.heading} text-xl`}>{load.cards[index].title}</h2>
+          <ListenButton
+            key={`${index}-${shown}`}
+            text={shown ? `${load.cards[index].title}. ${load.cards[index].body}` : load.cards[index].title}
+          />
           <p className="text-sm text-muted">Say the answer in your head first.</p>
           {shown ? (
             <>
