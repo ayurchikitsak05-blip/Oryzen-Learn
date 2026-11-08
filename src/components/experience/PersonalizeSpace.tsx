@@ -81,7 +81,7 @@ export function PersonalizeSpace() {
   return (
     <div data-testid="personalize-space" className="mx-auto w-full max-w-xl space-y-4 px-4 py-6 md:py-10">
       <header>
-        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">Me</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">Tools · Settings</p>
         <h1 className="font-display mt-1 text-3xl text-heading">Personalize my space</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           Changes are saved on this device and apply straight away. Your books and notes don&apos;t change.
