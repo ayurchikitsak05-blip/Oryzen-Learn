@@ -20,6 +20,9 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - **Tested:** unit tests (speech chunks and language, pins, tips by style and day, techniques) and screen tests (Listen start/stop). CI passed after fixing a missing sign-in scope in My Notes.
 - **Observer:** CHANGES NEEDED, then fixed: pinned notes stayed after deletion; "pinned" was shown before the private record had opened; Chrome cut off long reading (now read in short pieces); Android stop/start race; voices that load late; reading carried over between revision cards; warm-start text said 10 minutes while the timer is 15.
 - **Follow-ups:** voice quality depends on the phone; Hindi needs a Hindi voice installed on the phone.
+
+---
+
 ## 2026-11-05 (late morning) · "Me" renamed "Tools"; pricing worked out
 
 - **Tab rename (owner):** "Me" is now **Tools** (page title "Study tools"), grouped as Highlights (YouTube lecture notes, My study style), Plan and notes, and Settings (Personalize, Plan and payment, Account). The address stays `/me`.
