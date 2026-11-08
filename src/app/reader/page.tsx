@@ -61,7 +61,8 @@ function ReaderStudio() {
     };
   }, []);
 
-  const [showExplainTip, setShowExplainTip] = useState(searchParams.get("tip") === "explain");
+  const tipKind = searchParams.get("tip");
+  const [showExplainTip, setShowExplainTip] = useState(tipKind === "explain" || tipKind === "diagram");
   const scores = scoresFor(activeDosha);
   const profile = calculatePrakritiProfile(scores, scores);
 
@@ -94,10 +95,19 @@ function ReaderStudio() {
             data-testid="reader-explain-tip"
             className="mx-4 mt-3 flex shrink-0 items-start gap-3 rounded-2xl border border-line bg-beige-2 px-4 py-3 text-sm leading-relaxed text-ink"
           >
-            <p className="min-w-0 flex-1">
-              <span className="font-semibold text-heading">Your first win:</span> open your book, press and hold any
-              line, then tap <span className="font-semibold">Explain</span>. Answers always come from your book.
-            </p>
+            {tipKind === "diagram" ? (
+              <p className="min-w-0 flex-1" data-testid="reader-diagram-tip">
+                <span className="font-semibold text-heading">Flowcharts, tables and mind maps:</span> open your book,
+                press and hold a paragraph, then tap <span className="font-semibold">Illustrate</span> for a diagram or
+                flowchart, or <span className="font-semibold">Revise</span> for short key points. In lecture notes, use{" "}
+                <span className="font-semibold">Turn Into a Table</span>.
+              </p>
+            ) : (
+              <p className="min-w-0 flex-1">
+                <span className="font-semibold text-heading">Your first win:</span> open your book, press and hold any
+                line, then tap <span className="font-semibold">Explain</span>. Answers always come from your book.
+              </p>
+            )}
             <button
               type="button"
               onClick={() => {

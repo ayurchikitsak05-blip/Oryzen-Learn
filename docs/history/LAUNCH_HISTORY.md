@@ -4,6 +4,23 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-08 · Competitor features, group A part 3: strict mode, exam countdown wallpaper, easier diagram tools (no AI)
+
+### Change: Strict mode for sprints
+- **What:** a "Strict mode" switch before starting a sprint. While the sprint runs, the screen shows only the timer, the goal, "Open my book" and "End early" (which asks first). Full screen where the phone allows it (Android; iPhone Safari doesn't allow it for websites). In the book, the app menus are replaced by a strict bar with the timer, "Timer" and "End early". Leaving the page warns first; leaving the app is handled by the distraction guard (the timer pauses). A website can't block other apps, so the switch suggests Do Not Disturb. `src/components/sprint/StrictMode.tsx`, `src/components/sprint/SprintStudio.tsx`, `src/components/layout/AppChrome.tsx`.
+
+### Change: Exam countdown and wallpaper
+- **What:** Today shows "NEET: 175 days to go" with the exam date. When the student only picked the month in the first-run screens, it says "about 174 days to go · May 2027" and stays through the exam month. "Save as phone wallpaper" makes a phone-sized picture (exam, days left, today's thought, ORYZEN Learn) in the student's colours; on phones that can share, it opens the share sheet (Save Image to Photos), otherwise it downloads. A website can't put a live widget on the home screen, so the picture is the free equivalent; make a new one each week. `src/lib/countdown/wallpaper.ts`, `src/components/countdown/CountdownCard.tsx`, `src/lib/hub/continuation.ts`, `src/lib/onboarding/first-run.ts`.
+
+### Change: Flowcharts, tables and mind maps easier to find
+- **What:** a Practice item "Flowcharts, tables and mind maps" opens the book with a tip: press and hold a paragraph, then tap Illustrate (diagram or flowchart) or Revise (key points); in lecture notes, use Turn Into a Table. Uses the existing tools; no new AI cost.
+
+- **Tested:** unit tests (days left, month-only exams, wallpaper drawing, strict switch, overlay focus and end-early confirm, strict bar, Today countdown with month) and the navigation test. CI passed.
+- **Observer:** CHANGES NEEDED, then fixed: strict mode switched off the moment the student opened the book; the countdown showed the 1st of the month as the exam date (and disappeared on the 2nd) for students who only picked a month; the wallpaper message said "Photos" on phones that save to Files, and the link was removed too soon on iPhone; focus didn't move into the overlay; long exam names ran off the picture.
+- **Follow-ups:** the wallpaper doesn't update itself (save a new one each week); in-app browsers (WhatsApp, Instagram) may not download it.
+
+---
+
 ## 2026-11-08 · Competitor features, group A part 2: Backlog, memorisation tracker, strengths and weak spots, voice notes (no AI)
 
 ### Change: Backlog

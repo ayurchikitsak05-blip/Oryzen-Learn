@@ -1,5 +1,6 @@
 "use client";
 
+import { CountdownCard } from "@/components/countdown/CountdownCard";
 import { formatHours } from "@/lib/roadmap/time";
 import { DailyThought } from "@/components/hub/DailyThought";
 import { PinnedNotes } from "@/components/notes/StickyNotes";
@@ -109,6 +110,7 @@ export function TodayHome({
         )}
       </section>
 
+      {continuation.exam ? <CountdownCard examName={continuation.exam.name} examDate={continuation.exam.date} examMonth={continuation.exam.month} /> : null}
       <DailyThought />
       <PinnedNotes />
 

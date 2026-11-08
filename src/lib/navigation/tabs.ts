@@ -15,6 +15,12 @@ export const APP_LINKS = [
 
 export const PRACTICE_ITEMS: readonly LinkListItem[] = [
   {
+    href: "/reader?tip=diagram",
+    title: "Flowcharts, tables and mind maps",
+    detail: "Turn any page of your book into a diagram or key points",
+    testId: "practice-diagrams",
+  },
+  {
     href: "/voice-notes",
     title: "Voice notes",
     detail: "Record formulas and definitions in your own voice for revision",

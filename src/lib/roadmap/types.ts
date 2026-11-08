@@ -70,6 +70,8 @@ export interface StudyRhythmHook {
 export interface RoadmapIntake {
   examName: string;
   examDate: string;
+  /** Set when the student only chose the exam month (first run); the plan then ends on the 1st. */
+  examMonth?: string;
   horizon: RoadmapHorizon;
   subjects: RoadmapSubject[];
   prepLevel: PrepLevel;
