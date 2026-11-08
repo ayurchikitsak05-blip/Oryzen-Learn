@@ -14,3 +14,14 @@ describe("voice notes", () => {
     expect(voiceNotesSupported()).toBe(false);
   });
 });
+
+describe("voice notes stay locked with the private record", () => {
+  it("won't save, list or play while the student's private key is closed", async () => {
+    const { saveVoiceNote, listVoiceNotes, voiceNoteAudio } = await import("../store");
+    await expect(
+      saveVoiceNote({ userId: "u1", title: "Ohm's law", seconds: 4, type: "audio/webm", blob: new Blob(["x"]) })
+    ).rejects.toThrow("locked");
+    expect(await listVoiceNotes("u1")).toEqual([]);
+    expect(await voiceNoteAudio("voice-1", "u1")).toBeNull();
+  });
+});

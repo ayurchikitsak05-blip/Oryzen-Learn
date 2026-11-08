@@ -229,7 +229,7 @@ export function MorningRevision() {
         userId: user.userId,
         cards: pickTodayCards(notes, saved, today),
         notes,
-        hasNotes: notes.some((note) => note.title.trim() && note.body.trim()),
+        hasNotes: notes.some((note) => !note.audioId && note.title.trim() && note.body.trim()),
         doneToday: revisionDoneToday(user.userId, today),
         locked: !opened,
       });
@@ -340,7 +340,7 @@ export function MorningRevision() {
         </section>
       ) : null}
 
-      {load.kind === "ready" && load.hasNotes ? <RevisionProgress notes={load.notes} state={state} /> : null}
+      {load.kind === "ready" && load.hasNotes && !load.locked ? <RevisionProgress notes={load.notes} state={state} /> : null}
 
       <ReminderSetup />
     </main>

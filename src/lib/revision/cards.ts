@@ -208,7 +208,8 @@ export interface SubjectProgress {
 export function subjectProgress(notes: readonly RevisionNote[], state: RevisionState): SubjectProgress[] {
   const rows = new Map<string, SubjectProgress>();
   for (const note of notes) {
-    if (!note.title.trim()) continue;
+    // Voice notes and empty notes never become cards, so they aren't counted here.
+    if (note.audioId || !note.title.trim() || !note.body.trim()) continue;
     const subject = note.subject || "Other";
     const row = rows.get(subject) ?? { subject, total: 0, memorised: 0, learning: 0, notYet: 0, fresh: 0 };
     row.total += 1;
@@ -230,7 +231,12 @@ export function strengthsAndWeakSpots(rows: readonly SubjectProgress[]): { stron
   const revised = rows.filter((row) => row.memorised + row.learning + row.notYet >= 2);
   const score = (row: SubjectProgress) => (row.memorised * 2 + row.learning - row.notYet * 2) / Math.max(1, row.total);
   const ranked = [...revised].sort((a, b) => score(b) - score(a));
-  const strong = ranked.filter((row) => score(row) > 0).slice(0, 3).map((row) => row.subject);
-  const weak = [...ranked].reverse().filter((row) => row.notYet > 0 && !strong.includes(row.subject)).slice(0, 3).map((row) => row.subject);
+  const doingWell = ranked.filter((row) => score(row) > 0);
+  const strong = doingWell.slice(0, 3).map((row) => row.subject);
+  const weak = [...ranked]
+    .reverse()
+    .filter((row) => row.notYet > 0 && !doingWell.includes(row))
+    .slice(0, 3)
+    .map((row) => row.subject);
   return { strong, weak };
 }

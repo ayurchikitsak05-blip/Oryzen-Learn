@@ -32,8 +32,8 @@ function remainingFromPlan(
       if (session.kind !== "study" || !session.chapterId) continue;
       if (unfinished && !unfinished.has(session.chapterId)) continue;
       const done = Boolean(record.completions[session.id]);
-      const missed = missedDates.has(session.date);
-      if (!done || missed) {
+      // Work already ticked off (on time or later, from the Backlog) is never placed again.
+      if (!done) {
         leftover.set(session.chapterId, (leftover.get(session.chapterId) ?? 0) + session.minutes);
       }
     }

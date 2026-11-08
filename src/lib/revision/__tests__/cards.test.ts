@@ -90,3 +90,22 @@ describe("morning revision cards", () => {
     expect(strengthsAndWeakSpots(rows)).toEqual({ strong: ["Physics"], weak: ["Chemistry"] });
   });
 });
+
+describe("revision tracker counts only real cards", () => {
+  it("leaves out voice notes and empty notes, and never calls a subject that's doing well weak", async () => {
+    const { subjectProgress, strengthsAndWeakSpots } = await import("../cards");
+    const rows = subjectProgress(
+      [
+        { id: "v", title: "My voice", body: "Your voice note", subject: "Voice notes", updatedAt: "", audioId: "v" },
+        { id: "e", title: "Empty", body: "  ", subject: "Physics", updatedAt: "" },
+        { id: "p", title: "Ohm", body: "V = IR", subject: "Physics", updatedAt: "" },
+      ],
+      {}
+    );
+    expect(rows.map((row) => [row.subject, row.total])).toEqual([["Physics", 1]]);
+    const many = ["A", "B", "C", "D"].map((subject) => ({
+      subject, total: 4, memorised: 3, learning: 0, notYet: 1, fresh: 0,
+    }));
+    expect(strengthsAndWeakSpots(many).weak).toEqual([]);
+  });
+});
