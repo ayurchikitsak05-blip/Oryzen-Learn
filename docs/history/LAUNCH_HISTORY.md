@@ -4,6 +4,25 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-08 · Competitor features, group A part 1: Listen, voice guide, daily thought, sticky notes, study techniques (no AI)
+
+**Owner decision (8 Nov):** from the competitor list, build group A first: features that cost nothing to run (no AI, no server storage).
+
+### Change: Listen (text to speech) and voice guide
+- **What:** a "Listen" button reads aloud My Notes, Explain/Story/Revise answers, lecture notes and Morning revision cards in the phone's own voice (Hindi or English, picked from the text). "Read each step aloud" in Personalize reads first-run steps and study-style questions as they appear. Free: the phone does the speaking.
+- **Files:** `src/lib/speech/speak.ts`, `src/components/speech/ListenButton.tsx`.
+
+### Change: Daily thought, sticky notes, study techniques
+- **Daily thought:** one short line on Today, chosen for the student's study style, changing each day (India time). `src/lib/motivation/tips.ts`, `src/components/hub/DailyThought.tsx`.
+- **Sticky notes:** pin up to 5 notes from My Notes to Today as coloured sticky notes; unpin from Today; deleting a note unpins it. Kept in the private record. `src/lib/notes/pins.ts`, `src/components/notes/StickyNotes.tsx`.
+- **Study techniques:** `/techniques` (Practice) lists 9 methods (Pomodoro 25+5, long block 45+15, warm start, active recall, spaced revision, Feynman, story-picture, mixing topics, blurting) with the ones that suit the student's study style first. `src/lib/study/techniques.ts`.
+
+- **Tested:** unit tests (speech chunks and language, pins, tips by style and day, techniques) and screen tests (Listen start/stop). CI passed after fixing a missing sign-in scope in My Notes.
+- **Observer:** CHANGES NEEDED, then fixed: pinned notes stayed after deletion; "pinned" was shown before the private record had opened; Chrome cut off long reading (now read in short pieces); Android stop/start race; voices that load late; reading carried over between revision cards; warm-start text said 10 minutes while the timer is 15.
+- **Follow-ups:** voice quality depends on the phone; Hindi needs a Hindi voice installed on the phone.
+
+---
+
 ## 2026-11-05 (morning) · Redesign, part 7: My study style (38 questions, 7 styles) and Highlights
 
 **Owner decisions (5 Nov):** the questionnaire must be full-length, using the classical body-type questions without calling them Prakriti, plus our own study questions; most people are a mix, so there are 7 types (three single, three two-type mixes, and all three even), each with its own combined plan. YouTube lecture notes must be easy to find, with a clear heading on the first page.
