@@ -62,7 +62,7 @@ function ReaderStudio() {
   }, []);
 
   const tipKind = searchParams.get("tip");
-  const [showExplainTip, setShowExplainTip] = useState(tipKind === "explain" || tipKind === "diagram");
+  const [showExplainTip, setShowExplainTip] = useState(tipKind === "explain" || tipKind === "diagram" || tipKind === "short");
   const scores = scoresFor(activeDosha);
   const profile = calculatePrakritiProfile(scores, scores);
 
@@ -95,7 +95,13 @@ function ReaderStudio() {
             data-testid="reader-explain-tip"
             className="mx-4 mt-3 flex shrink-0 items-start gap-3 rounded-2xl border border-line bg-beige-2 px-4 py-3 text-sm leading-relaxed text-ink"
           >
-            {tipKind === "diagram" ? (
+            {tipKind === "short" ? (
+              <p className="min-w-0 flex-1" data-testid="reader-short-tip">
+                <span className="font-semibold text-heading">Short notes:</span> open your book, tap{" "}
+                <span className="font-semibold">Short notes</span> at the top, pick a chapter and tap Make short notes.
+                Save them to My Notes to revise later.
+              </p>
+            ) : tipKind === "diagram" ? (
               <p className="min-w-0 flex-1" data-testid="reader-diagram-tip">
                 <span className="font-semibold text-heading">Flowcharts, tables and mind maps:</span> open your book,
                 press and hold a paragraph, then tap <span className="font-semibold">Illustrate</span> for a diagram or

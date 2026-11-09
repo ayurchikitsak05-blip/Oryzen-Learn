@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Daily AI help allowance (owner plan, 3 Nov 2026).
  * Free: 5 new AI helps a day. Pro (paid or sponsored by a class): 40.
- * Saved (cached) answers never count. Illustrate, Story and Ask My Book count as 2.
+ * Saved (cached) answers never count. Illustrate, Story, Ask My Book and Short notes count as 2.
  * The day runs on India time.
  */
 export const DAILY_AI_HELPS = { free: 5, pro: 40 } as const;
@@ -24,7 +24,7 @@ export function allowancePlanFor(accessStatus: string | null | undefined): Allow
   return accessStatus === "active_paid" || accessStatus === "class_sponsored" ? "pro" : "free";
 }
 
-const DOUBLE_HELP_LENSES = new Set(["illustrative", "story", "ask_my_book"]);
+const DOUBLE_HELP_LENSES = new Set(["illustrative", "story", "ask_my_book", "short_notes"]);
 
 export function helpCost(lensType: string): number {
   return DOUBLE_HELP_LENSES.has(lensType) ? 2 : 1;

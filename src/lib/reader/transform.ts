@@ -6,10 +6,12 @@ import type { LocalPdfChapterItem, LocalPdfDocumentRecord } from "@/lib/reader/s
 
 export const TRANSFORM_CACHE_STORAGE_KEY = "oryzen_transform_v1";
 export const TRANSFORM_EDITION = "revision_sheet" as const;
+/** Group B: AI short notes for a whole chapter (kept apart from the older quick sheets). */
+export const SHORT_NOTES_EDITION = "short_notes" as const;
 export const TRANSFORM_CHAPTER_MAX_CHARS = 4000;
 export const TRANSFORM_CHAPTER_MAX_CHUNKS = 8;
 
-export type TransformEdition = typeof TRANSFORM_EDITION;
+export type TransformEdition = typeof TRANSFORM_EDITION | typeof SHORT_NOTES_EDITION;
 
 export interface TransformChapterEdition {
   documentId: string;
@@ -21,6 +23,11 @@ export interface TransformChapterEdition {
   keyPoints: string[];
   selfCheck: string[];
   createdAt: string;
+  /** Short notes only. */
+  terms?: { term: string; meaning: string }[];
+  formulas?: string[];
+  table?: { headers: string[]; rows: string[][] } | null;
+  memoryTips?: string[];
 }
 
 function cacheKey(

@@ -1440,7 +1440,7 @@ export default function PdfViewer({
           }}
           className="btn-ghost px-2 text-[11px] disabled:opacity-40"
         >
-          Transform
+          Short notes
         </button>
         <button
           type="button"
@@ -1596,7 +1596,7 @@ export default function PdfViewer({
                 className="max-w-sm rounded-2xl border border-dashed border-line bg-canvas-2 px-6 py-10 text-center text-sm leading-relaxed text-muted"
                 data-testid="pdf-empty-state"
               >
-                Open a document to start reading. Ask My Book and Transform My Book are available after a PDF is open.
+                Open a document to start reading. Ask My Book and Short notes are available after a PDF is open.
               </p>
             ) : (
               <>
