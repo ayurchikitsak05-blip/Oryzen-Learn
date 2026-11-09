@@ -90,3 +90,22 @@ describe("photo and short notes on the server", () => {
     expect(inserted[0]).toMatchObject({ lens_type: "short_notes" });
   });
 });
+
+describe("requests at the same moment", () => {
+  it("can't use more helps than are left", async () => {
+    const { client } = fakeSupabase(Array.from({ length: 4 }, () => ({ lens_type: "explain", cache_hit: false, cost_inr: 0.2 })));
+    let resolveFirst: (value: Response) => void = () => undefined;
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFirst = resolve;
+        })
+    );
+    const first = makeAiNotes({ supabase: client, userId: "u9", accessStatus: "trial", apiKey: "k", input: photo, fetchImpl });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const second = await makeAiNotes({ supabase: client, userId: "u9", accessStatus: "trial", apiKey: "k", input: photo, fetchImpl });
+    expect(second).toMatchObject({ ok: false, code: "daily_allowance" });
+    resolveFirst(geminiReply({ readable: true, title: "t", subject: "", body: "b" }));
+    expect(await first).toMatchObject({ ok: true });
+  });
+});

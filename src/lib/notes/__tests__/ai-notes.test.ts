@@ -74,3 +74,23 @@ describe("short notes", () => {
     expect(helpCost("short_notes")).toBe(2);
   });
 });
+
+describe("short notes are kept per chapter", () => {
+  it("keeps two chapters with the same title apart", async () => {
+    const { readTransformEdition, writeTransformEdition, SHORT_NOTES_EDITION } = await import("@/lib/reader/transform");
+    const base = {
+      documentId: "d1",
+      documentHash: "h1",
+      chapterTitle: "Summary",
+      edition: SHORT_NOTES_EDITION,
+      summary: "",
+      keyPoints: [],
+      selfCheck: [],
+      createdAt: "",
+    };
+    writeTransformEdition({ ...base, pageNumber: 10, summary: "Chapter 1" });
+    writeTransformEdition({ ...base, pageNumber: 40, summary: "Chapter 2" });
+    expect(readTransformEdition("d1", "Summary", SHORT_NOTES_EDITION, "h1", 10)?.summary).toBe("Chapter 1");
+    expect(readTransformEdition("d1", "Summary", SHORT_NOTES_EDITION, "h1", 40)?.summary).toBe("Chapter 2");
+  });
+});

@@ -33,9 +33,12 @@ export interface TransformChapterEdition {
 function cacheKey(
   documentHashOrId: string,
   chapterTitle: string,
-  edition: TransformEdition
+  edition: TransformEdition,
+  pageNumber?: number
 ) {
-  return `${documentHashOrId}::${chapterTitle}::${edition}`;
+  // Short notes include the page, because books repeat chapter titles ("Summary", "Exercises").
+  const page = edition === SHORT_NOTES_EDITION && pageNumber ? `@p${pageNumber}` : "";
+  return `${documentHashOrId}::${chapterTitle}${page}::${edition}`;
 }
 
 function readCacheMap(): Record<string, TransformChapterEdition> {
@@ -166,21 +169,23 @@ function lookupEdition(
   documentId: string,
   chapterTitle: string,
   edition: TransformEdition,
-  documentHash?: string
+  documentHash?: string,
+  pageNumber?: number
 ): TransformChapterEdition | null {
-  if (documentHash && map[cacheKey(documentHash, chapterTitle, edition)]) {
-    return map[cacheKey(documentHash, chapterTitle, edition)];
+  if (documentHash && map[cacheKey(documentHash, chapterTitle, edition, pageNumber)]) {
+    return map[cacheKey(documentHash, chapterTitle, edition, pageNumber)];
   }
-  return map[cacheKey(documentId, chapterTitle, edition)] ?? null;
+  return map[cacheKey(documentId, chapterTitle, edition, pageNumber)] ?? null;
 }
 
 export function readTransformEdition(
   documentId: string,
   chapterTitle: string,
   edition: TransformEdition = TRANSFORM_EDITION,
-  documentHash?: string
+  documentHash?: string,
+  pageNumber?: number
 ): TransformChapterEdition | null {
-  return lookupEdition(readCacheMap(), documentId, chapterTitle, edition, documentHash);
+  return lookupEdition(readCacheMap(), documentId, chapterTitle, edition, documentHash, pageNumber);
 }
 
 export function writeTransformEdition(edition: TransformChapterEdition): TransformChapterEdition {
@@ -188,8 +193,8 @@ export function writeTransformEdition(edition: TransformChapterEdition): Transfo
     try {
       const map = readCacheMap();
       const key = edition.documentHash
-        ? cacheKey(edition.documentHash, edition.chapterTitle, edition.edition)
-        : cacheKey(edition.documentId, edition.chapterTitle, edition.edition);
+        ? cacheKey(edition.documentHash, edition.chapterTitle, edition.edition, edition.pageNumber)
+        : cacheKey(edition.documentId, edition.chapterTitle, edition.edition, edition.pageNumber);
       map[key] = edition;
       writePrivateString(TRANSFORM_CACHE_STORAGE_KEY, JSON.stringify(map));
     } catch {
@@ -207,6 +212,6 @@ export function countTransformedChapters(
 ): number {
   const map = readCacheMap();
   return chapters.filter((chapter) =>
-    Boolean(lookupEdition(map, documentId, chapter.title, edition, documentHash))
+    Boolean(lookupEdition(map, documentId, chapter.title, edition, documentHash, chapter.pageNumber))
   ).length;
 }
