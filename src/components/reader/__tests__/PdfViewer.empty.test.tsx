@@ -150,7 +150,7 @@ describe("PDF reader empty state", () => {
     expect(toolbar.className).toContain("max-w-full");
     expect(toolbar.className).toContain("max-[390px]:flex-wrap");
     expect(toolbar.className).toContain("max-[390px]:overflow-x-hidden");
-    expect(view.getByRole("button", { name: "Transform" })).toBeTruthy();
+    expect(view.getByRole("button", { name: "Short notes" })).toBeTruthy();
     expect(view.getByRole("button", { name: "Ask My Book" })).toBeTruthy();
   });
 
