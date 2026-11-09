@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import VideoPlayer from "@/components/video/VideoPlayer";
 import ParallelNotes from "@/components/video/ParallelNotes";
 import { LectureNotesCard } from "@/components/video/LectureNotesCard";
@@ -257,6 +258,13 @@ export default function ParallelVideoStudioPage() {
         {telemetryToast && (
           <p className="text-center text-xs text-muted">{telemetryToast}</p>
         )}
+
+        <p className="text-sm text-muted" data-testid="video-record-link">
+          Class not on YouTube?{" "}
+          <Link href="/record-lecture" className="font-medium text-accent underline-offset-4 hover:underline">
+            Record or upload your lecture
+          </Link>
+        </p>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           <VideoPlayer

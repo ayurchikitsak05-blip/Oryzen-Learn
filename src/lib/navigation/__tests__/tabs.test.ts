@@ -12,7 +12,7 @@ describe("four-tab navigation", () => {
 
   it("reaches the kept features from Practice and Tools", () => {
     const hrefs = [...PRACTICE_ITEMS, ...ME_HIGHLIGHTS, ...ME_ITEMS, ...SETTINGS_ITEMS].map((item) => item.href);
-    for (const href of ["/photo-notes", "/reader?tip=short", "/reader?tip=diagram", "/voice-notes", "/techniques", "/revise", "/reader?lens=test_me", "/sprint", "/progress", "/notes", "/roadmap", "/companion", "/video", "/synthesis", "/body-type", "/personalize", "/pricing"]) {
+    for (const href of ["/record-lecture", "/photo-notes", "/reader?tip=short", "/reader?tip=diagram", "/voice-notes", "/techniques", "/revise", "/reader?lens=test_me", "/sprint", "/progress", "/notes", "/roadmap", "/companion", "/video", "/synthesis", "/body-type", "/personalize", "/pricing"]) {
       expect(hrefs).toContain(href);
     }
     for (const href of hrefs) {
