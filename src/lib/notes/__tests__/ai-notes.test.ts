@@ -77,6 +77,9 @@ describe("short notes", () => {
 
 describe("short notes are kept per chapter", () => {
   it("keeps two chapters with the same title apart", async () => {
+    const { unlockTestVault } = await import("@/test/unlock-vault");
+    const { discardAccountVault } = await import("@/lib/privacy/account-vault");
+    await unlockTestVault("student-a");
     const { readTransformEdition, writeTransformEdition, SHORT_NOTES_EDITION } = await import("@/lib/reader/transform");
     const base = {
       documentId: "d1",
@@ -92,5 +95,6 @@ describe("short notes are kept per chapter", () => {
     writeTransformEdition({ ...base, pageNumber: 40, summary: "Chapter 2" });
     expect(readTransformEdition("d1", "Summary", SHORT_NOTES_EDITION, "h1", 10)?.summary).toBe("Chapter 1");
     expect(readTransformEdition("d1", "Summary", SHORT_NOTES_EDITION, "h1", 40)?.summary).toBe("Chapter 2");
+    discardAccountVault();
   });
 });
