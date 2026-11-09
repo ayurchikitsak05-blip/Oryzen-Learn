@@ -48,3 +48,13 @@ describe("Photo to notes", () => {
     expect(screen.getByTestId("photo-read")).toBeTruthy();
   });
 });
+
+describe("subject names", () => {
+  it("files the same subject under one name", async () => {
+    const { subjectName } = await import("../PhotoToNotes");
+    expect(subjectName(" physics ")).toBe("Physics");
+    expect(subjectName("PHYSICS")).toBe("Physics");
+    expect(subjectName("EVS")).toBe("EVS");
+    expect(subjectName("")).toBe("Photo notes");
+  });
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { ListenButton } from "@/components/speech/ListenButton";
 import type { LocalPdfDocumentRecord } from "@/lib/reader/storage";
@@ -47,6 +47,8 @@ export default function TransformDialog({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [boundDocumentId, setBoundDocumentId] = useState(pdfDocument?.id ?? "");
   const liveDocumentId = useRef(pdfDocument?.id ?? null);
+  const selectedKeyRef = useRef<string | null>(null);
+  selectedKeyRef.current = selectedKey;
   liveDocumentId.current = pdfDocument?.id ?? null;
   if ((pdfDocument?.id ?? "") !== boundDocumentId) {
     setBoundDocumentId(pdfDocument?.id ?? "");
@@ -57,13 +59,24 @@ export default function TransformDialog({
     setMessage("");
   }
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   const keyOf = (chapter: { title: string; pageNumber: number }) => `${chapter.title}::${chapter.pageNumber}`;
   const selected = chapters.find((chapter) => keyOf(chapter) === selectedKey) ?? null;
 
   if (!open) return null;
 
-  const read = (title: string) =>
-    pdfDocument ? readTransformEdition(pdfDocument.id, title, SHORT_NOTES_EDITION, pdfDocument.fileHash) : null;
+  const read = (chapter: { title: string; pageNumber: number }) =>
+    pdfDocument
+      ? readTransformEdition(pdfDocument.id, chapter.title, SHORT_NOTES_EDITION, pdfDocument.fileHash, chapter.pageNumber)
+      : null;
 
   const refreshCount = () => {
     if (!pdfDocument) return;
@@ -74,7 +87,7 @@ export default function TransformDialog({
     if (!pdfDocument || !selected || busy) return;
     setMessage("");
     setSaveState("idle");
-    const cached = read(selected.title);
+    const cached = read(selected);
     if (cached) {
       setEdition(cached);
       return;
@@ -94,8 +107,8 @@ export default function TransformDialog({
         body: JSON.stringify({ kind: "short", chapterTitle: selected.title, text }),
       });
       const json = (await response.json().catch(() => ({}))) as { short?: ShortNotes; error?: string; reference?: string };
-      if (liveDocumentId.current !== requestedId) return;
       if (!response.ok || !json.short) {
+        if (liveDocumentId.current !== requestedId) return;
         const reference = json.reference ? ` (${json.reference})` : "";
         setMessage(
           response.status === 401
@@ -104,8 +117,9 @@ export default function TransformDialog({
         );
         return;
       }
+      // Saved even if the student has moved on: it was paid for, and opening it again is free.
       const next = writeTransformEdition({
-        documentId: pdfDocument.id,
+        documentId: requestedId,
         documentHash: pdfDocument.fileHash,
         chapterTitle: selected.title,
         pageNumber: selected.pageNumber,
@@ -119,6 +133,7 @@ export default function TransformDialog({
         memoryTips: json.short.memoryTips,
         createdAt: new Date().toISOString(),
       });
+      if (liveDocumentId.current !== requestedId || selectedKeyRef.current !== keyOf(selected)) return;
       setEdition(next);
       refreshCount();
     } catch {
@@ -131,13 +146,18 @@ export default function TransformDialog({
   const saveNotes = async () => {
     if (!edition || saveState === "saving") return;
     setSaveState("saving");
-    const result = await saveToNotebook({
-      subjectTitle: pdfDocument?.title?.replace(/\.pdf$/i, "").trim().slice(0, 60) || "Short notes",
-      title: `Short notes: ${edition.chapterTitle}`.slice(0, 120),
-      noteBody: shortNotesAsText(editionToShortNotes(edition)),
-    });
-    setSaveState(result.ok ? "saved" : "idle");
-    if (!result.ok) setMessage(notebookSaveMessage(result));
+    try {
+      const result = await saveToNotebook({
+        subjectTitle: "Short notes",
+        title: `${edition.chapterTitle}${pdfDocument?.title ? ` (${pdfDocument.title.replace(/\.pdf$/i, "").trim().slice(0, 40)})` : ""}`.slice(0, 120),
+        noteBody: shortNotesAsText(editionToShortNotes(edition)),
+      });
+      setSaveState(result.ok ? "saved" : "idle");
+      if (!result.ok) setMessage(notebookSaveMessage(result));
+    } catch {
+      setSaveState("idle");
+      setMessage("No connection. Your short notes are still here; try saving again when you're online.");
+    }
   };
 
   const notes = edition ? editionToShortNotes(edition) : null;
@@ -182,14 +202,15 @@ export default function TransformDialog({
             <button
               key={keyOf(chapter)}
               type="button"
+              disabled={busy}
               aria-pressed={selectedKey === keyOf(chapter)}
               onClick={() => {
                 setSelectedKey(keyOf(chapter));
-                setEdition(read(chapter.title));
+                setEdition(read(chapter));
                 setMessage("");
                 setSaveState("idle");
               }}
-              className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm ${
+              className={`flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-left text-sm disabled:opacity-60 ${
                 selectedKey === keyOf(chapter) ? "bg-selected text-heading" : "text-ink hover:bg-beige-2"
               }`}
             >

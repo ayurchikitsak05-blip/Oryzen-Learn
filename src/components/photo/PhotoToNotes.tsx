@@ -9,6 +9,16 @@ import { saveToNotebook, notebookSaveMessage } from "@/lib/notes/save-to-noteboo
 import { shrinkPhoto } from "@/lib/notes/photo-resize";
 import type { PhotoNotes } from "@/lib/notes/ai-notes";
 
+/** "physics", "PHYSICS " → "Physics", so My Notes doesn't get the same subject twice. */
+export function subjectName(value: string): string {
+  const clean = value.replace(/\s+/g, " ").trim().slice(0, 40);
+  if (!clean) return "Photo notes";
+  return clean
+    .split(" ")
+    .map((word) => (word.length <= 3 && word === word.toUpperCase() ? word : word[0].toUpperCase() + word.slice(1).toLowerCase()))
+    .join(" ");
+}
+
 type Stage =
   | { kind: "pick" }
   | { kind: "ready"; data: string; previewUrl: string }
@@ -86,18 +96,23 @@ export function PhotoToNotes() {
   const save = async () => {
     if (saving || !title.trim() || !body.trim()) return;
     setSaving(true);
-    const result = await saveToNotebook({
-      subjectTitle: subject.trim() || "Photo notes",
-      title: title.trim(),
-      noteBody: body.trim(),
-    });
-    if (!alive.current) return;
-    setSaving(false);
-    if (result.ok) {
-      setStage({ kind: "saved" });
-      setMessage("");
-    } else {
-      setMessage(notebookSaveMessage(result));
+    try {
+      const result = await saveToNotebook({
+        subjectTitle: subjectName(subject),
+        title: title.trim(),
+        noteBody: body.trim(),
+      });
+      if (!alive.current) return;
+      if (result.ok) {
+        setStage({ kind: "saved" });
+        setMessage("");
+      } else {
+        setMessage(notebookSaveMessage(result));
+      }
+    } catch {
+      if (alive.current) setMessage("No connection. Your notes are still here; try saving again when you're online.");
+    } finally {
+      if (alive.current) setSaving(false);
     }
   };
 

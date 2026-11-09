@@ -9,7 +9,13 @@ import {
   MONTHLY_CAP_MESSAGE,
   type AllowanceStatus,
 } from "@/lib/ai/daily-allowance";
-import { calculateCallCostInr, getCurrentMonthlyWalletSpendInr, recordWalletUsageLog } from "@/lib/ai/spend-guard";
+import {
+  calculateCallCostInr,
+  getCurrentMonthlyWalletSpendInr,
+  recordWalletUsageLog,
+  releaseMonthlyAiReservation,
+  reserveMonthlyAiBudget,
+} from "@/lib/ai/spend-guard";
 import {
   AI_NOTES_LENS,
   AI_NOTES_MODEL,
@@ -34,6 +40,18 @@ export type AiNotesOutcome =
   | { ok: true; status: 200; kind: "short"; short: ShortNotes; allowance: AllowanceStatus }
   | { ok: false; status: number; code: string; error: string; allowance?: AllowanceStatus; reference?: string };
 
+/**
+ * Helps being made right now, per student, on this server. Rows are written only when the AI
+ * answers, so without this many requests at once would all see the same "helps used".
+ */
+const inFlightHelps = new Map<string, number>();
+
+function changeInFlight(userId: string, delta: number): void {
+  const next = (inFlightHelps.get(userId) ?? 0) + delta;
+  if (next > 0) inFlightHelps.set(userId, next);
+  else inFlightHelps.delete(userId);
+}
+
 /** Same month key the AI gateway uses for the monthly safety net. */
 export function billingMonthFor(now: Date): string {
   return now.toISOString().slice(0, 7);
@@ -56,18 +74,51 @@ export async function makeAiNotes(params: {
   const fetchImpl = params.fetchImpl ?? fetch;
   const plan = allowancePlanFor(params.accessStatus);
 
+  const helps = lensType === "short_notes" ? 2 : 1;
   const before = allowanceStatus(plan, await helpsUsedToday(supabase, userId, now));
-  if (!canSpendHelp(before, lensType)) {
+  const withPending = allowanceStatus(plan, before.used + (inFlightHelps.get(userId) ?? 0));
+  if (!canSpendHelp(withPending, lensType)) {
     return { ok: false, status: 429, code: "daily_allowance", error: allowanceMessage(before), allowance: before };
-  }
-  const billingMonth = billingMonthFor(now);
-  const spent = await getCurrentMonthlyWalletSpendInr(supabase, userId, billingMonth);
-  if (spent + worstCaseAiNotesCostInr(kind) > MONTHLY_AI_CAP_INR[plan]) {
-    return { ok: false, status: 429, code: "monthly_cap", error: MONTHLY_CAP_MESSAGE, allowance: before };
   }
   if (!params.apiKey) {
     return { ok: false, status: 503, code: "not_configured", error: "This isn't switched on yet." };
   }
+  const billingMonth = billingMonthFor(now);
+  const spent = await getCurrentMonthlyWalletSpendInr(supabase, userId, billingMonth);
+  // Holds the most this request can cost, so requests at the same time can't pass the cap together.
+  const budget = reserveMonthlyAiBudget({
+    userId,
+    billingMonth,
+    spentInr: spent,
+    estimateInr: worstCaseAiNotesCostInr(kind),
+    capInr: MONTHLY_AI_CAP_INR[plan],
+  });
+  if (!budget.allowed) {
+    return { ok: false, status: 429, code: "monthly_cap", error: MONTHLY_CAP_MESSAGE, allowance: before };
+  }
+  changeInFlight(userId, helps);
+  try {
+    return await callForNotes({ ...params, kind, lensType, plan, before, billingMonth, helps, fetchImpl });
+  } finally {
+    changeInFlight(userId, -helps);
+    if (budget.reservation) releaseMonthlyAiReservation(budget.reservation);
+  }
+}
+
+async function callForNotes(params: {
+  supabase: SupabaseClient;
+  userId: string;
+  apiKey: string;
+  input: AiNotesInput;
+  kind: AiNotesKind;
+  lensType: string;
+  plan: ReturnType<typeof allowancePlanFor>;
+  before: AllowanceStatus;
+  billingMonth: string;
+  helps: number;
+  fetchImpl: typeof fetch;
+}): Promise<AiNotesOutcome> {
+  const { supabase, userId, input, kind, lensType, plan, before, billingMonth, helps, fetchImpl } = params;
 
   const record = (costInr: number, promptTokens: number, completionTokens: number) =>
     recordWalletUsageLog(supabase, {
@@ -81,7 +132,7 @@ export async function makeAiNotes(params: {
       cacheHit: false,
       downgradedToFlashLite: false,
     });
-  const after = (): AllowanceStatus => allowanceStatus(plan, before.used + (lensType === "short_notes" ? 2 : 1));
+  const after = (): AllowanceStatus => allowanceStatus(plan, before.used + helps);
 
   const body = input.kind === "photo" ? photoNotesRequestBody(input.image) : shortNotesRequestBody(input.chapterTitle, input.text);
   const controller = new AbortController();

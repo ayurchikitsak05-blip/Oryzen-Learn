@@ -16,7 +16,13 @@ export async function shrinkPhoto(file: File): Promise<{ data: string; mimeType:
   if (!file.type.startsWith("image/")) throw new Error("not_image");
   let bitmap: ImageBitmap | HTMLImageElement;
   try {
-    bitmap = await createImageBitmap(file);
+    // Let the browser shrink while decoding, so a huge camera photo doesn't run out of memory.
+    bitmap = await createImageBitmap(file, { resizeWidth: PHOTO_MAX_EDGE_PX, resizeQuality: "high" }).then(async (small) => {
+      if (small.height <= PHOTO_MAX_EDGE_PX * 2) return small;
+      // A very tall picture: decode at full size and shrink on the canvas instead.
+      small.close();
+      return createImageBitmap(file);
+    });
   } catch {
     // Older Safari: fall back to an <img>.
     bitmap = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -39,6 +45,9 @@ export async function shrinkPhoto(file: File): Promise<{ data: string; mimeType:
   canvas.height = size.height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("no_canvas");
+  // White first, so a see-through PNG doesn't turn black as a JPEG.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size.width, size.height);
   ctx.drawImage(bitmap, 0, 0, size.width, size.height);
   if ("close" in bitmap && typeof bitmap.close === "function") bitmap.close();
   let quality = 0.82;
