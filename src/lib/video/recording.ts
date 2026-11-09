@@ -11,8 +11,13 @@
 import { LECTURE_MAX_SECONDS } from "./lecture-notes";
 
 export const RECORDING_BUCKET = "lecture-audio";
-/** 90 minutes of phone audio fits easily (a 64 kbps voice memo is about 43 MB). */
-export const RECORDING_MAX_BYTES = 60 * 1024 * 1024;
+/**
+ * The Supabase Free plan accepts uploads up to 50 MB. 90 minutes recorded in the app is about
+ * 22 MB; a 64 kbps phone voice memo is about 43 MB.
+ */
+export const RECORDING_MAX_BYTES = 50 * 1024 * 1024;
+/** While recording, stop a little before the limit so the class can still be sent. */
+export const RECORDING_STOP_AT_BYTES = 48 * 1024 * 1024;
 /** What the app asks the phone for when recording: clear speech, small files (about 22 MB for 90 min). */
 export const RECORDING_BITS_PER_SECOND = 32_000;
 /** Gemini counts about 32 tokens for each second of audio. */
@@ -44,7 +49,8 @@ export function audioFormatFor(mimeType: string | null | undefined, fileName = "
   const base = (mimeType ?? "").split(";")[0].trim().toLowerCase();
   const ext = fileName.toLowerCase().split(".").pop() ?? "";
   if (base === "audio/webm" || base === "video/webm" || ext === "webm") return FORMATS.webm;
-  if (["audio/mp4", "audio/x-m4a", "audio/m4a", "audio/aac-mp4"].includes(base) || ext === "m4a" || (ext === "mp4" && base.startsWith("audio"))) {
+  // Safari's recorder sometimes labels audio-only recordings "video/mp4".
+  if (["audio/mp4", "audio/x-m4a", "audio/m4a", "audio/aac-mp4", "video/mp4"].includes(base) || ext === "m4a") {
     return FORMATS.mp4;
   }
   if (base === "audio/mpeg" || base === "audio/mp3" || ext === "mp3") return FORMATS.mp3;
@@ -81,6 +87,14 @@ export const RECORDING_NOTES_PROMPT = [
   "Also return title: a short title for the lecture.",
 ].join("\n");
 
-export function isUnsupportedTypeError(status: number, message: string): boolean {
-  return status === 400 && /mime|unsupported|not supported|invalid.*(type|format)/i.test(message);
+/** Google answers a type it can't read with a 400 (often just "invalid argument"); that isn't billed. */
+export function isUnsupportedTypeError(status: number): boolean {
+  return status === 400;
 }
+
+/** Notes waiting for a student whose connection dropped are kept this long. */
+export const RECORDING_RESULT_DAYS = 7;
+/** A leftover upload is only cleared after this long, so another open tab isn't disturbed. */
+export const RECORDING_LEFTOVER_MS = 30 * 60 * 1000;
+/** Vercel stops the request at 300 s; everything must finish before this. */
+export const RECORDING_DEADLINE_MS = 280_000;
