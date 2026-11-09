@@ -16,6 +16,7 @@ import {
   parseLectureNotes,
   sanitizeStoredNotes,
   type LectureAllowance,
+  type LecturePlan,
 } from "./lecture-notes";
 
 /** Server side of lecture notes. The admin (service-role) client does every write. */
@@ -131,70 +132,9 @@ export async function makeLectureNotes(input: {
     return { ok: false, status: 503, code: "not_configured", error: "Lecture notes aren't switched on yet." };
   }
 
-  // Already making notes for this video (a second tap, or a second tab): don't pay twice.
-  const recent = new Date((input.now ?? new Date()).getTime() - IN_PROGRESS_WINDOW_MS).toISOString();
-  const { count: inProgress } = await admin
-    .from("lecture_note_requests")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("video_id", videoId)
-    .eq("cache_hit", false)
-    .gte("created_at", recent);
-  if ((inProgress ?? 0) > 0) {
-    return {
-      ok: false,
-      status: 409,
-      code: "in_progress",
-      error: "Notes for this lecture are already being made, or were just tried. Please wait a few minutes.",
-      allowance: before,
-    };
-  }
-
-  // 3. Hold a place first, so two taps at once can't both use the last lecture.
-  const { data: held, error: holdError } = await admin
-    .from("lecture_note_requests")
-    .insert({ user_id: userId, video_id: videoId, cache_hit: false, cost_inr: 0 })
-    .select("id")
-    .single();
-  if (holdError || !held) {
-    return { ok: false, status: 503, code: "store_failed", error: "Lecture notes couldn't be made just now. Nothing was counted." };
-  }
-  const heldId = (held as { id: string }).id;
-  const release = async () => {
-    await admin.from("lecture_note_requests").delete().eq("id", heldId);
-  };
-  // Two requests at the same moment: the earlier row wins, so one always goes ahead.
-  const { data: monthRows, error: rankError } = await admin
-    .from("lecture_note_requests")
-    .select("id, video_id, created_at")
-    .eq("user_id", userId)
-    .eq("cache_hit", false)
-    .eq("counted", true)
-    .gte("created_at", indiaMonthStartIso(input.now))
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true });
-  if (rankError || !Array.isArray(monthRows)) {
-    await release();
-    return { ok: false, status: 503, code: "store_failed", error: "Lecture notes couldn't be made just now. Nothing was counted." };
-  }
-  const ordered = monthRows as Array<{ id: string; video_id: string; created_at: string }>;
-  const position = ordered.findIndex((row) => row.id === heldId);
-  const sameVideoFirst = ordered.find((row) => row.video_id === videoId && row.created_at >= recent);
-  if (sameVideoFirst && sameVideoFirst.id !== heldId) {
-    await release();
-    return {
-      ok: false,
-      status: 409,
-      code: "in_progress",
-      error: "Notes for this lecture are already being made. Please wait a minute or two.",
-      allowance: before,
-    };
-  }
-  if (position < 0 || position >= before.limit) {
-    await release();
-    return { ok: false, status: 429, code: "monthly_limit", error: lectureLimitMessage(before), allowance: before };
-  }
-  const after = lectureAllowance(plan, ordered.length);
+  const slot = await holdLectureSlot({ admin, userId, key: videoId, plan, before, now: input.now });
+  if (!slot.ok) return slot.outcome;
+  const { heldId, release, after } = slot;
 
   // 4. Ask Gemini.
   const controller = new AbortController();
@@ -320,4 +260,101 @@ export async function makeLectureNotes(input: {
   );
 
   return { ok: true, status: 200, cached: false, title: parsed.title, notes: parsed.notes, allowance: after };
+}
+
+type SlotResult =
+  | { ok: true; heldId: string; release: () => Promise<void>; after: LectureAllowance }
+  | { ok: false; outcome: LectureNotesOutcome };
+
+const STORE_FAILED: LectureNotesOutcome = {
+  ok: false,
+  status: 503,
+  code: "store_failed",
+  error: "Lecture notes couldn't be made just now. Nothing was counted.",
+};
+
+/**
+ * Holds one of this month's lectures for `key` (a YouTube id or a recording id) before paying
+ * for it, so a second tap, a second tab or two requests at once can't use the same place twice.
+ */
+export async function holdLectureSlot(params: {
+  admin: SupabaseClient;
+  userId: string;
+  key: string;
+  plan: LecturePlan;
+  before: LectureAllowance;
+  now?: Date;
+}): Promise<SlotResult> {
+  const { admin, userId, key, before, plan } = params;
+  // Already making notes for this lecture (a second tap, or a second tab): don't pay twice.
+  const recent = new Date((params.now ?? new Date()).getTime() - IN_PROGRESS_WINDOW_MS).toISOString();
+  const { count: inProgress } = await admin
+    .from("lecture_note_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("video_id", key)
+    .eq("cache_hit", false)
+    .gte("created_at", recent);
+  if ((inProgress ?? 0) > 0) {
+    return {
+      ok: false,
+      outcome: {
+        ok: false,
+        status: 409,
+        code: "in_progress",
+        error: "Notes for this lecture are already being made, or were just tried. Please wait a few minutes.",
+        allowance: before,
+      },
+    };
+  }
+
+  // Hold a place first, so two taps at once can't both use the last lecture.
+  const { data: held, error: holdError } = await admin
+    .from("lecture_note_requests")
+    .insert({ user_id: userId, video_id: key, cache_hit: false, cost_inr: 0 })
+    .select("id")
+    .single();
+  if (holdError || !held) return { ok: false, outcome: STORE_FAILED };
+  const heldId = (held as { id: string }).id;
+  const release = async () => {
+    await admin.from("lecture_note_requests").delete().eq("id", heldId);
+  };
+  // Two requests at the same moment: the earlier row wins, so one always goes ahead.
+  const { data: monthRows, error: rankError } = await admin
+    .from("lecture_note_requests")
+    .select("id, video_id, created_at")
+    .eq("user_id", userId)
+    .eq("cache_hit", false)
+    .eq("counted", true)
+    .gte("created_at", indiaMonthStartIso(params.now))
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (rankError || !Array.isArray(monthRows)) {
+    await release();
+    return { ok: false, outcome: STORE_FAILED };
+  }
+  const ordered = monthRows as Array<{ id: string; video_id: string; created_at: string }>;
+  const position = ordered.findIndex((row) => row.id === heldId);
+  const sameFirst = ordered.find((row) => row.video_id === key && row.created_at >= recent);
+  if (sameFirst && sameFirst.id !== heldId) {
+    await release();
+    return {
+      ok: false,
+      outcome: {
+        ok: false,
+        status: 409,
+        code: "in_progress",
+        error: "Notes for this lecture are already being made. Please wait a minute or two.",
+        allowance: before,
+      },
+    };
+  }
+  if (position < 0 || position >= before.limit) {
+    await release();
+    return {
+      ok: false,
+      outcome: { ok: false, status: 429, code: "monthly_limit", error: lectureLimitMessage(before), allowance: before },
+    };
+  }
+  return { ok: true, heldId, release, after: lectureAllowance(plan, ordered.length) };
 }
