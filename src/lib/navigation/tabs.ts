@@ -15,6 +15,12 @@ export const APP_LINKS = [
 
 export const PRACTICE_ITEMS: readonly LinkListItem[] = [
   {
+    href: "/past-papers",
+    title: "What comes most in exams",
+    detail: "Chapters asked most in NEET, JEE Main and CBSE past papers",
+    testId: "practice-past-papers",
+  },
+  {
     href: "/reader?tip=diagram",
     title: "Flowcharts, tables and mind maps",
     detail: "Turn any page of your book into a diagram or key points",
