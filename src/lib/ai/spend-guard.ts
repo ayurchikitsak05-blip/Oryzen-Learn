@@ -2,7 +2,7 @@
  * Shield 4 monthly AI spend guard.
  *
  * Product constant: SHIELD_4_DEFAULT_WALLET_CAP_INR = ₹70.00 / month.
- * This is the existing internal wallet ceiling on the ₹199 Pro plan
+ * This is the existing internal wallet ceiling on the ₹149 Pro plan
  * (docs/02_DATA_AND_AI_GOVERNANCE.md). Do not invent a new ₹ SKU.
  *
  * Reserve BEFORE any paid provider fetch. Concurrent requests share the

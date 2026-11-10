@@ -77,10 +77,10 @@ describe("Layer 5: Freemium Metering, Exam Booster Packs & B2B Coaching Institut
     });
   });
 
-  describe("2. Pro / Exam Pass Tier (₹199/mo & ₹799/6mo: 25+ PDFs, 150 AI Explanations/day, Unlimited Quizzes)", () => {
+  describe("2. Pro / Exam Pass Tier (₹149/mo & ₹799/6mo: 25+ PDFs, 150 AI Explanations/day, Unlimited Quizzes)", () => {
     it("unlocks 25+ active PDFs, 150 AI explanations/day, and unlimited quiz generation", async () => {
       const proUserId = "student-pro-001";
-      expect(PLAN_ENTITLEMENTS.pro_monthly.priceInr).toBe(199);
+      expect(PLAN_ENTITLEMENTS.pro_monthly.priceInr).toBe(149);
       expect(PLAN_ENTITLEMENTS.pro_monthly.maxActivePdfs).toBe(25);
       expect(PLAN_ENTITLEMENTS.pro_monthly.dailyAiExplanationsLimit).toBe(150);
       expect(PLAN_ENTITLEMENTS.pro_monthly.dailyAiQuizzesLimit).toBeNull();

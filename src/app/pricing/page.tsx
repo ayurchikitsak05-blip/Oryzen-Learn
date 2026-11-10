@@ -8,6 +8,8 @@ import SubscriptionCheckout from "@/components/billing/SubscriptionCheckout";
 import AppChrome from "@/components/layout/AppChrome";
 import { ui } from "@/components/ui/classes";
 import { canonicalInviteCode, DIRECT_ACCESS_PRICE_INR } from "@/lib/access/gate";
+import { DAILY_AI_HELPS } from "@/lib/ai/daily-allowance";
+import { MONTHLY_NEW_LECTURES } from "@/lib/video/lecture-notes";
 
 const LOCAL_FEATURES = [
   "Your Reading Space",
@@ -105,8 +107,8 @@ export default function PricingPage() {
           Choose how you study
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          Local reading tools stay unlimited on every plan. Monthly caps apply only to
-          video notes and connected study guides, so usage stays predictable.
+          Reading, planning, revision and focus tools are unlimited on every plan. Only AI
+          help has a daily allowance, so costs stay predictable. Prices include GST.
         </p>
 
         <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
@@ -115,7 +117,7 @@ export default function PricingPage() {
             <p className="mt-4 font-display text-4xl text-heading">₹0</p>
             <p className="mt-1 text-sm text-muted">No card required</p>
             <QuotaList
-              items={["5 AI runs / month"]}
+              items={[`${DAILY_AI_HELPS.free} AI helps a day`, `${MONTHLY_NEW_LECTURES.free} lecture's notes a month`]}
             />
             <LocalFeatureList />
             <button
@@ -140,8 +142,8 @@ export default function PricingPage() {
             <p className="mt-1 text-sm text-muted">For a full study load</p>
             <QuotaList
               items={[
-                "120 video notes / month",
-                "60 connected study guides / month",
+                `${DAILY_AI_HELPS.pro} AI helps a day`,
+                `${MONTHLY_NEW_LECTURES.pro} lectures' notes a month`,
               ]}
             />
             <LocalFeatureList />
@@ -183,8 +185,8 @@ export default function PricingPage() {
         </div>
 
         <p className="mt-8 max-w-3xl text-sm leading-relaxed text-muted">
-          Student Pro opens a checkout for ₹{DIRECT_ACCESS_PRICE_INR}/month. Razorpay or Stripe
-          runs when those keys are set. Until then, confirming the session activates the account.
+          Student Pro is ₹{DIRECT_ACCESS_PRICE_INR} a month including GST, paid securely through
+          Razorpay (UPI, cards or net banking). Students under 18 need a parent to agree first.
         </p>
         {error && (
           <p role="alert" className="mt-3 text-sm text-red-400">

@@ -11,9 +11,20 @@ export type AccessStatus = EntitledAccessStatus | "none" | "revoked";
 
 export type ProfileRole = "student" | "instructor" | "admin";
 
-export const DIRECT_ACCESS_PRICE_INR = 199;
+/** Student Pro, per month, including 18% GST. Locked by the owner on 10 Nov 2026. */
+export const DIRECT_ACCESS_PRICE_INR = 149;
 
-const PAGE_EXEMPT_PREFIXES = ["/auth", "/access", "/pricing", "/checkout"];
+const PAGE_EXEMPT_PREFIXES = [
+  "/auth",
+  "/access",
+  "/pricing",
+  "/checkout",
+  // Age check and parental consent: needed before a plan, and parents have no plan.
+  "/age-check",
+  "/parent-consent",
+  "/parent",
+  "/privacy",
+];
 
 /**
  * Screens kept in the code but hidden from students until after the pilot
@@ -71,7 +82,8 @@ export function decideAccessRedirect(input: {
       pathname === "/pricing" ||
       pathname.startsWith("/pricing/") ||
       pathname === "/checkout" ||
-      pathname.startsWith("/checkout/")
+      pathname.startsWith("/checkout/") ||
+      pathname === "/privacy"
     ) {
       return null;
     }
