@@ -61,7 +61,7 @@
 ## Active Layer: Layer 5 — Freemium Metering, Exam Booster Packs & Coaching Institute B2B Portal (ALL LAYERS 0–5 COMPLETE)
 
 - [x] Create Supabase migration (`supabase/migrations/20261020000003_layer5_billing_quotas_and_institute_drm.sql`) for `user_subscriptions_and_quotas`, `institute_batch_assets`, and database quota enforcement triggers
-- [x] Build the Freemium Quotas & Exam Booster Packs engine (`src/lib/billing/quotas.ts` & `src/app/api/billing/quotas/route.ts`) enforcing Free Tier (3 PDFs, 10 AI explanations/day, 1 quiz/day), Pro / Exam Pass Tier (₹199/mo or ₹799/6mo: 25+ PDFs, 150 AI explanations/day, unlimited quizzes & spaced repetition), and Exam Booster Top-Up (₹49/mo: +100 AI explanations + 20 quizzes)
+- [x] Build the Freemium Quotas & Exam Booster Packs engine (`src/lib/billing/quotas.ts` & `src/app/api/billing/quotas/route.ts`) enforcing Free Tier (3 PDFs, 10 AI explanations/day, 1 quiz/day), Pro / Exam Pass Tier (₹149/mo or ₹799/6mo: 25+ PDFs, 150 AI explanations/day, unlimited quizzes & spaced repetition), and Exam Booster Top-Up (₹49/mo: +100 AI explanations + 20 quizzes)
 - [x] Build the Coaching Institute B2B Portal & Admin Dashboard (`src/app/institute/dashboard/page.tsx` & `src/lib/institute/drm-portal.ts`) with master authorized PDF & batch lecture distribution, DRM protection (blocking local download/print), dynamic student-ID & phone watermark overlay, batch analytics, and syllabus-locked AI distribution
 - [x] Write unit and integration tests (`src/lib/billing/__tests__/quotas.test.ts`) verifying quota limits, Exam Booster top-ups, and institute DRM watermarking access control
 - [x] Pass `npm run test`, `npm run build`, and `npm run lint` with zero errors and mark all layers complete

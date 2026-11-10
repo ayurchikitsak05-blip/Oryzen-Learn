@@ -30,17 +30,16 @@ function reply<T extends object>(result: ConsentResult<T>) {
   return NextResponse.json(result);
 }
 
-const UNAVAILABLE = NextResponse.json({ error: "This isn't available just now.", code: "not_configured" }, { status: 503 });
+function unavailable() {
+  return NextResponse.json({ error: "This isn't available just now.", code: "not_configured" }, { status: 503 });
+}
 
 export async function GET(request: NextRequest) {
   const user = await signedIn();
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const admin = createAdminClient();
-  if (!admin) return UNAVAILABLE;
+  if (!admin) return unavailable();
   const view = request.nextUrl.searchParams.get("view");
-  if (view === "link") {
-    return reply(await consentRequestForParent(admin, request.nextUrl.searchParams.get("c") ?? "", user.id));
-  }
   if (view === "children") {
     return NextResponse.json({ ok: true, children: await childrenForParent(admin, user.id) });
   }
@@ -51,10 +50,14 @@ export async function POST(request: NextRequest) {
   const user = await signedIn();
   if (!user) return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   const admin = createAdminClient();
-  if (!admin) return UNAVAILABLE;
+  if (!admin) return unavailable();
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const today = indiaToday();
 
+  // Looked up by POST so the link's secret doesn't end up in request logs.
+  if (body.action === "lookup") {
+    return reply(await consentRequestForParent(admin, typeof body.token === "string" ? body.token : "", user.id));
+  }
   if (body.action === "age") {
     const birthMonth = parseBirthMonth(body.birthMonth);
     if (!birthMonth) {

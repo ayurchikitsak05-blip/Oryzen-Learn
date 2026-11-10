@@ -276,7 +276,7 @@ export async function withdrawConsent(
   parentUserId: string,
   consentId: string,
   now: Date = new Date()
-): Promise<ConsentResult<Record<string, never>>> {
+): Promise<ConsentResult<object>> {
   const { data } = await admin
     .from("parental_consents")
     .select("id, child_user_id, status, parent_user_id")

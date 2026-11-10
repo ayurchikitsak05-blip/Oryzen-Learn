@@ -335,10 +335,9 @@ export function ParentPage() {
       const ownJson = own ? ((await own.json().catch(() => ({}))) as { status?: { needsBirthMonth: boolean } }) : {};
       setNeedsAge(Boolean(ownJson.status?.needsBirthMonth));
       if (token) {
-        const response = await fetch(`/api/consent?view=link&c=${encodeURIComponent(token)}`, { credentials: "same-origin" }).catch(
-          () => null
-        );
-        const json = response ? ((await response.json().catch(() => ({}))) as Partial<LinkState> & { error?: string }) : {};
+        const looked = await postConsent({ action: "lookup", token }).catch(() => null);
+        const response = looked?.response ?? null;
+        const json = (looked?.json ?? {}) as Partial<LinkState> & { error?: string };
         if (response?.ok && json.childName && json.state) {
           setRequest({ childName: json.childName, state: json.state, isChild: Boolean(json.isChild) });
         } else {
@@ -397,7 +396,7 @@ export function ParentPage() {
         <h1 className={`${ui.heading} text-3xl`}>Parent consent</h1>
         <p className="text-sm leading-relaxed text-muted">
           Your child wants to use ORYZEN Learn for their studies. Please sign in with <strong>your own</strong> email (not
-          your child&apos;s). We&apos;ll send you a code; no password needed.
+          your child&apos;s). You can sign in with a password or an email link.
         </p>
         <Link href={`/auth?form=1&next=${encodeURIComponent(next)}`} className={`${ui.primary} min-h-12 w-full`}>
           Sign in as a parent

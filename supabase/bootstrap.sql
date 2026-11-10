@@ -615,7 +615,7 @@ CREATE POLICY "Users insert own pending checkout"
   WITH CHECK (
     user_id = auth.uid()
     AND status = 'pending'
-    AND amount_inr = 199
+    AND amount_inr IN (149, 199)
     AND provider IN ('placeholder', 'stripe', 'razorpay')
   );
 

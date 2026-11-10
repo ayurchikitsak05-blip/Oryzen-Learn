@@ -17,7 +17,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- A pending checkout for student A, created by the app.
 INSERT INTO public.checkout_sessions (id, user_id, provider, status, amount_inr)
-VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'razorpay', 'pending', 199);
+VALUES ('44444444-4444-4444-4444-444444444444', '11111111-1111-1111-1111-111111111111', 'razorpay', 'pending', 149);
 
 DO $$
 DECLARE

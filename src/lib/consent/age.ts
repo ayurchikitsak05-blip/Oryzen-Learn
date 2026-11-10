@@ -91,6 +91,13 @@ export function isRelationship(value: unknown): value is ConsentRelationship {
   return typeof value === "string" && (CONSENT_RELATIONSHIPS as readonly string[]).includes(value);
 }
 
+/** A safe place to return a parent to after sign-in: only the parent page. */
+export function consentNextPath(value: string | null | undefined): string | null {
+  if (!value || !value.startsWith("/parent") || value.startsWith("/parent-consent") || value.startsWith("//")) return null;
+  if (!/^\/parent(\?|$|\/)/.test(value)) return null;
+  return value;
+}
+
 /** Link the student sends to a parent. */
 export function consentLink(origin: string, token: string): string {
   return `${origin}/parent?c=${encodeURIComponent(token)}`;

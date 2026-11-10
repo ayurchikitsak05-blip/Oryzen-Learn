@@ -6,6 +6,7 @@ import {
   type CognitiveTelemetryEventType,
 } from "@/lib/ai/adaptive-memory";
 import type { Dosha } from "@/lib/prakriti/config";
+import { indiaToday, isMinor } from "@/lib/consent/age";
 
 export async function POST(request: NextRequest) {
   const { isPublicDemoSession, PUBLIC_DEMO_COOKIE, PUBLIC_DEMO_VISITOR_COOKIE } = await import(
@@ -50,6 +51,15 @@ export async function POST(request: NextRequest) {
       sessionUserId = data?.user?.id ?? null;
     }
     const resolvedUserId = resolveAuthorizedUserId(sessionUserId, body.userId);
+
+    // DPDP s.9(3): no behavioural monitoring of children. Under-18s' study habits aren't recorded.
+    if (supabase && sessionUserId) {
+      const { data: ageRow } = await supabase.from("profiles").select("*").eq("id", sessionUserId).maybeSingle();
+      const birthMonth = (ageRow as Record<string, unknown> | null)?.birth_month;
+      if (typeof birthMonth !== "string" || isMinor(birthMonth, indiaToday())) {
+        return NextResponse.json({ skipped: true, reason: "under_18_or_age_unknown" });
+      }
+    }
 
     const updatedDna = await recordCognitiveTelemetryEvent({
       userId: resolvedUserId,

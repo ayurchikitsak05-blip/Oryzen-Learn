@@ -3,7 +3,7 @@
 ---
 
 ## Overview
-To serve Indian medical, BAMS, and competitive exam students at accessible price points (e.g., ₹199/month or seasonal Exam Passes) while maintaining high gross margins, the platform enforces the **5-Shield AI Profit Protection System** across every API route and client workflow.
+To serve Indian medical, BAMS, and competitive exam students at accessible price points (e.g., ₹149/month or seasonal Exam Passes) while maintaining high gross margins, the platform enforces the **5-Shield AI Profit Protection System** across every API route and client workflow.
 
 ---
 
@@ -40,7 +40,7 @@ To serve Indian medical, BAMS, and competitive exam students at accessible price
 ## Shield 4: Internal Wallet Ceiling & Automatic Graceful Downgrade
 - **Rule:** Every user account has a hard monthly internal API cost ledger tracked in Supabase (`user_ai_usage_ledger`).
 - **Mechanism:**
-  - On a ₹199/month student plan, the hard internal AI cost ceiling is capped (e.g., **₹70.00 / month**).
+  - On a ₹149/month student plan, the hard internal AI cost ceiling is capped (e.g., **₹70.00 / month**).
   - Each LLM call logs exact input/output tokens and INR micro-cost.
   - If a power user approaches 85% of their monthly ceiling, all Gemini Pro calls automatically fall back to **Gemini Flash-Lite** + cached responses so the student never hits a hard service blackout while unit economics remain guaranteed profitable.
 

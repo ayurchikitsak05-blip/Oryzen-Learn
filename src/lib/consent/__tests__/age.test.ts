@@ -79,3 +79,16 @@ describe("consent gate", () => {
     expect(decideAccessRedirect({ pathname: "/privacy", isAuthenticated: false, accessStatus: null, role: null })).toBeNull();
   });
 });
+
+describe("returning a parent to the consent link after sign-in", () => {
+  it("only allows the parent page", async () => {
+    const { consentNextPath } = await import("../age");
+    expect(consentNextPath("/parent?c=abc")).toBe("/parent?c=abc");
+    expect(consentNextPath("/parent")).toBe("/parent");
+    expect(consentNextPath("/parent-consent")).toBeNull();
+    expect(consentNextPath("/parentx")).toBeNull();
+    expect(consentNextPath("//evil.example/parent")).toBeNull();
+    expect(consentNextPath("/hub")).toBeNull();
+    expect(consentNextPath(null)).toBeNull();
+  });
+});

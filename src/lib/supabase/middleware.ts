@@ -198,6 +198,7 @@ export async function updateSession(
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = consentPath;
       redirectUrl.search = "";
+      if (consentPath === "/age-check") redirectUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
       const redirectResponse = NextResponse.redirect(redirectUrl);
       supabaseResponse.cookies.getAll().forEach((cookie) => {
         redirectResponse.cookies.set(cookie);
@@ -209,6 +210,7 @@ export async function updateSession(
   const apiOpen =
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/access") ||
+    pathname.startsWith("/api/consent") ||
     pathname.startsWith("/api/billing/checkout") ||
     pathname.startsWith("/api/billing/stripe") ||
     pathname.startsWith("/api/health") ||

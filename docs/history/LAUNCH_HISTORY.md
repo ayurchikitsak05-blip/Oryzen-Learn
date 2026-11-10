@@ -4,6 +4,25 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-11 · Parental consent (DPDP), privacy notice, Student Pro at ₹149
+
+**Owner decisions (10 Nov):** GST is registered under the company; build parental consent now; Student Pro is ₹149 a month; group B is on hold.
+
+### Change: Parental consent for students under 18
+- **Why:** DPDP Act 2023 s.9 and DPDP Rules 2025 r.10: a parent who is an identifiable adult must agree before a child's (under 18) data is used; no tracking, behavioural monitoring or targeted ads for children. Applies from 14 May 2027; ORYZEN starts early.
+- **What:** every student gives month and year of birth once (/age-check; can't be changed without support). Under 18: the account pauses; the student sends a link (WhatsApp or copy, valid 7 days). The parent signs in with their own email, confirms they're 18+ and the parent or guardian, reads what we keep and why, and agrees (/parent). The parent can withdraw any time; the account pauses again. The record of consent (who, when, notice version, how checked) is kept and only the server writes it. Study habits (adaptive memory) are not recorded for under-18s. /privacy has the notice, rights and complaints.
+- **Files:** `src/lib/consent/*`, `src/app/api/consent/route.ts`, `src/components/consent/ConsentScreens.tsx`, `src/app/{age-check,parent-consent,parent,privacy}`, `src/lib/supabase/middleware.ts`, `src/lib/access/gate.ts`, `src/app/auth/page.tsx`, `src/app/api/auth/otp/route.ts`, `src/app/api/ai/memory/route.ts`.
+- **Database:** `20261111000001_parental_consent.sql` (profiles.birth_month and parent_consent_at, protected from students; parental_consents table). The check stays off until this is applied.
+
+### Change: Student Pro ₹149 a month (including GST)
+- **What:** price constant, plan table, pricing page (now shows the real daily AI helps and lecture allowance, "Prices include GST"), checkout. `20261111000002_student_pro_149.sql` lets the database accept ₹149 checkouts (₹199 still accepted until the new app is live).
+
+- **Tested:** unit tests (age and gate rules, parent return path, server consent rules with a fake database: self-approval, parent under 18, expired links, replaced links, withdrawal), price tests. CI.
+- **Observer:** CHANGES NEEDED, then fixed: ₹149 checkouts were blocked by the database; parents lost the link after signing in; the consent API wasn't open to accounts without a plan; a type error; the notice understated what's stored (Subject Vault files, AI answer cache, backup AI providers, study-habit tracking, Stripe).
+- **Follow-ups (before 14 May 2027):** stronger parent verification (DigiLocker or another government-authorised age token); lawyer review of the notice and flow; database-level consent checks (today only the app checks); a grievance email and company name in Vercel settings; adult students' own consent at 18.
+
+---
+
 ## 2026-11-08 · Competitor features, group A part 3: strict mode, exam countdown wallpaper, easier diagram tools (no AI)
 
 ### Change: Strict mode for sprints
