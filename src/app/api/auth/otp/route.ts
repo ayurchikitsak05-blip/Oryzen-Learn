@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { consentNextPath } from "@/lib/consent/age";
 import { createClient as createAuthClient } from "@supabase/supabase-js";
 import { canManageClasses } from "@/lib/access/gate";
 import {
