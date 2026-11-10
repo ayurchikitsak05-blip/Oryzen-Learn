@@ -7,6 +7,7 @@ import {
   isPublicDemoSession,
 } from "@/lib/demo/public-demo";
 import { canManageClasses, decideAccessRedirect, isEntitled } from "@/lib/access/gate";
+import { consentBlocksApi, consentGate, consentRedirect, indiaToday, type ConsentGate } from "@/lib/consent/age";
 import { getSupabaseEnvConfig } from "./client";
 import { verifyDeviceSessionActive } from "./device-lock";
 
@@ -154,6 +155,7 @@ export async function updateSession(
   const pathname = request.nextUrl.pathname;
   let accessStatus: string | null = null;
   let role: string | null = null;
+  let gate: ConsentGate = null;
   if (publicDemo) {
     accessStatus = "trial";
     role = "student";
@@ -161,12 +163,21 @@ export async function updateSession(
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("access_status, role")
+        // "*" so this still works before the parental-consent columns exist.
+        .select("*")
         .eq("id", user.id)
         .maybeSingle();
       if (!error && profile) {
-        accessStatus = profile.access_status ?? null;
-        role = profile.role ?? null;
+        const row = profile as Record<string, unknown>;
+        accessStatus = (row.access_status as string | null) ?? null;
+        role = (row.role as string | null) ?? null;
+        gate = consentGate({
+          role,
+          // undefined (column missing) switches the check off until the migration is applied.
+          birthMonth: "birth_month" in row ? ((row.birth_month as string | null) ?? null) : undefined,
+          parentConsentAt: (row.parent_consent_at as string | null | undefined) ?? null,
+          today: indiaToday(),
+        });
       }
     } catch {
       accessStatus = null;
@@ -174,9 +185,32 @@ export async function updateSession(
     }
   }
 
+  // Age check and parental consent (DPDP) come before everything else, including plans.
+  if (user && gate) {
+    if (consentBlocksApi(pathname, gate)) {
+      return NextResponse.json(
+        { error: gate === "age_check" ? "Add your date of birth first." : "A parent needs to agree first.", code: gate },
+        { status: 403 }
+      );
+    }
+    const consentPath = consentRedirect(pathname, gate);
+    if (consentPath) {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = consentPath;
+      redirectUrl.search = "";
+      if (consentPath === "/age-check") redirectUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+      const redirectResponse = NextResponse.redirect(redirectUrl);
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie);
+      });
+      return redirectResponse;
+    }
+  }
+
   const apiOpen =
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/access") ||
+    pathname.startsWith("/api/consent") ||
     pathname.startsWith("/api/billing/checkout") ||
     pathname.startsWith("/api/billing/stripe") ||
     pathname.startsWith("/api/health") ||

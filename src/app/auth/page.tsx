@@ -2,6 +2,7 @@
 
 import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { consentNextPath } from "@/lib/consent/age";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Smartphone, Tablet } from "lucide-react";
 import TryDemoButton from "@/components/demo/TryDemoButton";
@@ -151,7 +152,8 @@ function AuthScreen() {
             return;
           }
           setStatusMessage("Signed in.");
-          router.replace(json.next);
+          // A parent who signed in from a consent link goes back to it.
+          router.replace(consentNextPath(new URLSearchParams(window.location.search).get("next")) ?? json.next);
           router.refresh();
         } catch {
           setErrorMessage("The sign-in link could not be completed.");
@@ -164,6 +166,12 @@ function AuthScreen() {
 
   const finishSignIn = (nextPath: string) => {
     const requested = searchParams.get("next");
+    const parentNext = consentNextPath(requested);
+    if (parentNext) {
+      router.push(parentNext);
+      router.refresh();
+      return;
+    }
     const stayOnGate =
       requested?.startsWith("/access") ||
       requested?.startsWith("/pricing") ||
@@ -276,6 +284,7 @@ function AuthScreen() {
         body: JSON.stringify({
           action: "send",
           email,
+          next: consentNextPath(searchParams.get("next")),
           deviceId,
           deviceType,
         }),
@@ -311,6 +320,11 @@ function AuthScreen() {
     >
       <main className="mx-auto flex w-full max-w-lg flex-col px-4 py-8">
         <section className={ui.cardPad}>
+          {consentNextPath(searchParams.get("next")) ? (
+            <p className={`${ui.notice} mb-4`} data-testid="auth-parent-note">
+              Parent consent: sign in, or create an account, with <strong>your own</strong> email (not your child&apos;s).
+            </p>
+          ) : null}
           <h1 className={`${ui.heading} text-3xl`}>{heading}</h1>
           <p className="mt-2 text-sm text-muted">
             {mode === "sign_up"

@@ -3,7 +3,7 @@
  *
  * Enforces:
  * - Free Tier (`free`): Max 3 active PDFs, 10 grounded AI explanations/day, 1 AI quiz/day.
- * - Pro / Exam Pass Tier (`pro_monthly` ₹199/mo or `exam_pass_6mo` ₹799/6mo):
+ * - Pro / Exam Pass Tier (`pro_monthly` ₹149/mo or `exam_pass_6mo` ₹799/6mo):
  *   25+ active PDFs, 150 AI explanations/day product ceiling (not a
  *   cost-backed daily promise — do not advertise 150/day until owner-approved),
  *   unlimited quiz generation and spaced repetition.
@@ -48,8 +48,8 @@ export const PLAN_ENTITLEMENTS: Record<
   pro_monthly: {
     tier: "pro_monthly",
     displayName: "Pro Scholar Monthly",
-    priceInr: 199,
-    billingCycleLabel: "₹199 / month",
+    priceInr: 149,
+    billingCycleLabel: "₹149 / month",
     maxActivePdfs: 25,
     dailyAiExplanationsLimit: 150,
     dailyAiQuizzesLimit: null, // Unlimited
@@ -272,7 +272,7 @@ export async function evaluateAndConsumeQuota(params: {
       nextState.activePdfCount += 1;
     } else {
       allowed = false;
-      reason = `${entitlements.displayName} allows max ${entitlements.maxActivePdfs} active PDFs. Upgrade to Pro (₹199/mo) or Exam Pass (₹799/6mo) for 25+ PDFs.`;
+      reason = `${entitlements.displayName} allows max ${entitlements.maxActivePdfs} active PDFs. Upgrade to Pro (₹149/mo) or Exam Pass (₹799/6mo) for 25+ PDFs.`;
     }
   } else if (params.resource === "ai_explanation") {
     if (state.dailyExplanationsUsed < entitlements.dailyAiExplanationsLimit) {

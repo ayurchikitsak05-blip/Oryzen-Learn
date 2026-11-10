@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { consentNextPath } from "@/lib/consent/age";
 import { createClient as createAuthClient } from "@supabase/supabase-js";
 import { canManageClasses } from "@/lib/access/gate";
 import {
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       action: "send" | "verify";
       email?: string;
+      next?: string | null;
       token?: string;
       deviceId?: string;
       deviceType?: string;
@@ -55,7 +57,10 @@ export async function POST(request: NextRequest) {
         email,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: `${request.nextUrl.origin}/auth`,
+          // A parent signing in from a consent link is brought back to it.
+          emailRedirectTo: `${request.nextUrl.origin}/auth${
+            consentNextPath(body.next) ? `?next=${encodeURIComponent(consentNextPath(body.next) as string)}` : ""
+          }`,
         },
       });
 
