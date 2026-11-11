@@ -65,8 +65,8 @@ describe("monthly auto-renew", () => {
   it("pays Pro until the end of the charged month plus two days", () => {
     expect(proUntilFor({ current_end: monthEnd }, now).toISOString()).toBe("2026-12-14T00:00:00.000Z");
     expect(proUntilFor({ current_end: null }, now).toISOString()).toBe("2026-12-15T00:00:00.000Z");
-    expect(razorpayPlanId({ RAZORPAY_PLAN_ID: "plan_ABC" } as NodeJS.ProcessEnv)).toBe("plan_ABC");
-    expect(razorpayPlanId({ RAZORPAY_PLAN_ID: "oops" } as NodeJS.ProcessEnv)).toBeNull();
+    expect(razorpayPlanId({ RAZORPAY_PLAN_ID: "plan_ABC" } as unknown as NodeJS.ProcessEnv)).toBe("plan_ABC");
+    expect(razorpayPlanId({ RAZORPAY_PLAN_ID: "oops" } as unknown as NodeJS.ProcessEnv)).toBeNull();
   });
 
   it("makes a subscription tagged with the student", async () => {
