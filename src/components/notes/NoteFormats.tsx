@@ -6,7 +6,7 @@ import { ui } from "@/components/ui/classes";
 import { NOTE_FORMATS, parseNote, type FormattedNote, type NoteFormat, type OutlineItem } from "@/lib/notes/formats";
 
 const smallBtn =
-  "inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-line bg-canvas text-muted hover:bg-beige-2";
+  "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-line bg-canvas text-muted hover:bg-beige-2";
 
 /** Chips to choose a note's format. */
 export function FormatPicker({ value, onChange }: { value: NoteFormat; onChange: (format: NoteFormat) => void }) {
@@ -51,7 +51,7 @@ function ItemRows({
           <button
             type="button"
             className={smallBtn}
-            aria-label="Move left"
+            aria-label={`Move line ${index + 1} left`}
             disabled={item.level === 0}
             onClick={() => update(index, { level: Math.max(0, item.level - 1) as OutlineItem["level"] })}
           >
@@ -60,7 +60,7 @@ function ItemRows({
           <button
             type="button"
             className={smallBtn}
-            aria-label="Move right"
+            aria-label={`Move line ${index + 1} right`}
             disabled={item.level === 2}
             onClick={() => update(index, { level: Math.min(2, item.level + 1) as OutlineItem["level"] })}
           >
@@ -73,7 +73,7 @@ function ItemRows({
             onChange={(event) => update(index, { text: event.target.value })}
             aria-label={`Line ${index + 1}, level ${item.level + 1}`}
           />
-          <button type="button" className={smallBtn} aria-label="Remove line" onClick={() => onChange(items.filter((_, i) => i !== index))}>
+          <button type="button" className={smallBtn} aria-label={`Remove line ${index + 1}`} onClick={() => onChange(items.filter((_, i) => i !== index))}>
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
@@ -189,7 +189,7 @@ export function FormattedNoteEditor({ note, onChange }: { note: FormattedNote; o
                     {Array.from({ length: width }, (_, c) => (
                       <td key={c}>
                         <input
-                          className={`${ui.input} w-32 ${r === 0 ? "font-semibold" : ""}`}
+                          className={`${ui.input} !w-32 min-w-[7rem] ${r === 0 ? "font-semibold" : ""}`}
                           value={row[c] ?? ""}
                           placeholder={r === 0 ? (c === 0 ? "Compare" : `Item ${c}`) : c === 0 ? "Feature" : ""}
                           aria-label={`Row ${r + 1}, column ${c + 1}`}

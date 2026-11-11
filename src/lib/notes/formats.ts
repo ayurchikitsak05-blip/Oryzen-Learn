@@ -85,9 +85,10 @@ export function serializeNote(note: FormattedNote): string {
     }
     case "table": {
       const width = Math.max(0, ...note.rows.map((row) => row.length));
+      // The first row is the heading: always kept, even if blank. Empty rows below it are dropped.
       const rows = note.rows
         .map((row) => [...row, ...Array(Math.max(0, width - row.length)).fill("")].map(cell))
-        .filter((row) => row.some(Boolean))
+        .filter((row, index) => index === 0 || row.some(Boolean))
         .map((row) => row.join(" | "));
       return [HEADER.table, ...rows].join("\n");
     }
@@ -172,7 +173,7 @@ export function noteHasContent(note: FormattedNote): boolean {
     case "plain":
       return Boolean(note.text.trim());
     case "cornell":
-      return note.pairs.some((pair) => pair.q.trim() && pair.a.trim()) || Boolean(note.summary.trim());
+      return note.pairs.some((pair) => pair.q.trim() || pair.a.trim()) || Boolean(note.summary.trim());
     case "outline":
     case "mindmap":
       return note.items.some((item) => item.text.trim());
@@ -181,6 +182,16 @@ export function noteHasContent(note: FormattedNote): boolean {
     case "flowchart":
       return note.steps.some((step) => step.trim());
   }
+}
+
+/** Why a note can't be saved yet, in plain words; null when it's fine. */
+export function noteProblem(note: FormattedNote): string | null {
+  if (note.format === "plain") return null;
+  if (!noteHasContent(note)) return "Write at least one line before saving.";
+  if (note.format === "table" && !(note.rows[0] ?? []).some((value) => value.trim())) {
+    return "Fill in the top row of the table: it names what you're comparing.";
+  }
+  return null;
 }
 
 /** Text for Listen: no "Format:" line, and questions read naturally. */
@@ -230,35 +241,6 @@ export function cornellCardId(noteId: string, index: number): string {
 // ---------------------------------------------------------------------------
 // Saving an AI answer the student already has as a note (no new AI call).
 // ---------------------------------------------------------------------------
-
-/** Lines that look like steps or points, from an answer's text. */
-export function linesFromAnswer(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim().replace(/^(\d+[.)]|[-*•→]|->)\s*/, "").replace(/\*\*/g, ""))
-    .filter((line) => line.length > 1 && !/^#+\s*$/.test(line))
-    .map((line) => line.replace(/^#+\s*/, ""))
-    .slice(0, 30);
-}
-
-export function answerAsFlowchart(text: string): FormattedNote {
-  return { format: "flowchart", steps: linesFromAnswer(text) };
-}
-
-export function answerAsOutline(text: string): FormattedNote {
-  const items: OutlineItem[] = text
-    .split("\n")
-    .filter((line) => line.trim())
-    .slice(0, 40)
-    .map((raw) => {
-      const heading = /^\s*#+\s/.test(raw);
-      const indent = raw.match(/^\s*/)?.[0].length ?? 0;
-      const level = (heading ? 0 : indent >= 4 ? 2 : 1) as 0 | 1 | 2;
-      return { level, text: raw.trim().replace(/^(#+|\d+[.)]|[-*•])\s*/, "").replace(/\*\*/g, "") };
-    })
-    .filter((item) => item.text.length > 1);
-  return { format: "outline", items };
-}
 
 /** A markdown or "a | b" table in an answer, as table rows; null if there isn't one. */
 export function answerAsTable(text: string): FormattedNote | null {

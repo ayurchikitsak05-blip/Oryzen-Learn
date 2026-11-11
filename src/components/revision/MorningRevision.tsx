@@ -59,12 +59,16 @@ export function toRevisionNotes(data: ApiNotes): RevisionNote[] {
     };
     // A Cornell note gives one card per question: question on the front, answer on the back.
     if (noteFormatOf(note.body) === "cornell") {
-      return cornellCards(note.body ?? "").map((pair, index) => ({
-        ...base,
-        id: cornellCardId(note.id, index),
-        title: pair.q,
-        body: pair.a,
-      }));
+      const pairs = cornellCards(note.body ?? "");
+      // Questions not answered yet: the whole note is one card until they are.
+      if (pairs.length > 0) {
+        return pairs.map((pair, index) => ({
+          ...base,
+          id: cornellCardId(note.id, index),
+          title: `${note.title ?? ""}: ${pair.q}`.replace(/^: /, ""),
+          body: pair.a,
+        }));
+      }
     }
     return [{ ...base, id: note.id, title: note.title ?? "", body: note.body ?? "" }];
   });
@@ -153,7 +157,7 @@ function RevisionProgress({ notes, state }: { notes: RevisionNote[]; state: Revi
       <div>
         <h2 className="font-semibold text-heading">Memorised so far</h2>
         <p className="text-sm text-muted" data-testid="revision-memorised">
-          {memorised} of {total} notes memorised (remembered three times in a row).
+          {memorised} of {total} cards memorised (remembered three times in a row).
         </p>
       </div>
       <div className="overflow-x-auto">

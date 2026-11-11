@@ -13,6 +13,8 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - **Cornell → revision cards:** each question with an answer becomes its own Morning revision card (question on the front, answer on the back); "Memorise this" brings all of a note's questions forward.
 - **Save an answer as a note:** under Explain/Illustrate/Revise answers, "Save to My Notes as: Flowchart / Mind map / Cornell / Table / Outline" uses the answer already on screen. No new AI call.
 - **Which note style for this topic?** on Study techniques, suited styles first.
+- **Tested:** unit tests (save and read back every format, Cornell cards, answer-to-note conversion, style order) and screen tests (Cornell editor, cover answers, table/flowchart/mind map views). CI passed.
+- **Observer:** CHANGES NEEDED, then fixed: Cornell notes with only a summary or unanswered questions never reached revision (now one card until answered); a blank table heading row was dropped; table cells too narrow on phones; signed-out save message; concept diagrams offered as flowcharts; small buttons and repeated screen-reader names.
 - **Not added (cost or low value now):** sketchnoting (needs image storage), linked notes (Zettelkasten), concept maps.
 - **Files:** `src/lib/notes/formats.ts`, `src/lib/notes/from-answer.ts`, `src/components/notes/NoteFormats.tsx`, `src/components/notes/SaveAnswerAsNote.tsx`, `src/components/notes/MyNotes.tsx`, `src/components/notes/StickyNotes.tsx`, `src/components/revision/MorningRevision.tsx`, `src/components/reader/StudyLensOutput.tsx`, `src/lib/study/techniques.ts`, `src/app/techniques/page.tsx`.
 

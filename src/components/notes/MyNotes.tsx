@@ -16,7 +16,7 @@ import {
   cornellCardId,
   cornellCards,
   noteFormatOf,
-  noteHasContent,
+  noteProblem,
   noteTextForReading,
   serializeNote,
   type FormattedNote,
@@ -146,8 +146,9 @@ export default function MyNotes() {
   const createNote = async () => {
     const title = noteTitle.trim();
     if (!selectedId || !title) return;
-    if (noteFormat !== "plain" && !noteHasContent(draft)) {
-      setError("Write at least one line before saving.");
+    const problem = noteProblem(draft);
+    if (problem) {
+      setError(problem);
       return;
     }
     const noteBody = serializeNote(draft);

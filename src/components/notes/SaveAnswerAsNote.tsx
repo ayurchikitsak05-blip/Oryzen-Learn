@@ -21,7 +21,13 @@ export function SaveAnswerAsNote({ payload, fallbackTitle }: { payload: AiLensRe
     setMessage("");
     try {
       const result = await saveToNotebook({ subjectTitle: "From my books", title, noteBody: serializeNote(option.note) });
-      setMessage(result.ok ? `Saved to My Notes as a ${option.label.toLowerCase()}.` : notebookSaveMessage(result));
+      setMessage(
+        result.ok
+          ? `Saved to My Notes as a ${option.label.toLowerCase()}.`
+          : result.status === 401
+            ? "Sign in to save this to My Notes."
+            : notebookSaveMessage(result)
+      );
     } catch {
       setMessage("No connection. Try saving again when you're online.");
     } finally {

@@ -62,7 +62,7 @@ export function noteOptionsForAnswer(payload: AiLensResponsePayload): AnswerNote
   const options: AnswerNoteOption[] = [];
   const flow =
     payload.illustrative?.flowchart ??
-    (payload.diagram && payload.diagram.kind !== "mind_map" ? payload.diagram : undefined);
+    (payload.diagram && (payload.diagram.kind === "flowchart" || !payload.diagram.kind) ? payload.diagram : undefined);
   if (flow && flow.nodes.length >= 2) {
     options.push({ format: "flowchart", label: "Flowchart", note: { format: "flowchart", steps: diagramAsSteps(flow) } });
   }

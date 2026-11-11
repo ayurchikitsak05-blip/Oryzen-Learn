@@ -6,6 +6,7 @@ import {
   cornellCards,
   noteFormatOf,
   noteHasContent,
+  noteProblem,
   notePreviewText,
   noteTextForReading,
   parseNote,
@@ -49,12 +50,15 @@ describe("note formats", () => {
     expect(noteFormatOf("Just my note")).toBe("plain");
     expect(parseNote("Just my note")).toEqual({ format: "plain", text: "Just my note" });
     expect(serializeNote({ format: "table", rows: [["A|B", "C"], ["1"]] })).toBe("Format: Table\nA/B | C\n1 | ");
+    expect(serializeNote({ format: "table", rows: [["", ""], ["", ""], ["x", "y"]] })).toBe("Format: Table\n | \nx | y");
   });
 
   it("knows when something has been written", () => {
     expect(noteHasContent(blankNote("cornell"))).toBe(false);
     expect(noteHasContent(blankNote("table"))).toBe(false);
     expect(noteHasContent(cornell)).toBe(true);
+    expect(noteProblem({ format: "table", rows: [["", ""], ["Guna", "Ruksha"]] })).toMatch(/top row/);
+    expect(noteProblem({ format: "cornell", pairs: [{ q: "Causes?", a: "" }], summary: "" })).toBeNull();
   });
 
   it("reads notes aloud and previews them without the Format line", () => {
@@ -77,11 +81,17 @@ describe("Cornell revision cards", () => {
       ],
     } as never);
     expect(cards.map((card) => [card.id, card.title, card.subject])).toEqual([
-      [cornellCardId("n1", 0), "Definition?", "Pathology"],
-      [cornellCardId("n1", 1), "Ferritin?", "Pathology"],
+      [cornellCardId("n1", 0), "Iron deficiency: Definition?", "Pathology"],
+      [cornellCardId("n1", 1), "Iron deficiency: Ferritin?", "Pathology"],
       ["n2", "Plain", "Pathology"],
     ]);
     expect(cards[1].body).toBe("Usually low.");
+  });
+
+  it("keeps a Cornell note with no answers yet as one card", () => {
+    const body = serializeNote({ format: "cornell", pairs: [{ q: "Causes?", a: "" }], summary: "To finish" });
+    const cards = toRevisionNotes({ subjects: [], notes: [{ id: "n3", subject_id: "x", title: "Draft", body, updated_at: "" }] } as never);
+    expect(cards.map((card) => card.id)).toEqual(["n3"]);
   });
 });
 
