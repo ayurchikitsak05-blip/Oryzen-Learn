@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import SubscriptionCheckout from "@/components/billing/SubscriptionCheckout";
 import AppChrome from "@/components/layout/AppChrome";
+import { MyPlan } from "@/components/billing/MyPlan";
 import { ui } from "@/components/ui/classes";
 import { canonicalInviteCode, DIRECT_ACCESS_PRICE_INR } from "@/lib/access/gate";
 import { DAILY_AI_HELPS } from "@/lib/ai/daily-allowance";
@@ -109,7 +110,9 @@ export default function PricingPage() {
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
           Reading, planning, revision and focus tools are unlimited on every plan. Only AI
           help has a daily allowance, so costs stay predictable. Prices include GST.
+          Student Pro renews every month until you stop it.
         </p>
+        <MyPlan />
 
         <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
           <article className={`${ui.cardPad} flex flex-col`}>

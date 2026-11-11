@@ -7,6 +7,7 @@ import {
   isPublicDemoSession,
 } from "@/lib/demo/public-demo";
 import { canManageClasses, decideAccessRedirect, isEntitled } from "@/lib/access/gate";
+import { proHasExpired } from "@/lib/billing/pro-expiry";
 import { consentBlocksApi, consentGate, consentRedirect, indiaToday, type ConsentGate } from "@/lib/consent/age";
 import { getSupabaseEnvConfig } from "./client";
 import { verifyDeviceSessionActive } from "./device-lock";
@@ -171,6 +172,12 @@ export async function updateSession(
         const row = profile as Record<string, unknown>;
         accessStatus = (row.access_status as string | null) ?? null;
         role = (row.role as string | null) ?? null;
+        // Monthly Pro that wasn't renewed: back to Free (the database function only moves down).
+        if (proHasExpired(row)) {
+          accessStatus = "free";
+          const { error: expireError } = await supabase.rpc("expire_my_pro");
+          if (expireError) console.warn(JSON.stringify({ event: "expire_my_pro_failed", message: expireError.message }));
+        }
         gate = consentGate({
           role,
           // undefined (column missing) switches the check off until the migration is applied.
@@ -213,6 +220,7 @@ export async function updateSession(
     pathname.startsWith("/api/consent") ||
     pathname.startsWith("/api/billing/checkout") ||
     pathname.startsWith("/api/billing/stripe") ||
+    pathname.startsWith("/api/billing/subscription") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/api/instructor");
   if (
