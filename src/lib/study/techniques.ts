@@ -95,3 +95,60 @@ export function techniquesFor(profileId: UniverseProfileId | null | undefined): 
     others: TECHNIQUES.filter((technique) => !technique.bestFor.includes(profileId)),
   };
 }
+
+/**
+ * Which note style to use (owner, 11 Nov 2026). Free: these are formats in My Notes.
+ * Start with Cornell, Outline and Flowchart; then Table and Mind map.
+ */
+export interface NoteStyleTip {
+  format: "cornell" | "outline" | "table" | "flowchart" | "mindmap";
+  name: string;
+  when: string;
+  how: string;
+  bestFor: UniverseProfileId[];
+}
+
+export const NOTE_STYLE_TIPS: readonly NoteStyleTip[] = [
+  {
+    format: "cornell",
+    name: "Cornell notes",
+    when: "Facts you must remember for the exam: definitions, causes, features, values.",
+    how: "Write a short question on the left and its answer on the right. Cover the answers and test yourself. Each question also becomes a Morning revision card.",
+    bestFor: ["vata", "kapha", "vata_kapha", "pitta_kapha", "balanced"],
+  },
+  {
+    format: "outline",
+    name: "Outline",
+    when: "Long chapters and theory answers.",
+    how: "Main heading, then sub-headings, then points. Revise by recalling the headings first, then the points under each.",
+    bestFor: ["kapha", "pitta_kapha", "vata_kapha"],
+  },
+  {
+    format: "flowchart",
+    name: "Flowchart",
+    when: "Anything that happens in steps: a process, a mechanism, a reaction, how a disease develops.",
+    how: "Write the first step, then what happens next, down to the result. Practise redrawing it from memory.",
+    bestFor: ["pitta", "vata_pitta", "pitta_kapha", "balanced"],
+  },
+  {
+    format: "table",
+    name: "Table",
+    when: "Comparing things: types, differences, two diseases or drugs side by side.",
+    how: "Put the things to compare across the top and the features down the side. Fill every box so the gaps show.",
+    bestFor: ["pitta", "vata_pitta", "balanced"],
+  },
+  {
+    format: "mindmap",
+    name: "Mind map",
+    when: "Seeing a whole chapter at a glance before you start, or for a quick last-day revision.",
+    how: "The topic in the centre, main ideas as branches, small details under each. Keywords only, no long sentences.",
+    bestFor: ["vata", "vata_pitta", "vata_kapha"],
+  },
+];
+
+export function noteStylesFor(profileId: UniverseProfileId | null | undefined): NoteStyleTip[] {
+  if (!profileId) return [...NOTE_STYLE_TIPS];
+  return [...NOTE_STYLE_TIPS].sort(
+    (a, b) => Number(b.bestFor.includes(profileId)) - Number(a.bestFor.includes(profileId))
+  );
+}

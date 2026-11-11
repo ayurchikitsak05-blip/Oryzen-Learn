@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Brain, Pin, PinOff } from "lucide-react";
 import { useSignedInScope } from "@/components/coach/CoachHost";
 import { memoriseNow, readRevisionState, writeRevisionState } from "@/lib/revision/cards";
+import { notePreviewText } from "@/lib/notes/formats";
 import { localIsoDate } from "@/lib/roadmap/time";
 import { usePrivateReady } from "@/lib/privacy/use-private-ready";
 import { isPinned, MAX_PINS, pinNote, PINS_EVENT, readPins, unpinNote, type PinnedNote } from "@/lib/notes/pins";
@@ -68,7 +69,7 @@ export function PinnedNotes() {
           <div key={pin.id} className="relative w-56 shrink-0 snap-start rounded-2xl border border-beige bg-selected text-heading shadow-sm">
             <Link href="/notes" className="block rounded-2xl p-3 pr-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
               <span className="block truncate text-sm font-semibold">{pin.title}</span>
-              <span className="mt-1 line-clamp-4 block whitespace-pre-line text-xs leading-relaxed text-ink">{pin.body}</span>
+              <span className="mt-1 line-clamp-4 block whitespace-pre-line text-xs leading-relaxed text-ink">{notePreviewText(pin.body)}</span>
             </Link>
             <button
               type="button"
@@ -87,7 +88,7 @@ export function PinnedNotes() {
 }
 
 /** "Memorise this": puts the note first in the next Morning revision round. */
-export function MemoriseButton({ noteId }: { noteId: string }) {
+export function MemoriseButton({ noteId, cardIds }: { noteId: string; cardIds?: string[] }) {
   const userId = useSignedInScope();
   const ready = usePrivateReady(userId);
   const [done, setDone] = useState(false);
@@ -99,7 +100,12 @@ export function MemoriseButton({ noteId }: { noteId: string }) {
       className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-xs font-medium text-heading hover:bg-beige-2 disabled:opacity-60"
       onClick={() => {
         const today = localIsoDate();
-        writeRevisionState(memoriseNow(readRevisionState(userId), noteId, today), userId);
+        // A Cornell note is several cards (one per question): bring them all forward.
+        const ids = cardIds?.length ? cardIds : [noteId];
+        writeRevisionState(
+          ids.reduce((state, id) => memoriseNow(state, id, today), readRevisionState(userId)),
+          userId
+        );
         setDone(true);
       }}
     >

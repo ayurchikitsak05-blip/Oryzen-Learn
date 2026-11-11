@@ -10,7 +10,7 @@ import { ui } from "@/components/ui/classes";
 import { usePrivateReady } from "@/lib/privacy/use-private-ready";
 import { patchSprintPrefs } from "@/lib/sprint/persist";
 import { readStudyProfile } from "@/lib/study/style-quiz";
-import { techniquesFor, type Technique } from "@/lib/study/techniques";
+import { noteStylesFor, techniquesFor, type Technique } from "@/lib/study/techniques";
 import { UNIVERSE_PRESETS } from "@/lib/universe";
 import type { UniverseProfileId } from "@/lib/universe/types";
 
@@ -77,6 +77,33 @@ export default function TechniquesPage() {
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">More techniques</h2>
           ) : null}
           {others.map((technique) => <TechniqueCard key={technique.id} technique={technique} onTry={tryIt} />)}
+        </section>
+        <section className="space-y-3" aria-labelledby="note-styles" data-testid="note-styles">
+          <h2 id="note-styles" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
+            Which note style for this topic?
+          </h2>
+          <p className="text-sm text-muted">
+            All of these are in My Notes: choose the format when you write a note. Start with Cornell, Outline and
+            Flowchart; add Table and Mind map when they feel easy.
+          </p>
+          {noteStylesFor(profileId).map((tip) => (
+            <article key={tip.format} className="space-y-1 rounded-2xl border border-line bg-surface p-4">
+              <h3 className="font-semibold text-heading">
+                {tip.name}
+                {profileId && tip.bestFor.includes(profileId) ? (
+                  <span className="ml-2 text-xs font-medium text-accent">Suits your style</span>
+                ) : null}
+              </h3>
+              <p className="text-sm text-ink">
+                <span className="font-medium">Use it for: </span>
+                {tip.when}
+              </p>
+              <p className="text-sm text-muted">{tip.how}</p>
+            </article>
+          ))}
+          <Link href="/notes" className={`${ui.secondary} min-h-11`}>
+            Write a note
+          </Link>
         </section>
       </main>
     </AppChrome>
