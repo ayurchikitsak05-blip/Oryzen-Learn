@@ -6,10 +6,21 @@ import {
 } from "@/lib/billing/direct-access";
 import { razorpaySignature, signaturesMatch, stripeCheckoutForm } from "@/lib/billing/providers";
 import { completeVerifiedCheckout, createAdminClient } from "@/lib/supabase/admin";
+import {
+  applySubscription,
+  createSubscription,
+  fetchSubscription,
+  PRO_MONTH_DAYS,
+  razorpayKeys,
+  razorpayPlanId,
+  RENEWING_STATES,
+  subscriptionSignature,
+} from "@/lib/billing/subscription";
 import { createClient } from "@/lib/supabase/server";
 
 type CheckoutBody = {
-  action?: "start" | "confirm" | "razorpay";
+  action?: "start" | "confirm" | "razorpay" | "razorpay_subscription";
+  subscriptionId?: string;
   sessionId?: string;
   orderId?: string;
   paymentId?: string;
@@ -51,6 +62,26 @@ export async function POST(request: NextRequest) {
 
     if (body.action === "razorpay") {
       return confirmRazorpay(user.id, body, offer.amountInr, offer.provider);
+    }
+
+    if (body.action === "razorpay_subscription") {
+      return confirmRazorpaySubscription(user.id, body, offer.provider);
+    }
+
+    // Already renewing every month: don't start a second subscription.
+    if (offer.provider === "razorpay" && razorpayPlanId()) {
+      const admin = createAdminClient();
+      const { data: current } = admin
+        ? await admin.from("profiles").select("*").eq("id", user.id).maybeSingle()
+        : { data: null };
+      const row = (current ?? {}) as Record<string, unknown>;
+      if (
+        row.access_status === "active_paid" &&
+        typeof row.razorpay_subscription_id === "string" &&
+        (RENEWING_STATES as readonly string[]).includes(String(row.subscription_status ?? ""))
+      ) {
+        return NextResponse.json({ error: "You already have Student Pro, renewing every month." }, { status: 409 });
+      }
     }
 
     const { data, error } = await supabase
@@ -101,6 +132,37 @@ export async function POST(request: NextRequest) {
         mode: offer.provider,
         confirmInApp: false,
         redirectUrl,
+      });
+    }
+
+    if (offer.provider === "razorpay" && razorpayPlanId()) {
+      // Monthly auto-renew (owner, 11 Nov 2026): a Razorpay subscription on the ₹149 plan.
+      const keys = razorpayKeys();
+      const planId = razorpayPlanId() as string;
+      const subscription = keys ? await createSubscription({ keys, planId, userId: user.id }) : null;
+      const admin = createAdminClient();
+      if (!keys || !subscription || !admin) {
+        return NextResponse.json(
+          { error: "Monthly checkout could not start. Please try again later." },
+          { status: 502 }
+        );
+      }
+      await admin
+        .from("profiles")
+        .update({ razorpay_subscription_id: subscription.id, subscription_status: subscription.status ?? "created" })
+        .eq("id", user.id);
+      return NextResponse.json({
+        sessionId,
+        provider: offer.provider,
+        amountInr: offer.amountInr,
+        mode: offer.provider,
+        confirmInApp: false,
+        razorpay: {
+          keyId: keys.keyId,
+          subscriptionId: subscription.id,
+          name: "ORYZEN Learn",
+          description: `Student Pro, ₹${offer.amountInr} a month, renews automatically`,
+        },
       });
     }
 
@@ -190,7 +252,50 @@ async function confirmRazorpay(
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
+  // A one-off payment (no monthly plan set up yet) covers one month, not forever.
+  const admin = createAdminClient();
+  await admin
+    ?.from("profiles")
+    .update({ pro_until: new Date(Date.now() + PRO_MONTH_DAYS * 86_400_000).toISOString() })
+    .eq("id", userId);
   return NextResponse.json({ accessStatus: "active_paid" });
+}
+
+async function confirmRazorpaySubscription(userId: string, body: CheckoutBody, provider: PaymentProviderMode) {
+  const keys = razorpayKeys();
+  const planId = razorpayPlanId();
+  const admin = createAdminClient();
+  if (provider !== "razorpay" || !keys || !planId || !admin) {
+    return NextResponse.json({ error: "Monthly payments aren't set up." }, { status: 400 });
+  }
+  if (!body.sessionId || !body.subscriptionId || !body.paymentId || !body.signature) {
+    return NextResponse.json({ error: "Razorpay payment details are incomplete." }, { status: 400 });
+  }
+  const expected = subscriptionSignature(body.paymentId, body.subscriptionId, keys.secret);
+  if (!signaturesMatch(expected, body.signature)) {
+    return NextResponse.json({ error: "Razorpay payment could not be verified." }, { status: 400 });
+  }
+  const subscription = await fetchSubscription(keys, body.subscriptionId);
+  if (
+    !subscription ||
+    subscription.notes?.user_id !== userId ||
+    subscription.plan_id !== planId ||
+    !(RENEWING_STATES as readonly string[]).includes(subscription.status ?? "")
+  ) {
+    return NextResponse.json({ error: "Razorpay payment does not match this subscription." }, { status: 400 });
+  }
+  const recorded = await completeVerifiedCheckout({
+    sessionId: body.sessionId,
+    userId,
+    provider: "razorpay",
+    providerReference: body.paymentId,
+  });
+  if (!recorded.ok) return NextResponse.json({ error: recorded.error }, { status: 400 });
+  const applied = await applySubscription(admin, { userId, subscription, charged: true });
+  if (!applied.ok) {
+    return NextResponse.json({ error: "Payment was received but access could not be updated. Contact support." }, { status: 500 });
+  }
+  return NextResponse.json({ accessStatus: "active_paid", proUntil: applied.proUntil });
 }
 
 async function createStripeCheckoutUrl(input: {

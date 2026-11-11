@@ -7,9 +7,12 @@ import { DIRECT_ACCESS_PRICE_INR } from "@/lib/access/gate";
 
 type RazorpayCheckout = {
   keyId: string;
-  orderId: string;
-  amount: number;
-  currency: "INR";
+  /** One-off payment (when no monthly plan is set up). */
+  orderId?: string;
+  amount?: number;
+  currency?: "INR";
+  /** Monthly auto-renew. */
+  subscriptionId?: string;
   name: string;
   description: string;
 };
@@ -25,7 +28,8 @@ type StartedCheckout = {
 
 type RazorpaySuccess = {
   razorpay_payment_id: string;
-  razorpay_order_id: string;
+  razorpay_order_id?: string;
+  razorpay_subscription_id?: string;
   razorpay_signature: string;
 };
 
@@ -37,11 +41,12 @@ declare global {
   interface Window {
     Razorpay?: new (options: {
       key: string;
-      amount: number;
-      currency: string;
+      amount?: number;
+      currency?: string;
       name: string;
       description: string;
-      order_id: string;
+      order_id?: string;
+      subscription_id?: string;
       handler: (response: RazorpaySuccess) => void;
       modal: { ondismiss: () => void };
       theme: { color: string };
@@ -165,11 +170,11 @@ export default function SubscriptionCheckout({
       }
       const instance = new Razorpay({
         key: order.keyId,
-        amount: order.amount,
-        currency: order.currency,
         name: order.name,
         description: order.description,
-        order_id: order.orderId,
+        ...(order.subscriptionId
+          ? { subscription_id: order.subscriptionId }
+          : { order_id: order.orderId, amount: order.amount, currency: order.currency }),
         theme: { color: "#E8D9C8" },
         modal: { ondismiss: () => setLoading(false) },
         handler: (payment) => {
@@ -188,13 +193,23 @@ export default function SubscriptionCheckout({
       const response = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "razorpay",
-          sessionId,
-          orderId: payment.razorpay_order_id,
-          paymentId: payment.razorpay_payment_id,
-          signature: payment.razorpay_signature,
-        }),
+        body: JSON.stringify(
+          payment.razorpay_subscription_id
+            ? {
+                action: "razorpay_subscription",
+                sessionId,
+                subscriptionId: payment.razorpay_subscription_id,
+                paymentId: payment.razorpay_payment_id,
+                signature: payment.razorpay_signature,
+              }
+            : {
+                action: "razorpay",
+                sessionId,
+                orderId: payment.razorpay_order_id,
+                paymentId: payment.razorpay_payment_id,
+                signature: payment.razorpay_signature,
+              }
+        ),
       });
       const json = (await response.json()) as { error?: string };
       if (!response.ok) {
@@ -255,7 +270,9 @@ export default function SubscriptionCheckout({
             ? "Preparing Student Pro checkout."
             : checkout.confirmInApp
               ? "Card checkout is ready for Razorpay or Stripe. Until those keys are set, confirming this session activates Student Pro on your account."
-              : `Continue in ${providerLabel}. Student Pro starts after the payment is verified.`}
+              : checkout.razorpay?.subscriptionId
+                ? "Renews automatically every month by UPI AutoPay or card. Razorpay reminds you before each charge, and you can stop it any time on the Pricing page."
+                : `Continue in ${providerLabel}. Student Pro starts after the payment is verified.`}
         </p>
 
         {error && (

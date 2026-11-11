@@ -4,6 +4,19 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-12 · Student Pro renews automatically every month (Razorpay Subscriptions)
+
+**Owner decision (11 Nov):** Pro renews automatically.
+
+### Change: Monthly auto-renew
+- **What:** with a ₹149 monthly plan set up in Razorpay (`RAZORPAY_PLAN_ID`), checkout starts a Razorpay subscription (UPI AutoPay or card; Razorpay sends the reminder before each charge and retries failed charges). The server checks the payment signature and the subscription (it must be this student's, on this plan, active), then sets Pro until the end of the paid month plus 2 days. Each monthly charge arrives as a signed notice (`/api/billing/razorpay/webhook`) and moves the date forward; each notice is applied once. "Stop auto-renew" on Pricing (My plan) cancels at the end of the paid month. When the date passes with no payment, the student returns to Free on their next visit.
+- **Also fixed:** a one-off payment (if no monthly plan is set) now gives one month, not Pro forever.
+- **Files:** `src/lib/billing/subscription.ts`, `src/lib/billing/pro-expiry.ts`, `src/app/api/billing/checkout/route.ts`, `src/app/api/billing/razorpay/webhook/route.ts`, `src/app/api/billing/subscription/route.ts`, `src/components/billing/SubscriptionCheckout.tsx`, `src/components/billing/MyPlan.tsx`, `src/app/pricing/page.tsx`, `src/lib/supabase/middleware.ts`.
+- **Database:** `20261112000001_pro_auto_renew.sql` (profiles.pro_until, razorpay_subscription_id, subscription_status, protected from students; razorpay_events; `expire_my_pro()` which only moves the caller down to Free).
+- **Owner setup:** Razorpay account with Subscriptions on; plan ₹149 monthly; webhook URL and secret; Vercel settings `PAYMENTS_PROVIDER=razorpay`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_PLAN_ID`, `RAZORPAY_WEBHOOK_SECRET` (test mode on Preview first).
+
+---
+
 ## 2026-11-11 · Note formats: Cornell, Outline, Table, Flowchart, Mind map (no AI, no extra cost)
 
 **Owner decision (11 Nov):** from the owner's note-taking guide, add what can be done free.
