@@ -1,6 +1,7 @@
 "use client";
 
 import { ListenButton } from "@/components/speech/ListenButton";
+import { SaveAnswerAsNote } from "@/components/notes/SaveAnswerAsNote";
 import React, { useMemo, useState } from "react";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 import {
@@ -560,6 +561,7 @@ export function StudyLensOutput(props: Parameters<typeof StudyLensOutputBody>[0]
         <ListenButton text={spoken ?? ""} testId="lens-listen" />
       </div>
       <StudyLensOutputBody {...props} />
+      <SaveAnswerAsNote payload={result.payload} fallbackTitle={props.selectedText?.slice(0, 60)} />
     </div>
   );
 }

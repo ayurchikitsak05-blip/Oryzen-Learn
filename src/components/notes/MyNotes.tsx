@@ -10,6 +10,18 @@ import AppChrome from "@/components/layout/AppChrome";
 import { ui } from "@/components/ui/classes";
 import { useSignedInScope } from "@/components/coach/CoachHost";
 import { listSprintNotes } from "@/lib/sprint";
+import { FormatPicker, FormattedNoteEditor, FormattedNoteView } from "@/components/notes/NoteFormats";
+import {
+  blankNote,
+  cornellCardId,
+  cornellCards,
+  noteFormatOf,
+  noteHasContent,
+  noteTextForReading,
+  serializeNote,
+  type FormattedNote,
+  type NoteFormat,
+} from "@/lib/notes/formats";
 
 interface NoteSubject {
   id: string;
@@ -64,7 +76,11 @@ export default function MyNotes() {
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const [subjectTitle, setSubjectTitle] = useState("");
   const [noteTitle, setNoteTitle] = useState("");
-  const [noteBody, setNoteBody] = useState("");
+  const [noteFormat, setNoteFormat] = useState<NoteFormat>("plain");
+  // One draft per format, so switching format doesn't lose what was written.
+  const [drafts, setDrafts] = useState<Partial<Record<NoteFormat, FormattedNote>>>({});
+  const draft = drafts[noteFormat] ?? blankNote(noteFormat);
+  const setDraft = (next: FormattedNote) => setDrafts((current) => ({ ...current, [next.format]: next }));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -130,6 +146,11 @@ export default function MyNotes() {
   const createNote = async () => {
     const title = noteTitle.trim();
     if (!selectedId || !title) return;
+    if (noteFormat !== "plain" && !noteHasContent(draft)) {
+      setError("Write at least one line before saving.");
+      return;
+    }
+    const noteBody = serializeNote(draft);
     setError(null);
     const response = await fetch("/api/notes", {
       method: "POST",
@@ -148,7 +169,7 @@ export default function MyNotes() {
       return;
     }
     setNoteTitle("");
-    setNoteBody("");
+    setDrafts((current) => ({ ...current, [noteFormat]: blankNote(noteFormat) }));
     setOpenNoteId(json.id);
     await loadSubjects(selectedId);
   };
@@ -288,14 +309,8 @@ export default function MyNotes() {
                     aria-label="Note title"
                     className={ui.input}
                   />
-                  <textarea
-                    value={noteBody}
-                    onChange={(event) => setNoteBody(event.target.value)}
-                    placeholder="Write the note you want to come back to."
-                    aria-label="Note"
-                    rows={5}
-                    className={ui.textarea}
-                  />
+                  <FormatPicker value={noteFormat} onChange={setNoteFormat} />
+                  <FormattedNoteEditor note={draft} onChange={setDraft} />
                   <button
                     type="submit"
                     className={ui.primary}
@@ -337,13 +352,20 @@ export default function MyNotes() {
                         </div>
                         {open && (
                           <>
-                            <p className="font-reading mt-3 whitespace-pre-wrap text-ink">
-                              {note.body || "This note has no written body yet."}
-                            </p>
+                            <div className="mt-3">
+                              <FormattedNoteView title={note.title} body={note.body ?? ""} />
+                            </div>
                             <div className="mt-3 flex flex-wrap gap-2">
-                              <ListenButton text={`${note.title}. ${note.body ?? ""}`} />
+                              <ListenButton text={noteTextForReading(note.title, note.body ?? "")} />
                               <PinButton note={{ id: note.id, title: note.title, body: note.body ?? "" }} />
-                              <MemoriseButton noteId={note.id} />
+                              <MemoriseButton
+                                noteId={note.id}
+                                cardIds={
+                                  noteFormatOf(note.body) === "cornell"
+                                    ? cornellCards(note.body ?? "").map((_, index) => cornellCardId(note.id, index))
+                                    : undefined
+                                }
+                              />
                             </div>
                           </>
                         )}

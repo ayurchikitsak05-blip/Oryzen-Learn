@@ -1,5 +1,7 @@
 "use client";
 
+import { FormattedNoteView } from "@/components/notes/NoteFormats";
+import { cornellCardId, cornellCards, noteFormatOf, noteTextForReading } from "@/lib/notes/formats";
 import { VoiceNotePlayer } from "@/components/voice/VoiceNotes";
 import { listVoiceNotes } from "@/lib/voice-notes/store";
 import { ListenButton } from "@/components/speech/ListenButton";
@@ -50,13 +52,22 @@ interface ApiNotes {
 
 export function toRevisionNotes(data: ApiNotes): RevisionNote[] {
   const subjects = new Map((data.subjects ?? []).map((subject) => [subject.id, subject.title]));
-  return (data.notes ?? []).map((note) => ({
-    id: note.id,
-    title: note.title ?? "",
-    body: note.body ?? "",
-    subject: subjects.get(note.subject_id) ?? "",
-    updatedAt: note.updated_at ?? "",
-  }));
+  return (data.notes ?? []).flatMap((note) => {
+    const base = {
+      subject: subjects.get(note.subject_id) ?? "",
+      updatedAt: note.updated_at ?? "",
+    };
+    // A Cornell note gives one card per question: question on the front, answer on the back.
+    if (noteFormatOf(note.body) === "cornell") {
+      return cornellCards(note.body ?? "").map((pair, index) => ({
+        ...base,
+        id: cornellCardId(note.id, index),
+        title: pair.q,
+        body: pair.a,
+      }));
+    }
+    return [{ ...base, id: note.id, title: note.title ?? "", body: note.body ?? "" }];
+  });
 }
 
 function ReminderSetup() {
@@ -299,7 +310,11 @@ export function MorningRevision() {
           <h2 className={`${ui.heading} text-xl`}>{load.cards[index].title}</h2>
           <ListenButton
             key={`${index}-${shown}`}
-            text={shown && !load.cards[index].audioId ? `${load.cards[index].title}. ${load.cards[index].body}` : load.cards[index].title}
+            text={
+              shown && !load.cards[index].audioId
+                ? noteTextForReading(load.cards[index].title, load.cards[index].body)
+                : load.cards[index].title
+            }
           />
           <p className="text-sm text-muted">Say the answer in your head first.</p>
           {shown ? (
@@ -307,8 +322,12 @@ export function MorningRevision() {
               {load.cards[index].audioId ? (
                 <VoiceNotePlayer id={load.cards[index].audioId as string} userId={load.userId} />
               ) : (
-                <div className="whitespace-pre-line rounded-xl bg-beige-2 p-3 text-sm leading-relaxed text-ink" data-testid="revision-answer">
-                  {load.cards[index].body}
+                <div className="rounded-xl bg-beige-2 p-3 text-sm leading-relaxed text-ink" data-testid="revision-answer">
+                  {noteFormatOf(load.cards[index].body) === "plain" ? (
+                    <p className="whitespace-pre-line">{load.cards[index].body}</p>
+                  ) : (
+                    <FormattedNoteView title={load.cards[index].title} body={load.cards[index].body} />
+                  )}
                 </div>
               )}
               <div className="grid grid-cols-2 gap-2">

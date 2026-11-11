@@ -4,6 +4,20 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-11 · Note formats: Cornell, Outline, Table, Flowchart, Mind map (no AI, no extra cost)
+
+**Owner decision (11 Nov):** from the owner's note-taking guide, add what can be done free.
+
+### Change: Note formats in My Notes
+- **What:** when writing a note, choose Plain, Cornell, Outline, Table, Flowchart or Mind map. Each has its own simple editor and is drawn on the phone (Cornell with "cover answers and test yourself", tables, arrowed flowcharts, a mind map around the note title). Saved as ordinary readable text in My Notes with a "Format: …" first line, so no new storage and old notes are unchanged.
+- **Cornell → revision cards:** each question with an answer becomes its own Morning revision card (question on the front, answer on the back); "Memorise this" brings all of a note's questions forward.
+- **Save an answer as a note:** under Explain/Illustrate/Revise answers, "Save to My Notes as: Flowchart / Mind map / Cornell / Table / Outline" uses the answer already on screen. No new AI call.
+- **Which note style for this topic?** on Study techniques, suited styles first.
+- **Not added (cost or low value now):** sketchnoting (needs image storage), linked notes (Zettelkasten), concept maps.
+- **Files:** `src/lib/notes/formats.ts`, `src/lib/notes/from-answer.ts`, `src/components/notes/NoteFormats.tsx`, `src/components/notes/SaveAnswerAsNote.tsx`, `src/components/notes/MyNotes.tsx`, `src/components/notes/StickyNotes.tsx`, `src/components/revision/MorningRevision.tsx`, `src/components/reader/StudyLensOutput.tsx`, `src/lib/study/techniques.ts`, `src/app/techniques/page.tsx`.
+
+---
+
 ## 2026-11-11 · Parental consent (DPDP), privacy notice, Student Pro at ₹149
 
 **Owner decisions (10 Nov):** GST is registered under the company; build parental consent now; Student Pro is ₹149 a month; group B is on hold.
