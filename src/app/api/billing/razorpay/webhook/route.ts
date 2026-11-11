@@ -24,6 +24,10 @@ export async function POST(request: NextRequest) {
     request.headers.get("x-razorpay-event-id") ??
     `${body.event ?? "event"}:${body.payload?.subscription?.entity?.id ?? "none"}:${body.payload?.subscription?.entity?.current_end ?? ""}`;
   const result = await handleWebhookEvent(admin, { eventId, body });
+  if (result === "failed") {
+    // Razorpay retries notices that don't get a 200.
+    return NextResponse.json({ error: "Not applied yet." }, { status: 500 });
+  }
   if (result === "unknown_student") {
     console.warn(JSON.stringify({ event: "razorpay_webhook_unknown_student", type: body.event ?? null }));
   }

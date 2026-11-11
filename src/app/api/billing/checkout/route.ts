@@ -13,8 +13,10 @@ import {
   PRO_MONTH_DAYS,
   razorpayKeys,
   razorpayPlanId,
+  LIVE_STATES,
   RENEWING_STATES,
   subscriptionSignature,
+  type RazorpaySubscription,
 } from "@/lib/billing/subscription";
 import { createClient } from "@/lib/supabase/server";
 
@@ -68,19 +70,27 @@ export async function POST(request: NextRequest) {
       return confirmRazorpaySubscription(user.id, body, offer.provider);
     }
 
-    // Already renewing every month: don't start a second subscription.
+    // A subscription that may still charge: never start a second one. One not yet paid is reused.
+    let reuse: RazorpaySubscription | null = null;
     if (offer.provider === "razorpay" && razorpayPlanId()) {
       const admin = createAdminClient();
+      const keys = razorpayKeys();
       const { data: current } = admin
         ? await admin.from("profiles").select("*").eq("id", user.id).maybeSingle()
         : { data: null };
-      const row = (current ?? {}) as Record<string, unknown>;
-      if (
-        row.access_status === "active_paid" &&
-        typeof row.razorpay_subscription_id === "string" &&
-        (RENEWING_STATES as readonly string[]).includes(String(row.subscription_status ?? ""))
-      ) {
-        return NextResponse.json({ error: "You already have Student Pro, renewing every month." }, { status: 409 });
+      const savedId = (current as Record<string, unknown> | null)?.razorpay_subscription_id;
+      if (keys && typeof savedId === "string") {
+        const saved = await fetchSubscription(keys, savedId);
+        if (saved && (LIVE_STATES as readonly string[]).includes(saved.status ?? "")) {
+          return NextResponse.json(
+            {
+              error:
+                "You already have a monthly Student Pro subscription. If a payment failed, complete it in your UPI app or card; to change it, stop auto-renew first on the Pricing page.",
+            },
+            { status: 409 }
+          );
+        }
+        if (saved?.status === "created" && saved.plan_id === razorpayPlanId() && saved.notes?.user_id === user.id) reuse = saved;
       }
     }
 
@@ -139,7 +149,7 @@ export async function POST(request: NextRequest) {
       // Monthly auto-renew (owner, 11 Nov 2026): a Razorpay subscription on the ₹149 plan.
       const keys = razorpayKeys();
       const planId = razorpayPlanId() as string;
-      const subscription = keys ? await createSubscription({ keys, planId, userId: user.id }) : null;
+      const subscription = reuse ?? (keys ? await createSubscription({ keys, planId, userId: user.id }) : null);
       const admin = createAdminClient();
       if (!keys || !subscription || !admin) {
         return NextResponse.json(
@@ -147,10 +157,13 @@ export async function POST(request: NextRequest) {
           { status: 502 }
         );
       }
-      await admin
+      const { error: saveError } = await admin
         .from("profiles")
         .update({ razorpay_subscription_id: subscription.id, subscription_status: subscription.status ?? "created" })
         .eq("id", user.id);
+      if (saveError) {
+        return NextResponse.json({ error: "Monthly checkout could not start. Please try again later." }, { status: 503 });
+      }
       return NextResponse.json({
         sessionId,
         provider: offer.provider,
@@ -254,10 +267,12 @@ async function confirmRazorpay(
   }
   // A one-off payment (no monthly plan set up yet) covers one month, not forever.
   const admin = createAdminClient();
-  await admin
-    ?.from("profiles")
-    .update({ pro_until: new Date(Date.now() + PRO_MONTH_DAYS * 86_400_000).toISOString() })
-    .eq("id", userId);
+  if (admin) {
+    const { data: row } = await admin.from("profiles").select("*").eq("id", userId).maybeSingle();
+    const current = Date.parse(String((row as Record<string, unknown> | null)?.pro_until ?? "")) || 0;
+    const next = Math.max(current, Date.now()) + PRO_MONTH_DAYS * 86_400_000;
+    await admin.from("profiles").update({ pro_until: new Date(next).toISOString() }).eq("id", userId);
+  }
   return NextResponse.json({ accessStatus: "active_paid" });
 }
 
@@ -291,11 +306,16 @@ async function confirmRazorpaySubscription(userId: string, body: CheckoutBody, p
     providerReference: body.paymentId,
   });
   if (!recorded.ok) return NextResponse.json({ error: recorded.error }, { status: 400 });
-  const applied = await applySubscription(admin, { userId, subscription, charged: true });
+  // Charged when Razorpay says active (or shows the paid month); otherwise the webhook turns Pro on.
+  const charged = subscription.status === "active" || Boolean(subscription.current_end);
+  const applied = await applySubscription(admin, { userId, subscription, charged });
   if (!applied.ok) {
     return NextResponse.json({ error: "Payment was received but access could not be updated. Contact support." }, { status: 500 });
   }
-  return NextResponse.json({ accessStatus: "active_paid", proUntil: applied.proUntil });
+  return NextResponse.json(
+    charged ? { accessStatus: "active_paid", proUntil: applied.proUntil } : { accessStatus: "pending", proUntil: null },
+    { status: charged ? 200 : 202 }
+  );
 }
 
 async function createStripeCheckoutUrl(input: {

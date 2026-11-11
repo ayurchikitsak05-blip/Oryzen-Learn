@@ -32,11 +32,17 @@ function fakeDb(profiles: Row[]) {
       },
       insert: async (row: Row) => {
         if (name === "razorpay_events" && tables.razorpay_events.some((r) => r.event_id === row.event_id)) {
-          return { error: { message: "duplicate key" } };
+          return { error: { message: "duplicate key", code: "23505" } };
         }
         tables[name].push(row);
         return { error: null };
       },
+      delete: () => ({
+        eq: async (column: string, value: unknown) => {
+          tables[name] = tables[name].filter((row) => row[column] !== value);
+          return { error: null };
+        },
+      }),
       maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
       then: (resolve: (value: unknown) => void) => {
         if (patch) rows().forEach((row) => Object.assign(row, patch));
@@ -92,8 +98,9 @@ describe("monthly auto-renew", () => {
     expect(await handleWebhookEvent(admin, { eventId: "evt_1", body, now })).toBe("applied");
     expect(tables.profiles[0]).toMatchObject({ access_status: "active_paid", pro_until: "2026-12-14T00:00:00.000Z" });
     expect(await handleWebhookEvent(admin, { eventId: "evt_1", body, now })).toBe("duplicate");
-    const other = { ...body, payload: { subscription: { entity: { ...body.payload.subscription.entity, id: "sub_X" } } } };
-    expect(await handleWebhookEvent(admin, { eventId: "evt_2", body: other, now })).toBe("unknown_student");
+    const stranger = { ...body, payload: { subscription: { entity: { ...body.payload.subscription.entity, notes: { user_id: "nobody" } } } } };
+    expect(await handleWebhookEvent(admin, { eventId: "evt_2", body: stranger, now })).toBe("unknown_student");
+    expect(tables.razorpay_events.map((row) => row.event_id)).toEqual(["evt_1"]);
     expect(await handleWebhookEvent(admin, { eventId: "evt_3", body: { event: "payment.captured" }, now })).toBe("ignored");
   });
 
@@ -109,5 +116,15 @@ describe("monthly auto-renew", () => {
     expect(proHasExpired(tables.profiles[0], new Date("2026-12-15T00:00:00Z"))).toBe(true);
     expect(proHasExpired({ access_status: "active_paid", pro_until: null })).toBe(false);
     expect(proHasExpired({ access_status: "class_sponsored", pro_until: "2020-01-01T00:00:00Z" })).toBe(false);
+  });
+
+  it("records a status notice about an old subscription without replacing the current one", async () => {
+    const { admin, tables } = fakeDb([{ id: "u1", access_status: "active_paid", pro_until: "2026-12-14T00:00:00Z", razorpay_subscription_id: "sub_new", subscription_status: "active" }]);
+    const body = {
+      event: "subscription.halted",
+      payload: { subscription: { entity: { id: "sub_old", status: "halted", notes: { user_id: "u1" } } } },
+    };
+    expect(await handleWebhookEvent(admin, { eventId: "evt_h", body, now })).toBe("applied");
+    expect(tables.profiles[0]).toMatchObject({ razorpay_subscription_id: "sub_new", subscription_status: "active" });
   });
 });

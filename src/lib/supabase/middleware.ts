@@ -174,11 +174,9 @@ export async function updateSession(
         role = (row.role as string | null) ?? null;
         // Monthly Pro that wasn't renewed: back to Free (the database function only moves down).
         if (proHasExpired(row)) {
-          accessStatus = "trial";
-          await supabase.rpc("expire_my_pro").then(
-            () => undefined,
-            () => undefined
-          );
+          accessStatus = "free";
+          const { error: expireError } = await supabase.rpc("expire_my_pro");
+          if (expireError) console.warn(JSON.stringify({ event: "expire_my_pro_failed", message: expireError.message }));
         }
         gate = consentGate({
           role,

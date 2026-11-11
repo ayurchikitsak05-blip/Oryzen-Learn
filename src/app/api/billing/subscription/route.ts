@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { cancelSubscription, razorpayKeys } from "@/lib/billing/subscription";
+import { cancelSubscription, LIVE_STATES, razorpayKeys } from "@/lib/billing/subscription";
 
 /** The student's Pro: renewal date and status (GET), and stopping auto-renew (POST cancel). */
 async function signedInProfile() {
@@ -26,7 +26,7 @@ export async function GET() {
   return NextResponse.json({
     pro: profile.accessStatus === "active_paid",
     proUntil: profile.proUntil,
-    renewing: Boolean(profile.subscriptionId) && ["authenticated", "active", "pending"].includes(profile.subscriptionStatus ?? ""),
+    renewing: Boolean(profile.subscriptionId) && (LIVE_STATES as readonly string[]).includes(profile.subscriptionStatus ?? ""),
     status: profile.subscriptionStatus,
   });
 }

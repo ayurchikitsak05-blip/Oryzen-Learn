@@ -61,7 +61,7 @@ REVOKE ALL ON public.razorpay_events FROM anon, authenticated;
 GRANT ALL ON public.razorpay_events TO service_role;
 
 -- When Pro has run out (pro_until passed and no new charge), the student's own session moves
--- them back to Free on their next visit. It can only ever move the caller down, never up.
+-- them back to the Free plan ('free') on their next visit. It can only ever move the caller down, never up.
 CREATE OR REPLACE FUNCTION public.expire_my_pro()
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -73,7 +73,7 @@ DECLARE
 BEGIN
   PERFORM set_config('app.allow_access_update', 'on', true);
   UPDATE public.profiles
-    SET access_status = 'trial'
+    SET access_status = 'free'
     WHERE id = auth.uid()
       AND access_status = 'active_paid'
       AND pro_until IS NOT NULL

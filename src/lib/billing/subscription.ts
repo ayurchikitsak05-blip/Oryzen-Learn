@@ -17,6 +17,8 @@ export const PRO_MONTH_DAYS = 31;
 export const SUBSCRIPTION_TOTAL_COUNT = 120;
 /** Razorpay states in which the student keeps renewing. */
 export const RENEWING_STATES = ["authenticated", "active"] as const;
+/** States in which a subscription may still charge: never start a second one alongside it. */
+export const LIVE_STATES = ["authenticated", "active", "pending", "halted"] as const;
 
 export interface RazorpayKeys {
   keyId: string;
@@ -132,7 +134,7 @@ interface ProfileBilling {
  */
 export async function applySubscription(
   admin: SupabaseClient,
-  input: { userId: string; subscription: RazorpaySubscription; charged: boolean; now?: Date }
+  input: { userId: string; subscription: RazorpaySubscription; charged: boolean; statusOnly?: boolean; now?: Date }
 ): Promise<{ ok: boolean; proUntil: string | null }> {
   const now = input.now ?? new Date();
   const { data } = await admin
@@ -142,10 +144,13 @@ export async function applySubscription(
     .maybeSingle();
   const profile = data as ProfileBilling | null;
   if (!profile) return { ok: false, proUntil: null };
-  const patch: Record<string, unknown> = {
-    razorpay_subscription_id: input.subscription.id,
-    subscription_status: input.subscription.status ?? null,
-  };
+  // A status-only notice about a subscription that isn't the student's current one is just recorded.
+  const isCurrent = !profile.razorpay_subscription_id || profile.razorpay_subscription_id === input.subscription.id;
+  const patch: Record<string, unknown> = {};
+  if (input.charged || isCurrent) {
+    patch.razorpay_subscription_id = input.subscription.id;
+    patch.subscription_status = input.subscription.status ?? null;
+  }
   let proUntil = profile.pro_until;
   if (input.charged) {
     const next = proUntilFor(input.subscription, now);
@@ -158,6 +163,7 @@ export async function applySubscription(
       if (profile.access_status !== "active_paid") patch.access_granted_at = now.toISOString();
     }
   }
+  if (Object.keys(patch).length === 0) return { ok: true, proUntil };
   const { error } = await admin.from("profiles").update(patch).eq("id", input.userId);
   return { ok: !error, proUntil };
 }
@@ -181,24 +187,33 @@ const STATUS_EVENTS = new Set(["subscription.pending", "subscription.halted", "s
 export async function handleWebhookEvent(
   admin: SupabaseClient,
   input: { eventId: string; body: WebhookEvent; now?: Date }
-): Promise<"applied" | "duplicate" | "ignored" | "unknown_student"> {
+): Promise<"applied" | "duplicate" | "ignored" | "unknown_student" | "failed"> {
   const event = input.body.event ?? "";
   const subscription = input.body.payload?.subscription?.entity;
   if (!subscription?.id || (!CHARGED_EVENTS.has(event) && !STATUS_EVENTS.has(event))) return "ignored";
   const userId = subscription.notes?.user_id ?? null;
 
-  const { error: duplicate } = await admin
+  // The student comes from the subscription's notes: set by our server when it was made, and the
+  // notice is signed by Razorpay, so it can be trusted even if the profile shows another subscription.
+  if (!userId) return "unknown_student";
+  const { data: profile } = await admin.from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (!profile) return "unknown_student";
+
+  const { error: insertError } = await admin
     .from("razorpay_events")
     .insert({ event_id: input.eventId, event, subscription_id: subscription.id, user_id: userId });
-  if (duplicate) return "duplicate";
-  if (!userId) return "unknown_student";
-
-  const { data } = await admin.from("profiles").select("razorpay_subscription_id").eq("id", userId).maybeSingle();
-  const saved = (data as { razorpay_subscription_id: string | null } | null)?.razorpay_subscription_id ?? null;
-  if (!data || (saved && saved !== subscription.id)) return "unknown_student";
+  if (insertError) {
+    // Only "already recorded" means a repeat; anything else must be retried by Razorpay.
+    return (insertError as { code?: string }).code === "23505" ? "duplicate" : "failed";
+  }
 
   // "authenticated" without a charge yet only counts once Razorpay says the first payment went through.
   const charged = CHARGED_EVENTS.has(event) && (event !== "subscription.authenticated" || Boolean(subscription.current_end));
-  await applySubscription(admin, { userId, subscription, charged, now: input.now });
+  const applied = await applySubscription(admin, { userId, subscription, charged, statusOnly: !charged, now: input.now });
+  if (!applied.ok) {
+    // Not applied: forget the notice so Razorpay's retry is applied.
+    await admin.from("razorpay_events").delete().eq("event_id", input.eventId);
+    return "failed";
+  }
   return "applied";
 }

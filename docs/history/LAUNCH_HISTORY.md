@@ -13,6 +13,8 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - **Also fixed:** a one-off payment (if no monthly plan is set) now gives one month, not Pro forever.
 - **Files:** `src/lib/billing/subscription.ts`, `src/lib/billing/pro-expiry.ts`, `src/app/api/billing/checkout/route.ts`, `src/app/api/billing/razorpay/webhook/route.ts`, `src/app/api/billing/subscription/route.ts`, `src/components/billing/SubscriptionCheckout.tsx`, `src/components/billing/MyPlan.tsx`, `src/app/pricing/page.tsx`, `src/lib/supabase/middleware.ts`.
 - **Database:** `20261112000001_pro_auto_renew.sql` (profiles.pro_until, razorpay_subscription_id, subscription_status, protected from students; razorpay_events; `expire_my_pro()` which only moves the caller down to Free).
+- **Tested:** unit tests (signatures, paid-until dates, subscription tagged with the student, notices applied once and for the right student, a notice about an old subscription doesn't replace the current one, cancelling keeps Pro to the paid date then expires). CI passed.
+- **Observer:** CHANGES NEEDED, then fixed: opening checkout again could replace a still-charging subscription (the app then ignored its charges and couldn't stop it); a notice that failed to apply was still marked as handled; expired students now go to 'free' (not 'trial'); Pro from the browser confirm only when Razorpay shows the month as paid; a one-off payment never shortens an existing paid date.
 - **Owner setup:** Razorpay account with Subscriptions on; plan ₹149 monthly; webhook URL and secret; Vercel settings `PAYMENTS_PROVIDER=razorpay`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_PLAN_ID`, `RAZORPAY_WEBHOOK_SECRET` (test mode on Preview first).
 
 ---
