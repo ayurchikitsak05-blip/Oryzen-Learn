@@ -210,9 +210,9 @@ export function notePreviewText(body: string): string {
   const note = parseNote(body);
   if (note.format === "plain") return note.text;
   if (note.format === "cornell") return note.pairs.map((pair) => `${pair.q} ${pair.a}`).join("\n");
-  if (note.format === "outline" || note.format === "mindmap") return note.items.map((item) => item.text).join("\n");
   if (note.format === "table") return note.rows.map((row) => row.join(" | ")).join("\n");
-  return note.steps.join(" → ");
+  if (note.format === "flowchart") return note.steps.join(" → ");
+  return note.items.map((item) => item.text).join("\n");
 }
 
 /** Cornell questions with answers, for revision cards. */
