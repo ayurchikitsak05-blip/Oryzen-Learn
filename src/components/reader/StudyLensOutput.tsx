@@ -671,6 +671,8 @@ function StudyLensOutputBody({
   if (resolved === "test_me") {
     return (
       <TestMeOutput
+        // A new set of questions starts fresh (no "how sure" answers carried over).
+        key={`${result.cacheKey}:${result.normalizedSelectionHash}:${(result.payload.mcqs ?? []).map((mcq) => mcq.question).join("|").slice(0, 200)}`}
         result={result}
         selectedMcqOptions={selectedMcqOptions}
         selectedText={selectedText}

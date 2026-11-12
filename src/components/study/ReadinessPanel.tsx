@@ -50,7 +50,6 @@ export default function ReadinessPanel({
 }) {
   const [open, setOpen] = useState(false);
   const summary = useMemo(() => readinessSummary(record, today), [record, today]);
-  const examLabel = record.intake.examName.trim() || "the exam";
 
   const setLevel = (chapterId: string, level: ChapterLevel) => {
     onChange({
@@ -70,10 +69,10 @@ export default function ReadinessPanel({
         <div>
           <p className={ui.eyebrow}>Where you stand</p>
           <h2 id="readiness-title" className={`${ui.heading} mt-1 text-2xl`}>
-            <span data-testid="readiness-percent">{summary.percent}%</span> ready for {examLabel}
+            <span data-testid="readiness-percent">{summary.percent}%</span> exam ready
           </h2>
           <p className="mt-1 text-sm text-muted">
-            {summary.daysLeft} day{summary.daysLeft === 1 ? "" : "s"} left · {summary.counts.exam_ready} of {summary.chapters.length}{" "}
+            {summary.counts.exam_ready} of {summary.chapters.length}{" "}
             chapter{summary.chapters.length === 1 ? "" : "s"} exam ready
             {summary.daysPerChapter != null ? ` · about ${summary.daysPerChapter} day${summary.daysPerChapter === 1 ? "" : "s"} per chapter left` : ""}
           </p>
