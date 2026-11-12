@@ -1,4 +1,5 @@
 import { isThemeId } from "@/lib/rhythm/themes";
+import { sanitizeReadiness } from "@/lib/study/readiness";
 import type { CoachStyleId } from "@/lib/rhythm/types";
 import { groupMonths, groupWeeks, sanitizeIntake } from "./engine";
 import {
@@ -280,6 +281,7 @@ export function prepareRoadmapRecord(value: unknown, userId: string): PreparedRo
     intake,
     plan,
     completions: sanitizeCompletions(raw.completions),
+    ...readinessField(raw.readiness, intake),
     updatedAt: typeof raw.updatedAt === "string" && raw.updatedAt.length < 80
       ? raw.updatedAt
       : new Date().toISOString(),
@@ -323,6 +325,13 @@ export function sanitizeRecord(value: unknown, userId: string): RoadmapRecord | 
     intake,
     plan,
     completions: sanitizeCompletions(raw.completions),
+    ...readinessField(raw.readiness, intake),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
   };
+}
+
+function readinessField(value: unknown, intake: RoadmapRecord["intake"]): Pick<RoadmapRecord, "readiness"> {
+  const ids = new Set(intake.subjects.flatMap((subject) => subject.chapters.map((chapter) => chapter.id)));
+  const readiness = sanitizeReadiness(value, ids);
+  return readiness ? { readiness } : {};
 }

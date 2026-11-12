@@ -2,6 +2,15 @@
 
 import { ListenButton } from "@/components/speech/ListenButton";
 import { SaveAnswerAsNote } from "@/components/notes/SaveAnswerAsNote";
+import {
+  CONFIDENCE_CHOICES,
+  INSIGHT_ORDER,
+  INSIGHT_TEXT,
+  groupInsights,
+  suggestedLevelFromInsights,
+  type Confidence,
+} from "@/lib/study/confidence";
+import { levelInfo } from "@/lib/study/readiness";
 import React, { useMemo, useState } from "react";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 import {
@@ -403,9 +412,22 @@ function TestMeOutput({
 }) {
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [drafts, setDrafts] = useState<Record<number, string>>({});
+  // "How sure were you?" is asked after picking and before the answer is shown, so it stays honest.
+  const [sure, setSure] = useState<Record<number, Confidence | "skip">>({});
   const mcqs = result.payload.mcqs ?? [];
-  const answered = mcqs.filter((_, idx) => selectedMcqOptions[idx] !== undefined).length;
+  const isShown = (idx: number) => selectedMcqOptions[idx] !== undefined && sure[idx] !== undefined;
+  const answered = mcqs.filter((_, idx) => isShown(idx)).length;
   const allAnswered = mcqs.length > 0 && answered === mcqs.length;
+  const confidence = useMemo(() => {
+    const out: Record<number, Confidence> = {};
+    for (const [key, value] of Object.entries(sure)) if (value !== "skip") out[Number(key)] = value;
+    return out;
+  }, [sure]);
+  const insights = useMemo(
+    () => groupInsights(mcqs, selectedMcqOptions, confidence),
+    [mcqs, selectedMcqOptions, confidence]
+  );
+  const suggested = allAnswered ? suggestedLevelFromInsights(insights) : null;
   const misses = useMemo(
     () => identifyIncorrectAnswers(mcqs, selectedMcqOptions),
     [mcqs, selectedMcqOptions]
@@ -444,16 +466,22 @@ function TestMeOutput({
             {mcq.options.map((opt, optIdx) => {
               const isPicked = selectedMcqOptions[idx] === optIdx;
               const isCorrect = optIdx === mcq.correctIndex;
+              const shown = isShown(idx);
               return (
                 <button
                   key={optIdx}
                   type="button"
+                  // Once the answer is shown, the choice is final (so "how sure" can't be gamed).
+                  disabled={shown}
+                  aria-pressed={isPicked}
                   onClick={() => onPickMcq(idx, optIdx)}
                   className={`flex min-h-[44px] w-full items-center rounded-2xl border px-4 py-2 text-left text-xs font-medium ${
                     isPicked
-                      ? isCorrect
-                        ? "border-beige bg-selected text-heading"
-                        : "border-line text-muted"
+                      ? !shown
+                        ? "border-heading text-heading"
+                        : isCorrect
+                          ? "border-beige bg-selected text-heading"
+                          : "border-line text-muted"
                       : "border-line text-ink"
                   }`}
                 >
@@ -462,7 +490,32 @@ function TestMeOutput({
               );
             })}
           </div>
-          {selectedMcqOptions[idx] !== undefined ? (
+          {selectedMcqOptions[idx] !== undefined && sure[idx] === undefined ? (
+            <div className="space-y-1.5 pt-1" data-testid={`test-me-sure-${idx}`}>
+              <p className="text-xs font-medium text-heading">How sure were you?</p>
+              <div className="flex flex-wrap gap-1.5">
+                {CONFIDENCE_CHOICES.map((choice) => (
+                  <button
+                    key={choice.id}
+                    type="button"
+                    onClick={() => setSure((current) => ({ ...current, [idx]: choice.id }))}
+                    className="min-h-[36px] rounded-full border border-line px-3 text-xs font-medium text-ink hover:bg-beige-2"
+                    data-testid={`test-me-sure-${idx}-${choice.id}`}
+                  >
+                    {choice.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSure((current) => ({ ...current, [idx]: "skip" }))}
+                  className="min-h-[36px] px-2 text-xs text-muted underline-offset-4 hover:underline"
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {isShown(idx) ? (
             <p
               className="pt-1 text-xs text-muted"
               data-testid={`test-me-feedback-${idx}`}
@@ -500,23 +553,32 @@ function TestMeOutput({
       ))}
       {allAnswered ? (
         <div data-testid="test-me-review" className="space-y-3 border-t border-line pt-3">
-          <h4 className="font-display text-sm text-heading">Incorrect answers</h4>
-          {misses.length === 0 ? (
-            <p className="text-sm leading-relaxed text-ink">
-              Every answer stayed inside the selected passage.
-            </p>
-          ) : (
-            <ul
-              data-testid="incorrect-answers"
-              className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink"
-            >
-              {misses.map((miss) => (
-                <li key={miss.questionIndex}>
-                  Q{miss.questionIndex + 1}: {miss.question}
-                </li>
-              ))}
-            </ul>
-          )}
+          <div data-testid="test-me-insights" className="space-y-3">
+            {INSIGHT_ORDER.filter((key) => insights[key].length > 0).map((key) => (
+              <div key={key} data-testid={`test-me-insight-${key}`}>
+                <h4 className="font-display text-sm text-heading">
+                  {INSIGHT_TEXT[key].title} ({insights[key].length})
+                </h4>
+                <p className="text-xs text-muted">{INSIGHT_TEXT[key].advice}</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-sm leading-relaxed text-ink">
+                  {insights[key].map((questionIndex) => (
+                    <li key={questionIndex}>
+                      Q{questionIndex + 1}: {mcqs[questionIndex]?.question}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {suggested ? (
+              <p className="text-xs text-muted" data-testid="test-me-suggested-level">
+                If this passage is typical of the chapter, rate it &ldquo;{levelInfo(suggested).label}&rdquo; in{" "}
+                <a href="/roadmap" className="font-medium text-accent underline-offset-4 hover:underline">
+                  Where you stand
+                </a>
+                .
+              </p>
+            ) : null}
+          </div>
           <h4 className="font-display text-sm text-heading">Weak concepts</h4>
           <ul
             data-testid="weak-concepts"

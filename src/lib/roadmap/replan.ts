@@ -81,6 +81,8 @@ export function proposeReplan(record: RoadmapRecord, request: ReplanRequest): Re
     intake,
     plan,
     completions: {},
+    // Readiness is the student's own rating of each chapter: a new timetable keeps it.
+    ...(record.readiness ? { readiness: { ...record.readiness } } : {}),
     updatedAt: `${request.today}T00:00:00.000Z`,
   };
 

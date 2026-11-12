@@ -4,6 +4,22 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-12 · Where you stand: exam readiness, "How sure were you?", and a next step for every chapter (no AI, no extra cost)
+
+**Owner decision (12 Nov):** from two competitor app walkthroughs, take only the useful ideas, in ORYZEN's own way (no copying of design, wording or characters).
+
+### Change: "How sure were you?" in Test me
+- **What:** after picking an answer, the student says how sure they were (Guessed / Fairly sure / Certain, or Skip) before the answer is shown; the choice is then final. The review groups questions as *Fix first: you felt sure but it was wrong*, *Still to learn*, *Right, but by a guess* and *Solid*, with one line of advice each, and suggests a rating for the chapter.
+- **Why:** a plain score hides lucky guesses and confident mistakes; confident mistakes are the ones that repeat in the exam.
+
+### Change: Where you stand (Study Roadmap) and on Today
+- **What:** the student rates each roadmap chapter: Not started / Shaky / Getting there / Exam ready. Readiness % = average of the ratings, weighted by how much the subject counts in the exam and how hard the chapter is. Shows days left, chapters exam ready, about how many days per remaining chapter, and **Do next**: the chapter that would raise readiness most, with one next step (Read and highlight → Test me and fix the misses → Revise with cards → Keep it fresh). Each chapter shows its place on Read › Test › Fix › Revise. Today shows "N% exam ready · Do next" once a chapter is rated.
+- **Saved:** inside the student's existing roadmap (device and account sync); replanning keeps the ratings. No new database table, no migration, no AI call.
+- **Files:** `src/lib/study/confidence.ts`, `src/lib/study/readiness.ts`, `src/components/study/ReadinessPanel.tsx`, `src/components/reader/StudyLensOutput.tsx`, `src/components/roadmap/RoadmapStudio.tsx`, `src/components/hub/TodayHome.tsx`, `src/lib/hub/continuation.ts`, `src/lib/roadmap/{types,sanitize,replan}.ts`.
+- **Left out on purpose:** mascots, fake "students online" counts, empty sections, phone number at sign-up.
+
+---
+
 ## 2026-11-12 · Student Pro renews automatically every month (Razorpay Subscriptions)
 
 **Owner decision (11 Nov):** Pro renews automatically.

@@ -154,6 +154,22 @@ export function TodayHome({
 
       <h2 className="pt-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">Every day</h2>
 
+      {ready && continuation.readiness ? (
+        <Link
+          href="/roadmap"
+          data-testid="today-readiness"
+          className="flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+        >
+          <span className="min-w-0">
+            <span className="block font-semibold text-heading">{continuation.readiness.percent}% exam ready</span>
+            <span className="block truncate text-sm text-muted">
+              {continuation.readiness.doNext ? `Do next: ${continuation.readiness.doNext}` : "Every chapter is exam ready"}
+            </span>
+          </span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
+        </Link>
+      ) : null}
+
       {continuation.backlog ? (
         <Link
           href="/roadmap#backlog"

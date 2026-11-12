@@ -5,6 +5,7 @@ import { activeSession, nextRecommendedBlock, studiedMinutesOnDate } from "@/lib
 import { readSprintStore } from "@/lib/sprint/persist";
 import type { SprintSession } from "@/lib/sprint/types";
 import { readDayPlan } from "@/lib/universe/persist";
+import { readinessSummary } from "@/lib/study/readiness";
 
 export interface HomeContinuation {
   bookTitle: string | null;
@@ -16,6 +17,8 @@ export interface HomeContinuation {
   backlog?: { topics: number; minutes: number } | null;
   /** The exam on the plan, for the countdown. */
   exam?: { name: string; date: string; month?: string } | null;
+  /** Exam readiness, once the student has rated at least one chapter. */
+  readiness?: { percent: number; doNext: string | null } | null;
 }
 
 function unfinishedStudy(sessions: readonly RoadmapSession[], completions: RoadmapRecord["completions"]) {
@@ -90,6 +93,14 @@ export function describeHomeContinuation(input: {
           return { name: intake.examName.trim() || "Exam", date: intake.examDate, ...(month ? { month } : {}) };
         })()
       : null,
+    readiness:
+      input.roadmap && Object.keys(input.roadmap.readiness ?? {}).length > 0
+        ? (() => {
+            const summary = readinessSummary(input.roadmap, input.date);
+            const next = summary.doNext;
+            return { percent: summary.percent, doNext: next ? `${next.subjectName}: ${next.chapterName}` : null };
+          })()
+        : null,
   };
 }
 

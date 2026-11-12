@@ -239,6 +239,34 @@ describe("student study screens", () => {
     );
     expect(quiz.getByTestId("test-me-quiz").textContent).toMatch(/What stays the same/);
     expect(quiz.getByTestId("test-me-quiz").textContent).toMatch(/Answer the question from the selected passage only/);
+
+    // Picked while sure but wrong: the answer stays hidden until "how sure" is answered, then it is a trap.
+    const picked = render(
+      <StudyLensOutput
+        lens="test_me"
+        selectedMcqOptions={{ 0: 0 }}
+        onPickMcq={() => undefined}
+        result={result({
+          ...base,
+          lens_type: "test_me",
+          markdown_body: "Velocity stays constant unless a net force acts.",
+          mcqs: [
+            {
+              question: "What stays the same until a net force acts?",
+              options: ["Colour", "Velocity", "Mass", "Nothing"],
+              correctIndex: 1,
+              explanation: "The first law keeps velocity constant.",
+              citationLabel: "[Page 1]",
+            },
+          ],
+        })}
+      />
+    );
+    expect(picked.queryByTestId("test-me-feedback-0")).toBeNull();
+    fireEvent.click(picked.getByTestId("test-me-sure-0-certain"));
+    expect(picked.getByTestId("test-me-feedback-0").textContent).toMatch(/Not quite/);
+    expect(picked.getByTestId("test-me-insight-trap").textContent).toMatch(/felt sure but it was wrong/);
+    expect(picked.getByTestId("test-me-suggested-level").textContent).toMatch(/Shaky/);
   });
 
   it("opens a concept map when the flowchart is missing and offers another try", () => {
