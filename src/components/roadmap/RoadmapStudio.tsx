@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import CoachHost, { CoachOverwhelmedButton } from "@/components/coach/CoachHost";
 import { ui, tabClass } from "@/components/ui/classes";
+import ReadinessPanel from "@/components/study/ReadinessPanel";
 import { takePendingCoachAction } from "@/lib/coach/pending";
 import { readCoachPrefs, recordPostpone } from "@/lib/coach/persist";
 import { adjustSession, moveSession, setSessionStart } from "@/lib/roadmap/edit";
@@ -370,6 +371,8 @@ export default function RoadmapStudio({
           </button>
         </div>
       </section>
+
+      <ReadinessPanel record={record} today={today} onChange={onChange} />
 
       <nav className="flex flex-wrap gap-1" aria-label="Roadmap views">
         {(

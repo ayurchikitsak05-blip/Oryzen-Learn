@@ -160,6 +160,8 @@ export interface RoadmapRecord {
   intake: RoadmapIntake;
   plan: RoadmapPlan;
   completions: Record<string, SessionCompletion>;
+  /** How ready the student says each chapter is (chapter id → level). See lib/study/readiness. */
+  readiness?: Record<string, "not_started" | "shaky" | "getting_there" | "exam_ready">;
   updatedAt: string;
 }
 
