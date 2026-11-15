@@ -6,6 +6,8 @@ import {
   extendPhase,
   pauseSchedule,
   resetSchedule,
+  endSession,
+  focusElapsedMs,
   resumeSchedule,
   skipPhase,
 } from "../scheduler";
@@ -82,3 +84,29 @@ describe("study scheduler", () => {
     expect(extended.phaseEndsAt).toBe(25 * 60_000);
   });
 });
+
+describe("studied minutes are never lost", () => {
+  const MIN = 60_000;
+  it("finishing a block early counts only the minutes studied", () => {
+    const started = beginFocus(createIdleSchedule({ goalMinutes: 120, focusMinutes: 45, breakMinutes: 5 }), 0);
+    const skipped = skipPhase(started, 40 * MIN);
+    expect(skipped.phase).toBe("break");
+    expect(skipped.focusedMs).toBe(40 * MIN);
+  });
+
+  it("extra minutes from Extend count too", () => {
+    const started = beginFocus(createIdleSchedule({ goalMinutes: 120, focusMinutes: 20, breakMinutes: 5 }), 0);
+    const extended = extendPhase(started, 5, 10 * MIN);
+    expect(catchUpSchedule(extended, 25 * MIN).schedule.focusedMs).toBe(25 * MIN);
+  });
+
+  it("ending a session halfway keeps the minutes, paused or not", () => {
+    const started = beginFocus(createIdleSchedule({ goalMinutes: 120, focusMinutes: 45, breakMinutes: 5 }), 0);
+    const ended = endSession(started, 40 * MIN);
+    expect(ended).toMatchObject({ phase: "complete", focusedMs: 40 * MIN });
+    const paused = pauseSchedule(started, 30 * MIN);
+    expect(endSession(paused, 90 * MIN).focusedMs).toBe(30 * MIN);
+    expect(focusElapsedMs(paused, 999 * MIN)).toBe(30 * MIN);
+  });
+});
+

@@ -186,6 +186,12 @@ function enqueuePrivatePersist(): void {
     });
 }
 
+/** Every private study record on this device, for the student's own "Download my study data". */
+export function privateRecordsSnapshot(userId?: string | null): Record<string, string> {
+  if (!privateAccessAllowed(userId) || !state) return {};
+  return Object.fromEntries(state.memory.entries());
+}
+
 export function writePrivateString(baseKey: string, value: string, userId?: string | null): void {
   if (!privateAccessAllowed(userId) || !state) return;
   state.memory.set(baseKey, value);
