@@ -2,7 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { calculateCallCostInr } from "@/lib/ai/spend-guard";
 import { allowancePlanFor } from "@/lib/ai/daily-allowance";
 import type { TimestampedLectureNote } from "./sync-engine";
+import { compactTranscript, fetchYouTubeCaptions, type CaptionFetchResult } from "./youtube-captions";
 import {
+  captionHeadingsRequestBody,
+  CAPTION_MAX_CHARS,
+  CAPTION_MAX_OUTPUT_TOKENS,
+  videoFallbackEnabled,
   indiaMonthStartIso,
   isVideoId,
   lectureAllowance,
@@ -28,6 +33,11 @@ export const IN_PROGRESS_WINDOW_MS = 10 * 60 * 1000;
 export function worstCaseLectureCostInr(): number {
   const promptTokens = Math.ceil(LECTURE_MAX_SECONDS * (LECTURE_FRAMES_PER_SECOND * 70 + 25)) + 1_000;
   return calculateCallCostInr(LECTURE_NOTES_MODEL, promptTokens, LECTURE_MAX_OUTPUT_TOKENS);
+}
+
+/** What headings from subtitles cost at most (the longest subtitles we send). */
+export function worstCaseCaptionCostInr(): number {
+  return calculateCallCostInr(LECTURE_NOTES_MODEL, Math.ceil(CAPTION_MAX_CHARS / 2) + 1_000, CAPTION_MAX_OUTPUT_TOKENS);
 }
 
 export type LectureNotesOutcome =
@@ -99,6 +109,10 @@ export async function makeLectureNotes(input: {
   apiKey: string;
   fetchImpl?: typeof fetch;
   now?: Date;
+  /** Let the AI watch the whole video when there are no subtitles (costly; off unless the owner switches it on). */
+  videoFallback?: boolean;
+  /** Reads the lecture's subtitles (replaced in tests). */
+  readCaptions?: (videoId: string) => Promise<CaptionFetchResult>;
 }): Promise<LectureNotesOutcome> {
   const { admin, userId, videoId } = input;
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -146,6 +160,26 @@ export async function makeLectureNotes(input: {
       status: 409,
       code: "in_progress",
       error: "Notes for this lecture are already being made, or were just tried. Please wait a few minutes.",
+      allowance: before,
+    };
+  }
+
+  // The lecture's subtitles (YouTube's automatic ones count). Free to read; nothing held yet.
+  const captions = await (input.readCaptions ?? ((id: string) => fetchYouTubeCaptions(id)))(videoId).catch(() => null);
+  const transcript = captions?.ok
+    ? compactTranscript(captions.lines, { maxSeconds: LECTURE_MAX_SECONDS, maxChars: CAPTION_MAX_CHARS })
+    : "";
+  const useVideo = !transcript && (input.videoFallback ?? videoFallbackEnabled());
+  if (!transcript && !useVideo) {
+    console.warn(JSON.stringify({ event: "lecture_no_captions", videoId, reason: captions && !captions.ok ? captions.reason : "error" }));
+    const blocked = captions && !captions.ok && captions.reason === "blocked";
+    return {
+      ok: false,
+      status: 422,
+      code: blocked ? "captions_unavailable" : "no_captions",
+      error: blocked
+        ? "YouTube didn't let us read this lecture's subtitles just now. Nothing was counted. Please try again later."
+        : "This lecture has no subtitles on YouTube (not even automatic ones), so topic headings can't be made. Nothing was counted.",
       allowance: before,
     };
   }
@@ -203,7 +237,9 @@ export async function makeLectureNotes(input: {
     fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${LECTURE_NOTES_MODEL}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": input.apiKey },
-      body: JSON.stringify(lectureNotesRequestBody(videoId, { sparseFrames })),
+      body: JSON.stringify(
+        useVideo ? lectureNotesRequestBody(videoId, { sparseFrames }) : captionHeadingsRequestBody(transcript, captions?.ok ? captions.title : null)
+      ),
       signal: controller.signal,
     });
   let response: Response;
@@ -211,7 +247,7 @@ export async function makeLectureNotes(input: {
     response = await call(true);
     // Google sometimes fails a YouTube link with a server error when the picture rate is set;
     // try once more at its default rate (about twice the cost, still capped at 90 minutes).
-    if (response.status >= 500) {
+    if (useVideo && response.status >= 500) {
       const first = (await response.json().catch(() => ({}))) as { error?: { message?: string; status?: string } };
       console.warn(
         JSON.stringify({
@@ -227,7 +263,10 @@ export async function makeLectureNotes(input: {
   } catch {
     clearTimeout(timer);
     // Google may still finish (and bill) the call after we stop waiting, so this counts.
-    await admin.from("lecture_note_requests").update({ cost_inr: worstCaseLectureCostInr() }).eq("id", heldId);
+    await admin
+      .from("lecture_note_requests")
+      .update({ cost_inr: useVideo ? worstCaseLectureCostInr() : worstCaseCaptionCostInr() })
+      .eq("id", heldId);
     return {
       ok: false,
       status: 504,

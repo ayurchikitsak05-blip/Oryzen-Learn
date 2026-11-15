@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { lectureNotesStatus, makeLectureNotes } from "../lecture-notes-server";
 
+/** These tests cover the old way (the AI watches the video): no subtitles, fallback switched on. */
+const VIDEO_WAY = { videoFallback: true, readCaptions: async () => ({ ok: false as const, reason: "no_captions" as const }) };
+
 type Row = Record<string, unknown>;
 
 /** A tiny in-memory stand-in for the two tables, enough for the queries the server makes. */
@@ -104,7 +107,7 @@ describe("lecture notes (server)", () => {
     const { client, tables } = fakeAdmin();
     const fetchImpl = geminiReply(SECTIONS);
     const first = await makeLectureNotes({
-      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl,
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(first.ok && first.cached).toBe(false);
     expect(first.ok && first.notes[0].heading).toBe("Reflection");
@@ -113,7 +116,7 @@ describe("lecture notes (server)", () => {
     expect(tables.lecture_notes_cache).toHaveLength(1);
 
     const second = await makeLectureNotes({
-      admin: client, userId: "b", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl,
+      admin: client, userId: "b", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(second.ok && second.cached).toBe(true);
     expect(second.ok && second.allowance.used).toBe(0);
@@ -123,9 +126,9 @@ describe("lecture notes (server)", () => {
   it("stops at the monthly limit without calling the AI", async () => {
     const { client } = fakeAdmin();
     const fetchImpl = geminiReply(SECTIONS);
-    await makeLectureNotes({ admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl });
+    await makeLectureNotes({ admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl, ...VIDEO_WAY });
     const blocked = await makeLectureNotes({
-      admin: client, userId: "a", videoId: "aaaaaaaaaaa", accessStatus: "free", apiKey: "k", fetchImpl,
+      admin: client, userId: "a", videoId: "aaaaaaaaaaa", accessStatus: "free", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(blocked).toMatchObject({ ok: false, status: 429, code: "monthly_limit" });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -139,7 +142,7 @@ describe("lecture notes (server)", () => {
       new Response(JSON.stringify({ error: { message: "The video is private" } }), { status: 400 })
     );
     const result = await makeLectureNotes({
-      admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl,
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(result).toMatchObject({ ok: false, code: "provider_error" });
     expect(!result.ok && result.error).toMatch(/Only public YouTube videos/);
@@ -151,10 +154,10 @@ describe("lecture notes (server)", () => {
     const { client, tables } = fakeAdmin();
     const fetchImpl = geminiReply(SECTIONS);
     expect(
-      await makeLectureNotes({ admin: client, userId: "a", videoId: "nope", accessStatus: "free", apiKey: "k", fetchImpl })
+      await makeLectureNotes({ admin: client, userId: "a", videoId: "nope", accessStatus: "free", apiKey: "k", fetchImpl, ...VIDEO_WAY })
     ).toMatchObject({ ok: false, status: 400 });
     expect(
-      await makeLectureNotes({ admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "", fetchImpl })
+      await makeLectureNotes({ admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "", fetchImpl, ...VIDEO_WAY })
     ).toMatchObject({ ok: false, status: 503, code: "not_configured" });
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(tables.lecture_note_requests).toHaveLength(0);
@@ -163,7 +166,7 @@ describe("lecture notes (server)", () => {
   it("sends the YouTube link, clipped and at low detail", async () => {
     const { client } = fakeAdmin();
     const fetchImpl = geminiReply(SECTIONS);
-    await makeLectureNotes({ admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl });
+    await makeLectureNotes({ admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl, ...VIDEO_WAY });
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain("gemini-3.5-flash-lite:generateContent");
     const body = JSON.parse(String(init.body));
@@ -179,7 +182,7 @@ describe("lecture notes (server)", () => {
     });
     const fetchImpl = geminiReply(SECTIONS);
     const result = await makeLectureNotes({
-      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl,
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(result).toMatchObject({ ok: false, status: 409, code: "in_progress" });
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -191,7 +194,7 @@ describe("lecture notes (server)", () => {
       throw new DOMException("aborted", "AbortError");
     });
     const result = await makeLectureNotes({
-      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl,
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(result).toMatchObject({ ok: false, code: "timeout" });
     expect(tables.lecture_note_requests).toHaveLength(1);
@@ -210,7 +213,7 @@ describe("lecture notes (server)", () => {
       )
     );
     const result = await makeLectureNotes({
-      admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl,
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(result).toMatchObject({ ok: false, code: "cut_short" });
     expect(tables.lecture_note_requests[0]).toMatchObject({ counted: false });
@@ -242,7 +245,7 @@ describe("lecture notes (server)", () => {
       },
     } as unknown as SupabaseClient;
     const result = await makeLectureNotes({
-      admin: racing, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl,
+      admin: racing, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(result).toMatchObject({ ok: false, status: 429, code: "monthly_limit" });
     expect(tables.lecture_note_requests.map((row) => row.id)).toEqual(["r0"]);
@@ -257,7 +260,7 @@ describe("lecture notes (server)", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "Internal", status: "INTERNAL" } }), { status: 500 }))
       .mockImplementationOnce(ok);
     const result = await makeLectureNotes({
-      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl,
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "active_paid", apiKey: "k", fetchImpl, ...VIDEO_WAY,
     });
     expect(result.ok).toBe(true);
     const second = JSON.parse(String((fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].body));
@@ -267,10 +270,52 @@ describe("lecture notes (server)", () => {
       new Response(JSON.stringify({ error: { message: "Internal", status: "INTERNAL" } }), { status: 500 })
     );
     const failed = await makeLectureNotes({
-      admin: client, userId: "a", videoId: "ccccccccccc", accessStatus: "active_paid", apiKey: "k", fetchImpl: failing,
+      admin: client, userId: "a", videoId: "ccccccccccc", accessStatus: "active_paid", apiKey: "k", fetchImpl: failing, ...VIDEO_WAY,
     });
     expect(failed).toMatchObject({ ok: false, code: "provider_error", reference: "G500-INTERNAL" });
     expect(failing).toHaveBeenCalledTimes(2);
     expect(tables.lecture_note_requests.filter((row) => row.video_id === "ccccccccccc")).toHaveLength(0);
+  });
+});
+
+describe("lecture headings from subtitles", () => {
+  const LINES = [
+    { start: 0, text: "aaj hum Newton ke laws padhenge" },
+    { start: 35, text: "first law: inertia, a body stays at rest" },
+    { start: 400, text: "second law F equals m a" },
+  ];
+  const captions = async () => ({ ok: true as const, lines: LINES, language: "hi", auto: true, title: "NLM one shot" });
+
+  it("sends the subtitles as text (no video) and shares the headings", async () => {
+    const { client, tables } = fakeAdmin();
+    const fetchImpl = geminiReply(SECTIONS);
+    const result = await makeLectureNotes({
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl, readCaptions: captions,
+    });
+    expect(result.ok).toBe(true);
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(String(init.body));
+    expect(JSON.stringify(body)).not.toContain("fileData");
+    expect(body.contents[0].parts[0].text).toContain("[00:35] first law: inertia");
+    expect(body.contents[0].parts[0].text).toContain("Video title: NLM one shot");
+    expect(body.generationConfig.maxOutputTokens).toBe(4096);
+    expect(tables.lecture_notes_cache).toHaveLength(1);
+  });
+
+  it("without subtitles: no AI call, nothing counted, unless the owner switches the video way on", async () => {
+    const { client, tables } = fakeAdmin();
+    const fetchImpl = geminiReply(SECTIONS);
+    const none = async () => ({ ok: false as const, reason: "no_captions" as const });
+    const result = await makeLectureNotes({
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl, readCaptions: none, videoFallback: false,
+    });
+    expect(result).toMatchObject({ ok: false, code: "no_captions", status: 422 });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(tables.lecture_note_requests).toHaveLength(0);
+    const blocked = await makeLectureNotes({
+      admin: client, userId: "a", videoId: VIDEO, accessStatus: "free", apiKey: "k", fetchImpl,
+      readCaptions: async () => ({ ok: false as const, reason: "blocked" as const }), videoFallback: false,
+    });
+    expect(blocked).toMatchObject({ ok: false, code: "captions_unavailable" });
   });
 });

@@ -145,8 +145,18 @@ async function readTrack(track: CaptionTrackInfo, fetchImpl: typeof fetch): Prom
   const url = new URL(track.baseUrl);
   url.searchParams.set("fmt", "json3");
   const response = await fetchImpl(url.toString(), { headers: WATCH_HEADERS }).catch(() => null);
+  const body = response?.ok ? await response.text().catch(() => "") : "";
+  console.info(
+    JSON.stringify({
+      event: "yt_caption_track",
+      status: response?.status ?? 0,
+      bytes: body.length,
+      lang: track.languageCode,
+      kind: track.kind ?? null,
+      needsPot: track.baseUrl.includes("exp=xpe") || track.baseUrl.includes("&pot") ,
+    })
+  );
   if (!response?.ok) return [];
-  const body = await response.text().catch(() => "");
   if (!body.trim()) return [];
   if (body.trimStart().startsWith("{")) {
     try {
@@ -163,6 +173,17 @@ export async function fetchYouTubeCaptions(videoId: string, fetchImpl: typeof fe
   const page = await fetchImpl(`https://www.youtube.com/watch?v=${videoId}&hl=en`, { headers: WATCH_HEADERS }).catch(() => null);
   if (!page?.ok) return { ok: false, reason: page && page.status === 429 ? "blocked" : "unavailable" };
   const html = await page.text().catch(() => "");
+  console.info(
+    JSON.stringify({
+      event: "yt_watch_page",
+      status: page.status,
+      bytes: html.length,
+      details: html.includes('"videoDetails"'),
+      tracks: (html.match(/"captionTracks"/g) ?? []).length,
+      bot: /not a bot|unusual traffic/i.test(html),
+      playability: /"playabilityStatus":\{"status":"([A-Z_]+)"/.exec(html)?.[1] ?? null,
+    })
+  );
   if (!html.includes('"videoDetails"')) {
     // A "confirm you're not a bot" or consent page instead of the video.
     return { ok: false, reason: "blocked" };

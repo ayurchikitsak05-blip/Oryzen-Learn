@@ -110,6 +110,54 @@ export function lectureNotesRequestBody(videoId: string, options: { sparseFrames
   };
 }
 
+// ---------------------------------------------------------------------------
+// Headings from subtitles (owner, 15 Nov 2026). The AI reads the lecture's subtitles (often
+// YouTube's automatic ones) as text instead of watching the video: about 15 times cheaper.
+// ---------------------------------------------------------------------------
+
+/** About 60k characters: a 90-minute lecture's subtitles; caps one lecture at roughly ₹1–1.5. */
+export const CAPTION_MAX_CHARS = 60_000;
+export const CAPTION_MAX_OUTPUT_TOKENS = 4096;
+
+export const CAPTION_HEADINGS_PROMPT = [
+  "Below are the subtitles of a recorded class lecture for a student in India (Class 10 and up), one line about every 30 seconds, each starting with its time [MM:SS] or [H:MM:SS].",
+  "The subtitles may be YouTube's automatic ones: expect wrong words, missing punctuation and Hindi written in English or Devanagari letters. Work out what the teacher means; never copy obvious mistakes.",
+  "Split the lecture into topics, in order, starting a new one whenever the topic changes (a 60-minute lecture usually has 8 to 15 topics; at most 30). For each topic give:",
+  "- start_time: the time of the subtitle line where the topic starts, copied from that line;",
+  "- heading: a short, clear topic heading in English (keep key Hindi or subject terms if the teacher uses them);",
+  "- points: 1 to 3 very short points: the main definition, formula or idea of that topic;",
+  "- key_point: the one thing most likely to be asked in an exam, or an empty string.",
+  "Only use what the teacher says. Do not add facts from elsewhere. If this is not a lecture, return an empty sections list.",
+  "Also return title: a short title for the lecture.",
+].join("\n");
+
+/** The Gemini request for headings from subtitles (text only, no video). */
+export function captionHeadingsRequestBody(transcript: string, videoTitle: string | null) {
+  return {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `${CAPTION_HEADINGS_PROMPT}\n\n${videoTitle ? `Video title: ${videoTitle.slice(0, 200)}\n\n` : ""}Subtitles:\n${transcript.slice(0, CAPTION_MAX_CHARS)}`,
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: CAPTION_MAX_OUTPUT_TOKENS,
+      responseMimeType: "application/json",
+      responseSchema: LECTURE_NOTES_SCHEMA,
+    },
+  };
+}
+
+/** True only when the owner has switched on the old way (the AI watches the whole video). */
+export function videoFallbackEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.LECTURE_VIDEO_FALLBACK?.trim().toLowerCase() === "on";
+}
+
 function cleanText(value: unknown, max: number): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
 }
