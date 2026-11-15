@@ -1,4 +1,5 @@
 import type { TimestampedLectureNote } from "@/lib/video/sync-engine";
+import { fetchYouTubeCaptions } from "@/lib/video/youtube-captions";
 
 export type PublicCaptionResult = {
   notes: TimestampedLectureNote[];
@@ -51,6 +52,15 @@ export async function fetchPublicYouTubeCaptions(
   const id = videoId.trim();
   if (!/^[A-Za-z0-9_-]{6,}$/.test(id)) {
     return { notes: [], reason: "unsupported" };
+  }
+  // The video page's own subtitle list (any language, including YouTube's automatic ones).
+  const fresh = await fetchYouTubeCaptions(id, fetchImpl).catch(() => null);
+  if (fresh?.ok) {
+    const xmlLike = fresh.lines
+      .map((line) => `<text start="${line.start}">${line.text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</text>`)
+      .join("");
+    const notes = notesFromTimedTextXml(xmlLike, id);
+    if (notes.length > 0) return { notes, reason: "ok" };
   }
   const urls = [
     `https://www.youtube.com/api/timedtext?v=${encodeURIComponent(id)}&lang=en`,
