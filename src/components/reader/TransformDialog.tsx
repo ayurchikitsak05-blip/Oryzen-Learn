@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import { notifyAiHelpUsed } from "@/components/ai/AiHelpsLeft";
 import { X } from "lucide-react";
 import type { AiGatewayExecutionResult } from "@/lib/ai/gateway";
 import type { LocalPdfDocumentRecord } from "@/lib/reader/storage";
@@ -101,6 +102,7 @@ export default function TransformDialog({
           candidateChunks: slice.candidateChunks,
         }),
       });
+      notifyAiHelpUsed();
       const data = (await response.json()) as AiGatewayExecutionResult & {
         error?: string;
       };

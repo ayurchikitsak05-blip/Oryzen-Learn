@@ -51,6 +51,36 @@ export function pickTodayCards(
   return [...due, ...fresh].slice(0, max);
 }
 
+/** A new order for a round of cards (Fisher-Yates). `random` is replaceable in tests. */
+export function shuffleCards<T>(cards: readonly T[], random: () => number = Math.random): T[] {
+  const out = cards.slice();
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** Cards in one free practice round (students asked to keep flipping without a daily limit). */
+export const PRACTICE_ROUND_SIZE = 20;
+
+/**
+ * Practice any time: every usable card, weakest first, a round at a time. Practice doesn't change
+ * when cards come back (that stays with the daily round), so extra practice never hurts the schedule.
+ */
+export function practiceCards(
+  notes: readonly RevisionNote[],
+  state: RevisionState,
+  options: { subject?: string | null; max?: number } = {}
+): RevisionNote[] {
+  return notes
+    .filter((note) => note.title.trim() && (note.body.trim() || note.audioId))
+    .filter((note) => !options.subject || note.subject === options.subject)
+    .slice()
+    .sort((a, b) => (state[a.id]?.box ?? -1) - (state[b.id]?.box ?? -1))
+    .slice(0, options.max ?? PRACTICE_ROUND_SIZE);
+}
+
 export function gradeCard(state: RevisionState, noteId: string, remembered: boolean, today: string): RevisionState {
   const current = state[noteId];
   const box = remembered ? Math.min((current?.box ?? 0) + 1, BOX_INTERVAL_DAYS.length) : 0;

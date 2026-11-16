@@ -18,7 +18,10 @@ import {
   revisionDoneToday,
   gradeCard,
   pickTodayCards,
+  practiceCards,
+  PRACTICE_ROUND_SIZE,
   readRevisionState,
+  shuffleCards,
   strengthsAndWeakSpots,
   subjectProgress,
   type SubjectProgress,
@@ -106,7 +109,7 @@ function ReminderSetup() {
   };
 
   return (
-    <section className="space-y-3 rounded-2xl border border-line bg-surface p-4" data-testid="revision-reminder">
+    <section id="reminder" className="space-y-3 rounded-2xl border border-line bg-surface p-4" data-testid="revision-reminder">
       <div className="flex items-start gap-3">
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-beige-2">
           <BellRing className="h-5 w-5 text-accent" aria-hidden="true" />
@@ -207,6 +210,11 @@ export function MorningRevision() {
   const [shown, setShown] = useState(false);
   const [remembered, setRemembered] = useState(0);
   const [state, setState] = useState<RevisionState>({});
+  // "today": the daily round (answers move cards along). "practice": free flipping, any time,
+  // which never changes when cards come back.
+  const [mode, setMode] = useState<"today" | "practice">("today");
+  const [round, setRound] = useState<RevisionNote[]>([]);
+  const [answered, setAnswered] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -239,10 +247,12 @@ export function MorningRevision() {
         })),
       ];
       const today = localIsoDate();
+      const cards = pickTodayCards(notes, saved, today);
+      setRound(cards);
       setLoad({
         kind: "ready",
         userId: user.userId,
-        cards: pickTodayCards(notes, saved, today),
+        cards,
         notes,
         hasNotes: notes.some((note) => !note.audioId && note.title.trim() && note.body.trim()),
         doneToday: revisionDoneToday(user.userId, today),
@@ -254,24 +264,62 @@ export function MorningRevision() {
     };
   }, []);
 
+  const goTo = (next: number) => {
+    setShown(false);
+    setIndex(Math.max(0, Math.min(next, round.length)));
+  };
+
   const grade = (yes: boolean) => {
     if (load.kind !== "ready") return;
-    const card = load.cards[index];
-    const next = gradeCard(state, card.id, yes, localIsoDate());
-    setState(next);
-    writeRevisionState(next, load.userId);
-    if (yes) setRemembered((count) => count + 1);
-    setShown(false);
-    if (index + 1 >= load.cards.length) markRevisionDone(load.userId, localIsoDate());
-    setIndex((value) => value + 1);
+    const card = round[index];
+    if (!card) return;
+    if (mode === "today" && answered[card.id] === undefined) {
+      const next = gradeCard(state, card.id, yes, localIsoDate());
+      setState(next);
+      writeRevisionState(next, load.userId);
+    }
+    if (answered[card.id] === undefined && yes) setRemembered((count) => count + 1);
+    if (answered[card.id] === true && !yes) setRemembered((count) => Math.max(0, count - 1));
+    if (answered[card.id] === false && yes) setRemembered((count) => count + 1);
+    setAnswered((current) => ({ ...current, [card.id]: yes }));
+    if (mode === "today" && index + 1 >= round.length) markRevisionDone(load.userId, localIsoDate());
+    goTo(index + 1);
   };
+
+  const startPractice = (subject?: string | null) => {
+    if (load.kind !== "ready") return;
+    const cards = shuffleCards(practiceCards(load.notes, state, { subject }));
+    setMode("practice");
+    setRound(cards);
+    setAnswered({});
+    setRemembered(0);
+    setLoad({ ...load, doneToday: false });
+    goTo(0);
+    setIndex(0);
+  };
+
+  const shuffleRest = () => {
+    // Shuffles the cards not reached yet; the ones already seen stay where they are.
+    setRound((current) => [...current.slice(0, index), ...shuffleCards(current.slice(index))]);
+    setShown(false);
+  };
+
+  const card = round[index];
+  const subjects =
+    load.kind === "ready"
+      ? Array.from(new Set(load.notes.filter((note) => note.subject && note.title.trim()).map((note) => note.subject))).slice(0, 8)
+      : [];
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-4 px-4 py-6 md:py-10" data-testid="morning-revision">
       <header>
         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">Revise</p>
-        <h1 className="font-display mt-1 text-3xl text-heading">Morning revision</h1>
-        <p className="mt-2 text-sm text-muted">Quick cards from your own notes, about 3 minutes. Uses no AI help.</p>
+        <h1 className="font-display mt-1 text-3xl text-heading">{mode === "practice" ? "Practice" : "Morning revision"}</h1>
+        <p className="mt-2 text-sm text-muted">
+          {mode === "practice"
+            ? "Flip through as many cards as you like. Practice doesn't change when cards come back."
+            : "Quick cards from your own notes, about 3 minutes. Uses no AI help."}
+        </p>
       </header>
 
       {load.kind === "loading" ? <p className={ui.loading}>Opening your notes…</p> : null}
@@ -286,51 +334,54 @@ export function MorningRevision() {
         <p className={ui.notice}>Your private study record is locked on this device, so today&apos;s answers won&apos;t be remembered.</p>
       ) : null}
 
-      {load.kind === "ready" && load.doneToday && index === 0 ? (
+      {load.kind === "ready" && mode === "today" && load.doneToday && index === 0 ? (
         <section className={ui.empty} data-testid="revision-done-today">
           You&apos;ve done today&apos;s revision. New cards come tomorrow.
           {load.cards.length > 0 ? (
             <button type="button" className={`${ui.ghost} mt-2`} onClick={() => setLoad({ ...load, doneToday: false })}>
-              Revise a few more anyway
+              Revise today&apos;s cards again
             </button>
           ) : null}
         </section>
       ) : null}
 
-      {load.kind === "ready" && !load.doneToday && load.cards.length === 0 ? (
+      {load.kind === "ready" && mode === "today" && !load.doneToday && load.cards.length === 0 ? (
         <section className={ui.empty} data-testid="revision-empty">
           {load.hasNotes
-            ? "Nothing is due today. Cards you remembered come back in a few days."
+            ? "Nothing is due today. Cards you remembered come back in a few days. You can still practise below."
             : "Nothing to revise yet. Save notes from your books or lectures (\"Save to My Notes\") and they become revision cards here."}
         </section>
       ) : null}
 
-      {load.kind === "ready" && !load.doneToday && load.cards.length > 0 && index < load.cards.length ? (
+      {load.kind === "ready" && card && !(mode === "today" && load.doneToday) ? (
         <section className={`${ui.cardPad} space-y-4`} data-testid="revision-card">
-          <p className={ui.eyebrow}>
-            Card {index + 1} of {load.cards.length}
-            {load.cards[index].subject ? ` · ${load.cards[index].subject}` : ""}
-          </p>
-          <h2 className={`${ui.heading} text-xl`}>{load.cards[index].title}</h2>
+          <div className="flex items-center justify-between gap-2">
+            <p className={ui.eyebrow}>
+              Card {index + 1} of {round.length}
+              {card.subject ? ` · ${card.subject}` : ""}
+            </p>
+            {round.length - index > 1 ? (
+              <button type="button" className="text-xs font-medium text-accent underline-offset-4 hover:underline" onClick={shuffleRest} data-testid="revision-shuffle">
+                Shuffle
+              </button>
+            ) : null}
+          </div>
+          <h2 className={`${ui.heading} text-xl`}>{card.title}</h2>
           <ListenButton
             key={`${index}-${shown}`}
-            text={
-              shown && !load.cards[index].audioId
-                ? noteTextForReading(load.cards[index].title, load.cards[index].body)
-                : load.cards[index].title
-            }
+            text={shown && !card.audioId ? noteTextForReading(card.title, card.body) : card.title}
           />
           <p className="text-sm text-muted">Say the answer in your head first.</p>
           {shown ? (
             <>
-              {load.cards[index].audioId ? (
-                <VoiceNotePlayer id={load.cards[index].audioId as string} userId={load.userId} />
+              {card.audioId ? (
+                <VoiceNotePlayer id={card.audioId} userId={load.userId} />
               ) : (
                 <div className="rounded-xl bg-beige-2 p-3 text-sm leading-relaxed text-ink" data-testid="revision-answer">
-                  {noteFormatOf(load.cards[index].body) === "plain" ? (
-                    <p className="whitespace-pre-line">{load.cards[index].body}</p>
+                  {noteFormatOf(card.body) === "plain" ? (
+                    <p className="whitespace-pre-line">{card.body}</p>
                   ) : (
-                    <FormattedNoteView title={load.cards[index].title} body={load.cards[index].body} />
+                    <FormattedNoteView title={card.title} body={card.body} />
                   )}
                 </div>
               )}
@@ -348,18 +399,59 @@ export function MorningRevision() {
               Show answer
             </button>
           )}
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              className={`${ui.ghost} min-h-11`}
+              disabled={index === 0}
+              onClick={() => goTo(index - 1)}
+              data-testid="revision-previous"
+            >
+              ← Previous
+            </button>
+            <button type="button" className={`${ui.ghost} min-h-11`} onClick={() => goTo(index + 1)} data-testid="revision-next">
+              {mode === "today" ? "Skip for now →" : "Next →"}
+            </button>
+          </div>
         </section>
       ) : null}
 
-      {load.kind === "ready" && load.cards.length > 0 && index >= load.cards.length ? (
+      {load.kind === "ready" && round.length > 0 && index >= round.length ? (
         <section className={`${ui.cardPad} space-y-3`} data-testid="revision-done">
-          <h2 className={`${ui.heading} text-2xl`}>Done for today</h2>
+          <h2 className={`${ui.heading} text-2xl`}>{mode === "practice" ? "Round done" : "Done for today"}</h2>
           <p className="text-sm text-ink">
-            You remembered {remembered} of {load.cards.length}. Cards you didn&apos;t remember come back tomorrow.
+            You remembered {remembered} of {Object.keys(answered).length || round.length}.
+            {mode === "today" ? " Cards you didn't remember come back tomorrow." : ""}
           </p>
-          <Link href="/hub" className={`${ui.primary} min-h-12 w-full`}>
-            Back to Today
-          </Link>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button type="button" className={`${ui.secondary} min-h-12`} onClick={() => goTo(0)} data-testid="revision-again">
+              Go through these again
+            </button>
+            <Link href="/hub" className={`${ui.primary} min-h-12`}>
+              Back to Today
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {load.kind === "ready" && load.hasNotes ? (
+        <section className="space-y-2 rounded-2xl border border-line bg-surface p-4" data-testid="revision-practice">
+          <h2 className="font-semibold text-heading">Practise any time</h2>
+          <p className="text-sm text-muted">
+            No daily limit. Up to {PRACTICE_ROUND_SIZE} cards a round, weakest first, shuffled. Your daily schedule stays as it is.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={`${ui.secondary} min-h-11`} onClick={() => startPractice(null)} data-testid="revision-practice-all">
+              Practise all subjects
+            </button>
+            {subjects.length > 1
+              ? subjects.map((subject) => (
+                  <button key={subject} type="button" className={`${ui.ghost} min-h-11`} onClick={() => startPractice(subject)}>
+                    {subject}
+                  </button>
+                ))
+              : null}
+          </div>
         </section>
       ) : null}
 

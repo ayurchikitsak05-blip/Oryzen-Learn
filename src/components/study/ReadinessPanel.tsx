@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { ui } from "@/components/ui/classes";
+import OwnAiCopy from "@/components/study/OwnAiCopy";
 import type { RoadmapRecord } from "@/lib/roadmap/types";
 import {
   CHAPTER_LEVELS,
@@ -101,6 +102,8 @@ export default function ReadinessPanel({
       ) : (
         <p className={ui.success}>Every chapter is exam ready. Keep them fresh with a weekly card recap.</p>
       )}
+
+      <OwnAiCopy record={record} today={today} />
 
       <button
         type="button"

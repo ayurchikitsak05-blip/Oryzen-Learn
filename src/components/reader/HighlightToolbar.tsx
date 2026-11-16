@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useLayoutEffect, useRef, useState } from "react";
+import AiHelpsLeft from "@/components/ai/AiHelpsLeft";
 import type { HighlightLensType } from "@/lib/prakriti/config";
 import type { ReaderStudyLens } from "@/components/reader/StudyWorkspace";
 import {
@@ -226,6 +227,7 @@ export default function HighlightToolbar({
           </button>
         ) : null}
       </div>
+      <AiHelpsLeft className="mt-0.5 px-1 text-center" />
       {moreOpen ? (
         <div
           data-testid="highlight-toolbar-more-panel"
@@ -255,7 +257,7 @@ export default function HighlightToolbar({
             }}
             className="inline-flex min-h-8 w-full items-center rounded-lg px-2 text-left text-[11px] font-medium text-ink hover:bg-beige-2 disabled:opacity-50"
           >
-            Ask My Book
+            Ask My Book (uses 2)
           </button>
         </div>
       ) : null}

@@ -4,6 +4,22 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-15 · Study essentials from competitor reviews (free to run, no AI cost)
+
+**Owner decision (15 Nov):** after reviewing screenshots and reviews of 15+ study apps, add only what fixes complaints students repeat, in ORYZEN's own way.
+
+1. **Download my study data** (`/me/data`, Settings): notes as a readable text file, or everything (notes + roadmap, chapter ratings, revision progress, highlights, quiz progress) as one file. Made on the device; nothing is sent. *Why:* another planner lost students' data in an update. **Rule from now on: no update may delete or reset a student's saved data.**
+2. **Welcome back after missed days** (Today): from 2 missed days, a gentle card with "5 quick cards" and "Set a daily reminder" (the phone-calendar reminder already on Revise). Only the last-visit date is kept on the device.
+3. **Practise any time** (Revise): Practice rounds of up to 20 cards, weakest first, shuffled, per subject, any number of times; Shuffle, Previous and Next/Skip on every card. Practice never changes when cards come back.
+4. **Lecture speed**: 0.75× to 2× buttons on the lecture player, remembered on the device.
+5. **Studied minutes never lost** (focus timer): finishing a block early counts the minutes actually studied (it used to count the whole block), "Extend 5 min" now counts, and "End session" keeps the minutes instead of wiping them.
+6. **Ask your own AI (free)** (Where you stand): copies the student's chapter ratings and exam date as a ready question for ChatGPT or Gemini (a 7-day plan, or a quiz on the weakest chapter). No name or email in it; uses none of ORYZEN's AI.
+7. **Limits shown up front**: "3 of 5 AI helps left today · saved answers are free" under the reader's AI buttons (new `/api/ai/allowance`, no AI cost); Ask My Book is marked "uses 2".
+
+**Left out on purpose:** community/groups, app blocking, lecture recording, predicted questions, AI coach chat, mascots, ads.
+
+---
+
 ## 2026-11-12 · Where you stand: exam readiness, "How sure were you?", and a next step for every chapter (no AI, no extra cost)
 
 **Owner decision (12 Nov):** from two competitor app walkthroughs, take only the useful ideas, in ORYZEN's own way (no copying of design, wording or characters).

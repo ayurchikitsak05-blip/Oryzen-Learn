@@ -17,6 +17,10 @@ import {
   formatTimestampBadge,
 } from "@/lib/video/sync-engine";
 
+/** Lecture speeds students can pick (YouTube supports 0.25× to 2×). */
+export const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+const SPEED_KEY = "oryzen_lecture_speed_v1";
+
 export interface VideoPlayerProps {
   youtubeUrlOrId: string | null;
   currentTimeSeconds: number;
@@ -51,6 +55,16 @@ export default function VideoPlayer({
   );
   const [localVideoName, setLocalVideoName] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  // Lecture speed, remembered on this device (students asked for faster lectures).
+  const [speed, setSpeed] = useState<number>(1);
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(SPEED_KEY));
+      if (PLAYBACK_SPEEDS.includes(saved)) setSpeed(saved);
+    } catch {
+      /* private window: start at 1× */
+    }
+  }, []);
 
   const htmlVideoRef = useRef<HTMLVideoElement | null>(null);
   const youtubeFrameRef = useRef<HTMLIFrameElement | null>(null);
@@ -64,6 +78,20 @@ export default function VideoPlayer({
       JSON.stringify({ event: "command", func, args }),
       "https://www.youtube.com"
     );
+  };
+
+  const applySpeed = (rate: number) => {
+    if (htmlVideoRef.current) htmlVideoRef.current.playbackRate = rate;
+    commandYouTube("setPlaybackRate", [rate]);
+  };
+  const chooseSpeed = (rate: number) => {
+    setSpeed(rate);
+    applySpeed(rate);
+    try {
+      window.localStorage.setItem(SPEED_KEY, String(rate));
+    } catch {
+      /* not remembered: fine */
+    }
   };
 
   useEffect(() => {
@@ -286,6 +314,7 @@ export default function VideoPlayer({
               if (reportedTimeRef.current > 0) {
                 commandYouTube("seekTo", [reportedTimeRef.current, true]);
               }
+              if (speed !== 1) commandYouTube("setPlaybackRate", [speed]);
             }}
           />
         ) : localVideoObjectUrl ? (
@@ -294,6 +323,9 @@ export default function VideoPlayer({
             data-testid="local-mp4-player"
             src={localVideoObjectUrl}
             controls
+            onLoadedMetadata={(e) => {
+              e.currentTarget.playbackRate = speed;
+            }}
             onTimeUpdate={(e) => {
               const sec = Math.floor(e.currentTarget.currentTime);
               handleScrubOrRewind(sec);
@@ -352,6 +384,25 @@ export default function VideoPlayer({
             <FastForward className="h-4 w-4" />
             +30s
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Lecture speed" data-testid="video-speed">
+          <span className="mr-1 text-xs font-medium text-muted">Speed</span>
+          {PLAYBACK_SPEEDS.map((rate) => (
+            <button
+              key={rate}
+              type="button"
+              role="radio"
+              aria-checked={speed === rate}
+              onClick={() => chooseSpeed(rate)}
+              data-testid={`video-speed-${rate}`}
+              className={`min-h-9 rounded-full border px-3 text-xs font-medium ${
+                speed === rate ? "border-heading bg-heading text-surface" : "border-line text-ink"
+              }`}
+            >
+              {rate}×
+            </button>
+          ))}
         </div>
 
         <input

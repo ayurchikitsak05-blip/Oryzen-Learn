@@ -23,7 +23,7 @@ import {
   formatClock,
   isSchedulePaused,
   pauseSchedule,
-  resetSchedule,
+  endSession,
   resumeSchedule,
   sanitizeSchedule,
   skipPhase,
@@ -338,7 +338,9 @@ export function StudySchedulerCard({
 
       {schedule.phase === "complete" && (
         <p className="mt-4 text-sm font-medium text-heading" role="status">
-          You reached your study goal.
+          {schedule.focusedMs >= schedule.goalMinutes * 60_000
+            ? "You reached your study goal."
+            : `Session saved: ${Math.round(schedule.focusedMs / 60_000)} min studied. Every minute counts.`}
         </p>
       )}
 
@@ -437,7 +439,10 @@ export function StudySchedulerCard({
             data-testid="scheduler-end"
             onClick={() => {
               setAlert(null);
-              setSchedule((current) => resetSchedule(current));
+              const tick = Date.now();
+              setNow(tick);
+              // Keeps the minutes already studied (a half-finished block still counts).
+              setSchedule((current) => endSession(current, tick));
             }}
             className="btn-secondary text-sm"
           >

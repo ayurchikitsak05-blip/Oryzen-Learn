@@ -9,6 +9,7 @@ import Link from "next/link";
 import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw, Sparkles, Video } from "lucide-react";
 import type { HomeContinuation } from "@/lib/hub/continuation";
 import { readFirstRunDraft } from "@/lib/onboarding/first-run";
+import { checkInToday, comebackMessage } from "@/lib/hub/comeback";
 
 /**
  * The Today screen: one main action (today's study), then revision, help to start,
@@ -29,12 +30,19 @@ export function TodayHome({
   const ready = record === "ready";
   // Answers from the first-run screen that haven't become a plan yet.
   const [hasDraft, setHasDraft] = useState(false);
+  const [missedDays, setMissedDays] = useState(0);
+  const [comebackHidden, setComebackHidden] = useState(false);
   useEffect(() => {
     if (!draftOwner) return;
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     setHasDraft(Boolean(readFirstRunDraft(draftOwner, today)));
+    if (draftOwner !== "local-anonymous") {
+      const missed = checkInToday(draftOwner, today);
+      setMissedDays((current) => Math.max(current, missed));
+    }
   }, [draftOwner]);
+  const comeback = comebackHidden ? null : comebackMessage(missedDays);
   const hasPlan = ready && Boolean(continuation.nextBlock);
   const hasBook = ready && Boolean(continuation.bookTitle);
   const studied = continuation.studiedMinutes;
@@ -50,6 +58,24 @@ export function TodayHome({
         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">Today</p>
         <h1 className="font-display mt-1 text-3xl text-heading">What to study now</h1>
       </header>
+
+      {comeback ? (
+        <section className="space-y-2 rounded-2xl border border-line bg-surface p-4" data-testid="today-comeback" role="status">
+          <p className="font-semibold text-heading">{comeback.title}</p>
+          <p className="text-sm text-muted">{comeback.body}</p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/revise" className="inline-flex min-h-11 items-center rounded-full bg-heading px-4 text-sm font-medium text-canvas">
+              5 quick cards
+            </Link>
+            <Link href="/revise#reminder" className="inline-flex min-h-11 items-center rounded-full border border-line px-4 text-sm font-medium text-ink">
+              Set a daily reminder
+            </Link>
+            <button type="button" className="min-h-11 px-2 text-sm text-muted underline-offset-4 hover:underline" onClick={() => setComebackHidden(true)}>
+              Not now
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section
         aria-label="Today's study"

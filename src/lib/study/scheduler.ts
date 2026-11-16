@@ -10,6 +10,8 @@ export interface StudySchedule {
   phaseEndsAt: number | null;
   focusedMs: number;
   pausedRemainingMs: number | null;
+  /** Planned length of the current focus block, including "Extend 5 min" (so it all counts). */
+  phaseLengthMs?: number | null;
 }
 
 const MINUTE_MS = 60_000;
@@ -52,7 +54,12 @@ export function sanitizeSchedule(value: unknown): StudySchedule | null {
     typeof raw.pausedRemainingMs === "number" && Number.isFinite(raw.pausedRemainingMs)
       ? Math.max(0, raw.pausedRemainingMs)
       : null;
+  const phaseLengthMs =
+    typeof raw.phaseLengthMs === "number" && Number.isFinite(raw.phaseLengthMs) && raw.phaseLengthMs >= 0
+      ? Math.min(raw.phaseLengthMs, 12 * 60 * MINUTE_MS)
+      : null;
   return {
+    phaseLengthMs,
     goalMinutes: clampMinutes(Number(raw.goalMinutes), 240, 30, 12 * 60),
     focusMinutes: clampMinutes(Number(raw.focusMinutes), 20, 1, 90),
     breakMinutes: clampMinutes(Number(raw.breakMinutes), 10, 1, 30),
@@ -78,7 +85,7 @@ function advanceOnce(
   }
 
   if (schedule.phase === "focus") {
-    const focusedMs = schedule.focusedMs + schedule.focusMinutes * MINUTE_MS;
+    const focusedMs = schedule.focusedMs + (schedule.phaseLengthMs ?? schedule.focusMinutes * MINUTE_MS);
     if (focusedMs >= schedule.goalMinutes * MINUTE_MS) {
       return {
         schedule: {
@@ -87,6 +94,7 @@ function advanceOnce(
           phaseEndsAt: null,
           focusedMs,
           pausedRemainingMs: null,
+          phaseLengthMs: null,
         },
         alert: "goal",
       };
@@ -98,6 +106,7 @@ function advanceOnce(
         phaseEndsAt: schedule.phaseEndsAt + schedule.breakMinutes * MINUTE_MS,
         focusedMs,
         pausedRemainingMs: null,
+        phaseLengthMs: null,
       },
       alert: "break",
     };
@@ -109,6 +118,7 @@ function advanceOnce(
       phase: "focus",
       phaseEndsAt: schedule.phaseEndsAt + schedule.focusMinutes * MINUTE_MS,
       pausedRemainingMs: null,
+      phaseLengthMs: schedule.focusMinutes * MINUTE_MS,
     },
     alert: "resume",
   };
@@ -144,6 +154,7 @@ export function beginFocus(schedule: StudySchedule, now: number): StudySchedule 
     phaseEndsAt: now + clean.focusMinutes * MINUTE_MS,
     focusedMs: 0,
     pausedRemainingMs: null,
+    phaseLengthMs: clean.focusMinutes * MINUTE_MS,
   };
 }
 
@@ -177,7 +188,38 @@ export function skipPhase(schedule: StudySchedule, now: number): StudySchedule {
       ? resumeSchedule(schedule, now)
       : schedule;
   if (live.phaseEndsAt == null) return live;
-  return catchUpSchedule({ ...live, phaseEndsAt: now }, now).schedule;
+  // Finishing a focus block early counts the minutes actually studied, not the whole block.
+  const phaseLengthMs = live.phase === "focus" ? focusElapsedMs(live, now) : live.phaseLengthMs;
+  return catchUpSchedule({ ...live, phaseEndsAt: now, phaseLengthMs }, now).schedule;
+}
+
+/** Minutes studied so far in the current focus block (0 outside one). */
+export function focusElapsedMs(schedule: StudySchedule, now: number): number {
+  if (schedule.phase !== "focus") return 0;
+  const length = schedule.phaseLengthMs ?? schedule.focusMinutes * MINUTE_MS;
+  const remaining =
+    schedule.pausedRemainingMs != null
+      ? schedule.pausedRemainingMs
+      : schedule.phaseEndsAt != null
+        ? Math.max(0, schedule.phaseEndsAt - now)
+        : length;
+  return Math.max(0, Math.min(length, length - remaining));
+}
+
+/**
+ * "End session": stops the timer and keeps every minute studied, including a block stopped
+ * halfway (students lost those minutes before). Shown as finished until the next Start.
+ */
+export function endSession(schedule: StudySchedule, now: number): StudySchedule {
+  if (schedule.phase === "idle") return schedule;
+  return {
+    ...schedule,
+    phase: "complete",
+    phaseEndsAt: null,
+    pausedRemainingMs: null,
+    focusedMs: schedule.focusedMs + focusElapsedMs(schedule, now),
+    phaseLengthMs: null,
+  };
 }
 
 export function extendPhase(
@@ -186,9 +228,14 @@ export function extendPhase(
   now = Date.now()
 ): StudySchedule {
   const extraMs = Math.max(1, extraMinutes) * MINUTE_MS;
+  const longer =
+    schedule.phase === "focus"
+      ? { phaseLengthMs: (schedule.phaseLengthMs ?? schedule.focusMinutes * MINUTE_MS) + extraMs }
+      : {};
   if (schedule.pausedRemainingMs != null) {
     return {
       ...schedule,
+      ...longer,
       pausedRemainingMs: schedule.pausedRemainingMs + extraMs,
     };
   }
@@ -196,11 +243,13 @@ export function extendPhase(
     if (schedule.phase !== "focus" && schedule.phase !== "break") return schedule;
     return {
       ...schedule,
+      ...longer,
       phaseEndsAt: now + extraMs,
     };
   }
   return {
     ...schedule,
+    ...longer,
     phaseEndsAt: schedule.phaseEndsAt + extraMs,
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { notifyAiHelpUsed } from "@/components/ai/AiHelpsLeft";
 import {
   ChevronLeft,
   ChevronRight,
@@ -1084,6 +1085,7 @@ export default function PdfViewer({
         signal: controller.signal,
       });
       const data = (await res.json()) as AiGatewayExecutionResult & { error?: string };
+      notifyAiHelpUsed();
       if (requestId !== lensRequestIdRef.current || !studySnapshotIsCurrent(snapshot, studyLiveRef.current)) {
         return;
       }
@@ -1196,6 +1198,7 @@ export default function PdfViewer({
         signal: controller.signal,
       });
       const data = (await res.json()) as AiGatewayExecutionResult & { error?: string };
+      notifyAiHelpUsed();
       if (
         requestId !== lensRequestIdRef.current ||
         !studySnapshotIsCurrent(snapshot, studyLiveRef.current)
