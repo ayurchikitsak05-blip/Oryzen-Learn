@@ -4,6 +4,12 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-17 · Lecture chapters tested on Preview; title fix
+
+**Tested on Preview (merged build):** a video with YouTube chapters returned all 12 chapters with the right times and headings; videos without a chapter list correctly returned none (students then use *Mark topic*). **Bug found and fixed:** the lecture's title was read from the wrong field (a like count such as "570K"); it now comes from the page's own title tag.
+
+---
+
 ## 2026-11-17 · Lecture topics for free: the video's own chapters + "Mark topic"; AI lecture notes switched off
 
 **Owner decision (17 Nov):** lecture headings must be free or nearly free. YouTube blocks servers from reading subtitle files (tested on Preview, 15 Nov), so headings come from:
