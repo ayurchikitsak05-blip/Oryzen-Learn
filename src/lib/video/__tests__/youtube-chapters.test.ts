@@ -60,6 +60,11 @@ describe("lecture chapters from YouTube (free)", () => {
       { startSeconds: 95, title: "Friction & more" },
     ]);
     expect(titleFromWatchPage(watchPage())).toBe('Laws of Motion "One Shot"');
+    // Like counts and other "title" fields must not be taken for the video title.
+    expect(
+      titleFromWatchPage('"videoDetails":{"likes":{"title":"570K"}}<meta name="title" content="Units &amp; Measurements | Class 11">')
+    ).toBe("Units & Measurements | Class 11");
+    expect(titleFromWatchPage('"videoDetails":{"likes":{"title":"570K"}}')).toBeNull();
     expect(descriptionFromWatchPage(watchPage())).toBe(DESCRIPTION);
   });
 

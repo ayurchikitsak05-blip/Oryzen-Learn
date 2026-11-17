@@ -98,9 +98,25 @@ export function descriptionFromWatchPage(html: string): string {
   return match ? unescapeJsonString(match[1]) ?? "" : "";
 }
 
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+/**
+ * The video's title. Taken from the page's own title tags first: the page also contains other
+ * "title" fields (like counts such as "570K"), which must not be mistaken for it.
+ */
 export function titleFromWatchPage(html: string): string | null {
-  const match = /"videoDetails":\{[^]*?"title":"((?:[^"\\]|\\.)*)"/.exec(html);
-  return match ? unescapeJsonString(match[1])?.slice(0, 200) ?? null : null;
+  const meta =
+    /<meta\s+name="title"\s+content="([^"]*)"/i.exec(html) ?? /<meta\s+property="og:title"\s+content="([^"]*)"/i.exec(html);
+  if (meta?.[1]?.trim()) return decodeHtml(meta[1]).trim().slice(0, 200);
+  const details = /"videoDetails":\{"videoId":"[^"]*","title":"((?:[^"\\]|\\.)*)"/.exec(html);
+  return details ? unescapeJsonString(details[1])?.slice(0, 200) ?? null : null;
 }
 
 export async function fetchYouTubeChapters(videoId: string, fetchImpl: typeof fetch = fetch): Promise<ChapterFetchResult> {
