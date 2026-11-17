@@ -13,7 +13,7 @@ import {
   wellnessSuggestions,
   type SavedBodyType,
 } from "@/lib/study/body-type";
-import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
+import { whenAccountVaultOpen, readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
 import { createClient } from "@/lib/supabase/client";
 import {
   beginFocus,
@@ -177,7 +177,12 @@ export function StudySchedulerCard({
   }, [schedule]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+    // Wait for the account's private record first: reading before it opens finds no timer,
+    // and the empty one would then be saved over the real one (manual test, 17 Nov 2026).
+    const timer = window.setTimeout(() => void (async () => {
+      await whenAccountVaultOpen();
+      if (cancelled) return;
       const stored = readStoredSchedule();
       const leftoverVataPace =
         !saved &&
@@ -204,8 +209,11 @@ export function StudySchedulerCard({
       if (caught.alert) setAlert(caught.alert);
       setMounted(true);
       setReady(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    })(), 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [saved]);
 
   useEffect(() => {

@@ -278,6 +278,11 @@ export function discardAccountVault(): void {
   for (const hook of lockHooks) hook();
 }
 
+/** Opens the private record only if it isn't open yet (no network call when it already is). */
+export function whenAccountVaultOpen(): Promise<boolean> {
+  return isAccountVaultUnlocked() ? Promise.resolve(true) : ensureAccountVault().catch(() => false);
+}
+
 export function ensureAccountVault(): Promise<boolean> {
   if (!vaultOpenTask) {
     const task = openAccountVault().finally(() => {

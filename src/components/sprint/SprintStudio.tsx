@@ -1,5 +1,6 @@
 "use client";
 
+import { privateAccessAllowed, whenAccountVaultOpen } from "@/lib/privacy/account-vault";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { focusSounds, readUniversePrefs } from "@/lib/universe";
 import { SPRINT_CHANGED_EVENT } from "@/lib/sprint/guard";
@@ -58,11 +59,21 @@ export function SprintStudio({ userId }: { userId: string }) {
   const today = todayKey();
 
   useEffect(() => {
-    setStore(readSprintStore(userId));
-    setNow(Date.now());
-    setReady(true);
+    let cancelled = false;
+    // Read sprints once the account's private record is open, not before (it would look empty).
+    const load = () => {
+      if (cancelled) return;
+      setStore(readSprintStore(userId));
+      setNow(Date.now());
+      setReady(true);
+    };
+    if (privateAccessAllowed(userId)) load();
+    else void whenAccountVaultOpen().then(load);
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [userId]);
 
   // The distraction guard may pause the sprint from outside this screen.
