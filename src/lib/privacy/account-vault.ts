@@ -295,12 +295,13 @@ export function ensureAccountVault(): Promise<boolean> {
 
 async function openAccountVault(): Promise<boolean> {
   if (typeof window === "undefined") return false;
-  const session = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
+  const { fetchSessionReply } = await import("@/lib/supabase/session");
+  const session = await fetchSessionReply();
   if (!session.ok) {
     await lockAccountVault();
     return false;
   }
-  const sessionBody = (await session.json()) as { userId?: string; demo?: boolean };
+  const sessionBody = session.body;
   const userId = sessionBody.userId?.trim() ?? "";
   if (!userId) {
     await lockAccountVault();
