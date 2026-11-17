@@ -381,9 +381,9 @@ export default function ParallelVideoStudioPage() {
                 setCurrentTimeSeconds(sec);
                 setTelemetryToast(`Jumped to ${badge}.`);
               }}
-              onMark={(heading) =>
+              onMark={(heading, seconds) =>
                 updateTopics((notes) =>
-                  markTopic(notes, { lectureId: activeLecture.id, seconds: currentTimeSeconds, heading })
+                  markTopic(notes, { lectureId: activeLecture.id, seconds, heading })
                 )
               }
               onRemove={(id) => updateTopics((notes) => removeTopic(notes, id))}

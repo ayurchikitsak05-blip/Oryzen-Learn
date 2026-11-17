@@ -22,6 +22,21 @@ export interface ParallelNotesProps {
   theme: PrakritiThemePalette;
 }
 
+/** Shows **bold**, *italic* and `code` from a note as formatting, not as raw marks. */
+export function inlineMarkdown(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*)/g);
+  return parts.map((part, index) => {
+    if (/^\*\*[^*]+\*\*$/.test(part)) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    if (/^`[^`]+`$/.test(part)) return <span key={index}>{part.slice(1, -1)}</span>;
+    if (/^\*[^*\s][^*]*\*$/.test(part)) return <em key={index}>{part.slice(1, -1)}</em>;
+    return part;
+  });
+}
+
+function plainText(text: string): string {
+  return text.replace(/\*\*|`|\*/g, "");
+}
+
 export default function ParallelNotes({
   lectureTitle,
   notes,
@@ -109,7 +124,7 @@ export default function ParallelNotes({
                   <h4 className="font-display text-sm text-heading">
                     {note.heading}
                   </h4>
-                  <ListenButton text={`${note.heading}. ${note.studyNoteMarkdown} ${note.highYieldKeyPoint}`} />
+                  <ListenButton text={`${note.heading}. ${plainText(note.studyNoteMarkdown)} ${note.highYieldKeyPoint}`} />
                 </div>
 
                 {isSpeakingNow && (
@@ -126,7 +141,7 @@ export default function ParallelNotes({
               ) : null}
 
               <div className="whitespace-pre-line text-sm leading-relaxed text-ink">
-                {note.studyNoteMarkdown}
+                {inlineMarkdown(note.studyNoteMarkdown)}
               </div>
 
               {note.highYieldKeyPoint ? (

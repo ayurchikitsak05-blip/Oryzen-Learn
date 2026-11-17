@@ -12,7 +12,8 @@ export interface LectureTopicsProps {
   /** Where the topics came from, shown under the title. */
   sourceText: string | null;
   onSeek: (seconds: number, badge: string) => void;
-  onMark: (heading: string) => void;
+  /** The heading and the moment Mark topic was tapped (typing takes a few seconds). */
+  onMark: (heading: string, seconds: number) => void;
   onRemove: (id: string) => void;
   onSaveOutline: () => void;
 }
@@ -33,14 +34,15 @@ export default function LectureTopics({
 }: LectureTopicsProps) {
   const [draft, setDraft] = useState("");
   const [marking, setMarking] = useState(false);
+  const [markedAt, setMarkedAt] = useState(0);
   const sorted = topics.slice().sort((a, b) => a.startSeconds - b.startSeconds);
   const playing = currentTopicId(sorted, currentTimeSeconds);
-  const markAt = formatTimestampBadge(currentTimeSeconds);
+  const markAt = formatTimestampBadge(marking ? markedAt : currentTimeSeconds);
 
   const submit = () => {
     const heading = draft.trim();
     if (!heading) return;
-    onMark(heading);
+    onMark(heading, markedAt);
     setDraft("");
     setMarking(false);
   };
@@ -87,7 +89,10 @@ export default function LectureTopics({
         <button
           type="button"
           className="btn-primary inline-flex min-h-11 w-full items-center justify-center gap-2 text-sm"
-          onClick={() => setMarking(true)}
+          onClick={() => {
+            setMarkedAt(currentTimeSeconds);
+            setMarking(true);
+          }}
           data-testid="mark-topic"
         >
           <Flag className="h-4 w-4" aria-hidden="true" />
