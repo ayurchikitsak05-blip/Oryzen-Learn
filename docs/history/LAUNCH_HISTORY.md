@@ -361,3 +361,4 @@ Claude used the Preview app in Chrome as a student: uploaded a PDF, used Explain
 - **Today took about 20 seconds to show the study plan (fixed).** Each page load sent about 12 "who is signed in?" requests at once; each took ~3.5 s and they queued. Now the page sends one and shares the answer.
 - **Sprint history showed the planned length, not the time studied (fixed).** A 15-min sprint completed after 2 minutes read "Completed · 15 min" while Today counted 2. It now reads "Completed · 2 of 15 min studied".
 - **Mark topic now uses the moment it was tapped** (typing the heading took ~5 s, so topics landed late), and lecture notes show bold/italic instead of raw `**` marks.
+- **Chapter study book showed only sample books (fixed).** It read the student's saved passages before the account opened. It now waits. Open question for the owner: it still offers only the two demo lectures, because student lectures now have topic headings but no transcript.
