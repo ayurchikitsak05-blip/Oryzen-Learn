@@ -33,7 +33,7 @@ import {
   topicsFromChapters,
 } from "@/lib/video/lecture-topics";
 import type { LectureChapter } from "@/lib/video/youtube-chapters";
-import { readVideoCaptionNotes, writeVideoCaptionNotes } from "@/lib/video/caption-notes-store";
+import { loadVideoCaptionNotes, writeVideoCaptionNotes } from "@/lib/video/caption-notes-store";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 
 export default function ParallelVideoStudioPage() {
@@ -143,11 +143,11 @@ export default function ParallelVideoStudioPage() {
 
   useEffect(() => {
     let active = true;
-    void fetchSignedInUser().then((user) => {
+    void fetchSignedInUser().then(async (user) => {
       if (!active || !user?.userId) return;
       ownerIdRef.current = user.userId;
-      const saved = readVideoCaptionNotes(user.userId);
-      if (saved.length === 0) return;
+      const saved = await loadVideoCaptionNotes(user.userId);
+      if (!active || saved.length === 0) return;
       setLectures((prev) => {
         const known = new Set(prev.map((row) => row.youtubeVideoId));
         const restored = saved

@@ -63,6 +63,19 @@ export function readVideoCaptionNotes(ownerId: string): StoredCaptionLecture[] {
   return lectures;
 }
 
+/**
+ * Reads the saved lectures after the account's private storage has opened. Reading straight
+ * after sign-in found nothing for a few seconds after a reload (manual test, 17 Nov 2026).
+ */
+export async function loadVideoCaptionNotes(ownerId: string): Promise<StoredCaptionLecture[]> {
+  if (!ownerId) return [];
+  if (!isAccountVaultUnlocked() || accountVaultUserId() !== ownerId) {
+    const opened = await ensureAccountVault().catch(() => false);
+    if (!opened || accountVaultUserId() !== ownerId) return [];
+  }
+  return readVideoCaptionNotes(ownerId);
+}
+
 export async function writeVideoCaptionNotes(
   ownerId: string,
   lecture: StoredCaptionLecture
