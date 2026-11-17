@@ -45,6 +45,8 @@ export function TodayHome({
   const comeback = comebackHidden ? null : comebackMessage(missedDays);
   const hasPlan = ready && Boolean(continuation.nextBlock);
   const hasBook = ready && Boolean(continuation.bookTitle);
+  // While the account opens (a few seconds after a reload), don't say "Add your first book".
+  const bookLoading = record === "loading" || record === "opening";
   const studied = continuation.studiedMinutes;
   const goal = continuation.dailyGoal;
   const percent =
@@ -154,9 +156,9 @@ export function TodayHome({
               <Video className="h-6 w-6 text-accent" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-lg font-semibold text-heading">YouTube lecture notes</span>
+              <span className="block text-lg font-semibold text-heading">YouTube lecture topics</span>
               <span className="block text-sm text-muted">
-                Paste a lecture link. Get timed notes you can revise from, and share them free with friends.
+                Paste a lecture link. Jump to each topic, and mark your own while you watch. Free.
               </span>
             </span>
             <ChevronRight className="h-5 w-5 shrink-0 text-muted" aria-hidden="true" />
@@ -269,7 +271,7 @@ export function TodayHome({
       </section>
 
       <Link
-        href={hasBook ? "/reader" : "/reader?upload=1"}
+        href={hasBook || bookLoading ? "/reader" : "/reader?upload=1"}
         data-testid="today-book"
         className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
       >
@@ -277,9 +279,9 @@ export function TodayHome({
           <BookOpen className="h-5 w-5 text-accent" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block font-semibold text-heading">{hasBook ? "Continue reading" : "Add your first book"}</span>
+          <span className="block font-semibold text-heading">{hasBook ? "Continue reading" : bookLoading ? "Your books" : "Add your first book"}</span>
           <span className="block truncate text-sm text-muted">
-            {hasBook ? continuation.bookTitle : "Upload a PDF of your textbook"}
+            {hasBook ? continuation.bookTitle : bookLoading ? "Opening…" : "Upload a PDF of your textbook"}
           </span>
         </span>
         <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />

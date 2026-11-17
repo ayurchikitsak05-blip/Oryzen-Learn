@@ -1,5 +1,6 @@
 "use client";
 
+import { privateAccessAllowed, whenAccountVaultOpen } from "@/lib/privacy/account-vault";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { focusSounds, readUniversePrefs } from "@/lib/universe";
 import { SPRINT_CHANGED_EVENT } from "@/lib/sprint/guard";
@@ -58,11 +59,21 @@ export function SprintStudio({ userId }: { userId: string }) {
   const today = todayKey();
 
   useEffect(() => {
-    setStore(readSprintStore(userId));
-    setNow(Date.now());
-    setReady(true);
+    let cancelled = false;
+    // Read sprints once the account's private record is open, not before (it would look empty).
+    const load = () => {
+      if (cancelled) return;
+      setStore(readSprintStore(userId));
+      setNow(Date.now());
+      setReady(true);
+    };
+    if (privateAccessAllowed(userId)) load();
+    else void whenAccountVaultOpen().then(load);
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [userId]);
 
   // The distraction guard may pause the sprint from outside this screen.
@@ -447,7 +458,7 @@ export function SprintStudio({ userId }: { userId: string }) {
               <li key={session.id} className={`${ui.card} text-sm`}>
                 <p className="font-medium text-heading">{session.goal}</p>
                 <p className="text-xs text-muted">
-                  {statusLabel(session.status)} · {session.durationMinutes} min
+                  {statusLabel(session.status)} · {Math.floor(session.elapsedMs / 60_000)} of {session.durationMinutes} min studied
                   {session.quizLinked ? " · quiz done" : ""}
                   {session.notesLinked ? " · notes saved" : ""}
                 </p>

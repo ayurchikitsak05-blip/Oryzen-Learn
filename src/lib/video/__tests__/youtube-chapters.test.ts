@@ -65,6 +65,8 @@ describe("lecture chapters from YouTube (free)", () => {
       titleFromWatchPage('"videoDetails":{"likes":{"title":"570K"}}<meta name="title" content="Units &amp; Measurements | Class 11">')
     ).toBe("Units & Measurements | Class 11");
     expect(titleFromWatchPage('"videoDetails":{"likes":{"title":"570K"}}')).toBeNull();
+    expect(titleFromWatchPage('"videoDetails":{"videoId":"abcdefghijk","channelId":"c","title":"Kinematics L1"}')).toBe("Kinematics L1");
+    expect(titleFromWatchPage("<title>Units &amp; Dimensions - YouTube</title>")).toBe("Units & Dimensions");
     expect(descriptionFromWatchPage(watchPage())).toBe(DESCRIPTION);
   });
 
@@ -74,6 +76,15 @@ describe("lecture chapters from YouTube (free)", () => {
     expect(result).toMatchObject({ ok: true, source: "description", title: 'Laws of Motion "One Shot"' });
     expect(page).toHaveBeenCalledTimes(1);
 
+    // No title on the page: asks YouTube's oEmbed for it (one more free call).
+    const untitled = vi.fn(async (url: string) =>
+      url.includes("oembed") ? new Response('{"title":"Neural networks, chapter 1"}') : new Response('"videoDetails":{"shortDescription":"no times"}')
+    );
+    expect(await fetchYouTubeChapters("abcdefghijk", untitled as unknown as typeof fetch)).toMatchObject({
+      ok: false,
+      reason: "no_chapters",
+      title: "Neural networks, chapter 1",
+    });
     const bare = vi.fn(async () => new Response('{"videoDetails":{"title":"x","shortDescription":"no times"}}'));
     expect(await fetchYouTubeChapters("abcdefghijk", bare as unknown as typeof fetch)).toMatchObject({ ok: false, reason: "no_chapters" });
     const bot = vi.fn(async () => new Response("<html>confirm you're not a bot</html>"));

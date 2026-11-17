@@ -27,6 +27,7 @@ import type { RoadmapRecord } from "@/lib/roadmap/types";
 import { readAllQuizProgress } from "@/lib/reader/quiz-progress";
 import { readRhythmPrefs } from "@/lib/rhythm/persist";
 import { fetchSignedInUser } from "@/lib/supabase/session";
+import { whenAccountVaultOpen } from "@/lib/privacy/account-vault";
 
 export interface CoachInspectSnapshot {
   messageId: string | null;
@@ -276,15 +277,29 @@ export function CoachOverwhelmedButton({
   );
 }
 
+/**
+ * The signed-in student's id, given out only once their private record is open, so every
+ * screen that reads with it finds the saved data (reading earlier found nothing: manual test,
+ * 17 Nov 2026).
+ */
 export function useSignedInScope(): string {
   const [scope, setScope] = useState("local-anonymous");
   useEffect(() => {
+    let cancelled = false;
     const timer = window.setTimeout(() => {
       void fetchSignedInUser()
-        .then((user) => setScope(user?.userId ?? "local-anonymous"))
-        .catch(() => setScope("local-anonymous"));
+        .then(async (user) => {
+          if (user?.userId) await whenAccountVaultOpen();
+          if (!cancelled) setScope(user?.userId ?? "local-anonymous");
+        })
+        .catch(() => {
+          if (!cancelled) setScope("local-anonymous");
+        });
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
   return scope;
 }

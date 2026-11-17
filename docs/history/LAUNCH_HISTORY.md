@@ -346,3 +346,20 @@ Cost per lecture: **₹0**.
 - [ ] Apply `20261104000001` (lecture notes) to Preview, then Production
 - [ ] Lecture notes: a way to redo bad shared notes for a video
 - [ ] Live end-to-end testing on Preview with a test student account
+
+## 17 Nov 2026 — Fixes from the first manual test (Scenario 1, light student)
+
+Claude used the Preview app in Chrome as a student: uploaded a PDF, used Explain, saved a note, highlighted, revised, practised, and downloaded the study data.
+
+- **Revision progress was lost on every reload (fixed).** A card marked "I remembered" went back to "New" after the page was reloaded. Cause: revision progress, sticky notes and the study profile were saved on the device but were missing from the list of records the app reads back. The saved data was never deleted, so students get their progress back once this is live. A new test checks that every saved record is on that list.
+- **"Add your first book" / "Open a document" shown while loading (fixed).** For about 10 seconds after a reload, Today and the reader said there was no book. They now say "Your books · Opening…" and "Opening your books…".
+- **Wording:** Today and Tools now say "YouTube lecture topics" (AI lecture notes are off). The pricing page says "YouTube lecture topics: unlimited" instead of "1 / 8 lectures' notes a month". Fixed "Saved to My Notes as a outline".
+- **Checked and working:** Explain (under 10 s), AI-helps-left counter, My Notes, highlight kept after reload, Morning revision, Practice, Download my notes and Download everything.
+- **Lecture title still showed "Your lecture" (fixed).** On Preview the server got all 12 chapters of a test video but no title: YouTube sends our server a page without the title tags. The app now also tries the title inside the video details and the page's `<title>`, and if both are missing asks YouTube's free public oEmbed address for it.
+- **A student's YouTube lecture disappeared after reload (fixed).** Topics were saved, but the Videos page read them before the account's private storage had opened, so it found nothing. It now waits for the account first.
+- **Focus timer and Sprint screens could start from an empty record after a reload (fixed).** Same cause: they read before the account's private record had opened. The focus timer could then save its empty timer over the real one, losing that session's studied minutes. Both now wait for the account first.
+- **Today took about 20 seconds to show the study plan (fixed).** Each page load sent about 12 "who is signed in?" requests at once; each took ~3.5 s and they queued. Now the page sends one and shares the answer.
+- **Sprint history showed the planned length, not the time studied (fixed).** A 15-min sprint completed after 2 minutes read "Completed · 15 min" while Today counted 2. It now reads "Completed · 2 of 15 min studied".
+- **Mark topic now uses the moment it was tapped** (typing the heading took ~5 s, so topics landed late), and lecture notes show bold/italic instead of raw `**` marks.
+- **Chapter study book showed only sample books (fixed).** It read the student's saved passages before the account opened. It now waits. Open question for the owner: it still offers only the two demo lectures, because student lectures now have topic headings but no transcript.
+- **One fix for the whole "read too early" family.** The shared helper that tells screens who is signed in now answers only after the student's private record is open. My Notes, Sprint dock, Strict mode, Focus guard, the coach, Universe and the companion bubble all use it or now wait the same way.

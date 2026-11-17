@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { unlockTestVault } from "@/test/unlock-vault";
 import { captionFailureCopy, notesFromTimedTextXml } from "../public-captions";
-import { readVideoCaptionNotes, writeVideoCaptionNotes } from "../caption-notes-store";
+import { loadVideoCaptionNotes, readVideoCaptionNotes, writeVideoCaptionNotes } from "../caption-notes-store";
 
 describe("public YouTube captions", () => {
   it("explains a missing caption track without claiming notes were written", () => {
@@ -34,6 +34,7 @@ describe("public YouTube captions", () => {
     expect(saved).toBe(true);
     expect(localStorage.getItem("oryzen_video_caption_notes_v1")).toBeNull();
     expect(readVideoCaptionNotes("student-a")[0]?.title).toBe("Current");
+    expect((await loadVideoCaptionNotes("student-a"))[0]?.title).toBe("Current");
     await unlockTestVault("student-b");
     expect(readVideoCaptionNotes("student-b")).toEqual([]);
     expect(localStorage.getItem("oryzen_video_caption_notes_v1")).toBeNull();

@@ -6,6 +6,7 @@ import { CompanionFigure } from "@/components/companion/CompanionFigure";
 import { readCompanionStore, STARTER_COMPANIONS, STYLE_COPY } from "@/lib/companion";
 import { experienceVisibleTo } from "@/lib/experience/persist";
 import { fetchSignedInUser } from "@/lib/supabase/session";
+import { whenAccountVaultOpen } from "@/lib/privacy/account-vault";
 
 const BUBBLE_ROUTES = ["/hub", "/studio", "/companion", "/personalize"];
 
@@ -35,7 +36,8 @@ export function CompanionBubble() {
     }
     let cancelled = false;
     void fetchSignedInUser()
-      .then((user) => {
+      .then(async (user) => {
+        if (user?.userId) await whenAccountVaultOpen();
         if (cancelled) return;
         const prefs = experienceVisibleTo(user?.userId ?? null);
         const show = prefs?.experience === "studio" && (prefs.rewards !== false || prefs.decorations);

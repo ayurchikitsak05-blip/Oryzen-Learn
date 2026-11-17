@@ -540,6 +540,9 @@ export default function PdfViewer({
     ]);
   };
 
+  // True until the saved books have been looked up (a few seconds after a reload).
+  const [libraryOpening, setLibraryOpening] = useState(true);
+
   useEffect(() => {
     if (!scopeReady) return;
     let active = true;
@@ -686,15 +689,19 @@ export default function PdfViewer({
       if (restored.zoom != null) setCustomZoom(restored.zoom);
       if (bytes && active) setActivePdfBytes(bytes);
     }
-    void bootstrapLocalLibrary().catch((error) => {
-      if (active) {
-        setUploadStatus(
-          error instanceof Error
-            ? error.message
-            : "The local library could not be opened."
-        );
-      }
-    });
+    void bootstrapLocalLibrary()
+      .catch((error) => {
+        if (active) {
+          setUploadStatus(
+            error instanceof Error
+              ? error.message
+              : "The local library could not be opened."
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLibraryOpening(false);
+      });
     return () => {
       active = false;
     };
@@ -1599,7 +1606,9 @@ export default function PdfViewer({
                 className="max-w-sm rounded-2xl border border-dashed border-line bg-canvas-2 px-6 py-10 text-center text-sm leading-relaxed text-muted"
                 data-testid="pdf-empty-state"
               >
-                Open a document to start reading. Ask My Book and Transform My Book are available after a PDF is open.
+                {libraryOpening
+                  ? "Opening your books…"
+                  : "Open a document to start reading. Ask My Book and Transform My Book are available after a PDF is open."}
               </p>
             ) : (
               <>

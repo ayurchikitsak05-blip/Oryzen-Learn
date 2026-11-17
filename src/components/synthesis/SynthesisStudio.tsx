@@ -6,6 +6,7 @@ import type { Dosha, PrakritiThemePalette } from "@/lib/prakriti/config";
 import { listSavedPassages } from "@/lib/ai/passage-store";
 import { getLocalCognitiveDnaState } from "@/lib/ai/adaptive-memory";
 import { fetchSignedInUser } from "@/lib/supabase/session";
+import { whenAccountVaultOpen } from "@/lib/privacy/account-vault";
 import {
   buildAvailableSources,
   DEFAULT_VIDEO_LECTURES,
@@ -33,8 +34,11 @@ export default function SynthesisStudio({
 
   useEffect(() => {
     let active = true;
+    // Wait for the account's private record: reading earlier found no saved passages and
+    // showed only the samples (manual test, 17 Nov 2026).
     void fetchSignedInUser()
-      .then((user) => {
+      .then(async (user) => {
+        if (user?.userId) await whenAccountVaultOpen();
         if (!active) return;
         setAvailableSources(
           buildAvailableSources(listSavedPassages(undefined, user?.userId ?? null))

@@ -10,7 +10,6 @@ import { MyPlan } from "@/components/billing/MyPlan";
 import { ui } from "@/components/ui/classes";
 import { canonicalInviteCode, DIRECT_ACCESS_PRICE_INR } from "@/lib/access/gate";
 import { DAILY_AI_HELPS } from "@/lib/ai/daily-allowance";
-import { MONTHLY_NEW_LECTURES } from "@/lib/video/lecture-notes";
 
 const LOCAL_FEATURES = [
   "Your Reading Space",
@@ -120,7 +119,7 @@ export default function PricingPage() {
             <p className="mt-4 font-display text-4xl text-heading">₹0</p>
             <p className="mt-1 text-sm text-muted">No card required</p>
             <QuotaList
-              items={[`${DAILY_AI_HELPS.free} AI helps a day`, `${MONTHLY_NEW_LECTURES.free} lecture's notes a month`]}
+              items={[`${DAILY_AI_HELPS.free} AI helps a day`, "YouTube lecture topics: unlimited"]}
             />
             <LocalFeatureList />
             <button
@@ -146,7 +145,7 @@ export default function PricingPage() {
             <QuotaList
               items={[
                 `${DAILY_AI_HELPS.pro} AI helps a day`,
-                `${MONTHLY_NEW_LECTURES.pro} lectures' notes a month`,
+                "YouTube lecture topics: unlimited",
               ]}
             />
             <LocalFeatureList />

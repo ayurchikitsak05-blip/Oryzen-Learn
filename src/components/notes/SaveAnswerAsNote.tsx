@@ -23,7 +23,7 @@ export function SaveAnswerAsNote({ payload, fallbackTitle }: { payload: AiLensRe
       const result = await saveToNotebook({ subjectTitle: "From my books", title, noteBody: serializeNote(option.note) });
       setMessage(
         result.ok
-          ? `Saved to My Notes as a ${option.label.toLowerCase()}.`
+          ? `Saved to My Notes as ${option.label.replace(/\s*\(.*\)$/, "")} note.`
           : result.status === 401
             ? "Sign in to save this to My Notes."
             : notebookSaveMessage(result)

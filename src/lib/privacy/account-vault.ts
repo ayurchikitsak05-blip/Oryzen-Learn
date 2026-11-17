@@ -30,6 +30,10 @@ export const PRIVATE_BROWSER_BASES = [
   "oryzen_lens_feedback_v1",
   "oryzen_study_scheduler_v1",
   "oryzen_video_caption_notes_v1",
+  // Added 17 Nov 2026 (manual test): these were saved but never read back after a reload.
+  "oryzen_revision_cards_v1",
+  "oryzen_sticky_notes_v1",
+  "oryzen_study_profile_v1",
 ] as const;
 
 type VaultState = {
@@ -274,6 +278,11 @@ export function discardAccountVault(): void {
   for (const hook of lockHooks) hook();
 }
 
+/** Opens the private record only if it isn't open yet (no network call when it already is). */
+export function whenAccountVaultOpen(): Promise<boolean> {
+  return isAccountVaultUnlocked() ? Promise.resolve(true) : ensureAccountVault().catch(() => false);
+}
+
 export function ensureAccountVault(): Promise<boolean> {
   if (!vaultOpenTask) {
     const task = openAccountVault().finally(() => {
@@ -286,12 +295,13 @@ export function ensureAccountVault(): Promise<boolean> {
 
 async function openAccountVault(): Promise<boolean> {
   if (typeof window === "undefined") return false;
-  const session = await fetch("/api/auth/session", { credentials: "same-origin", cache: "no-store" });
+  const { fetchSessionReply } = await import("@/lib/supabase/session");
+  const session = await fetchSessionReply();
   if (!session.ok) {
     await lockAccountVault();
     return false;
   }
-  const sessionBody = (await session.json()) as { userId?: string; demo?: boolean };
+  const sessionBody = session.body;
   const userId = sessionBody.userId?.trim() ?? "";
   if (!userId) {
     await lockAccountVault();

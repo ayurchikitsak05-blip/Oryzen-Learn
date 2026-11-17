@@ -29,6 +29,13 @@ describe("TodayHome", () => {
     expect(screen.getByTestId("today-make-plan").getAttribute("href")).toBe("/welcome");
   });
 
+  it("doesn't say 'Add your first book' while the account is still opening", () => {
+    render(<TodayHome continuation={empty} record="loading" />);
+    expect(screen.getByTestId("today-book").textContent).toMatch(/Your books/);
+    expect(screen.getByTestId("today-book").textContent).not.toMatch(/Add your first book/);
+    expect(screen.getByTestId("today-book").getAttribute("href")).toBe("/reader");
+  });
+
   it("asks a student with no plan to make one, and to add a first book", () => {
     render(<TodayHome continuation={empty} />);
     expect(screen.getByRole("heading", { name: "What to study now" })).toBeTruthy();

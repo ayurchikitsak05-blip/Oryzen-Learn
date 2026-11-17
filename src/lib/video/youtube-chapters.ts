@@ -115,8 +115,25 @@ export function titleFromWatchPage(html: string): string | null {
   const meta =
     /<meta\s+name="title"\s+content="([^"]*)"/i.exec(html) ?? /<meta\s+property="og:title"\s+content="([^"]*)"/i.exec(html);
   if (meta?.[1]?.trim()) return decodeHtml(meta[1]).trim().slice(0, 200);
-  const details = /"videoDetails":\{"videoId":"[^"]*","title":"((?:[^"\\]|\\.)*)"/.exec(html);
-  return details ? unescapeJsonString(details[1])?.slice(0, 200) ?? null : null;
+  // The title inside videoDetails itself, not inside a nested object (like counts are nested).
+  const details = /"videoDetails":\{[^{}]*?"title":"((?:[^"\\]|\\.)*)"/.exec(html);
+  const fromDetails = details ? unescapeJsonString(details[1])?.trim() : "";
+  if (fromDetails) return fromDetails.slice(0, 200);
+  const tag = /<title>([^<]*?)(?:\s+-\s+YouTube)?<\/title>/i.exec(html);
+  const fromTag = tag ? decodeHtml(tag[1]).trim() : "";
+  return fromTag && fromTag !== "YouTube" ? fromTag.slice(0, 200) : null;
+}
+
+/**
+ * YouTube's public oEmbed reply (free, no key): used when the watch page served to our server
+ * carries no title (found in manual testing, 17 Nov 2026).
+ */
+export async function fetchYouTubeTitle(videoId: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
+  const url = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`;
+  const response = await fetchImpl(url, { headers: PAGE_HEADERS }).catch(() => null);
+  if (!response?.ok) return null;
+  const body = (await response.json().catch(() => null)) as { title?: unknown } | null;
+  return typeof body?.title === "string" && body.title.trim() ? body.title.trim().slice(0, 200) : null;
 }
 
 export async function fetchYouTubeChapters(videoId: string, fetchImpl: typeof fetch = fetch): Promise<ChapterFetchResult> {
@@ -127,7 +144,7 @@ export async function fetchYouTubeChapters(videoId: string, fetchImpl: typeof fe
   if (!response?.ok) return { ok: false, reason: response?.status === 429 ? "blocked" : "unavailable", title: null };
   const html = await response.text().catch(() => "");
   if (!html.includes('"videoDetails"')) return { ok: false, reason: "blocked", title: null };
-  const title = titleFromWatchPage(html);
+  const title = titleFromWatchPage(html) ?? (await fetchYouTubeTitle(videoId, fetchImpl));
   const marked = chaptersFromWatchPage(html);
   if (marked.length > 0) return { ok: true, chapters: marked, title, source: "chapters" };
   const listed = chaptersFromDescription(descriptionFromWatchPage(html));
