@@ -458,7 +458,7 @@ export function SprintStudio({ userId }: { userId: string }) {
               <li key={session.id} className={`${ui.card} text-sm`}>
                 <p className="font-medium text-heading">{session.goal}</p>
                 <p className="text-xs text-muted">
-                  {statusLabel(session.status)} · {session.durationMinutes} min
+                  {statusLabel(session.status)} · {Math.floor(session.elapsedMs / 60_000)} of {session.durationMinutes} min studied
                   {session.quizLinked ? " · quiz done" : ""}
                   {session.notesLinked ? " · notes saved" : ""}
                 </p>
