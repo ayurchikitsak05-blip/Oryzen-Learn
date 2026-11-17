@@ -220,3 +220,12 @@ export function lectureFailureMessage(status: number, detail: string): string {
   if (status === 429) return "Lecture notes are busy right now. Please try again in a few minutes.";
   return "Lecture notes couldn't be made just now. Nothing was counted. Please try again later.";
 }
+
+/**
+ * AI lecture notes (the AI watches the whole video, up to about ₹10 a lecture) are OFF unless the
+ * owner sets LECTURE_AI_NOTES=on (owner, 17 Nov 2026: topics come free from chapter lists and
+ * "Mark topic"). Notes another student already made stay free to add either way.
+ */
+export function lectureAiNotesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.LECTURE_AI_NOTES?.trim().toLowerCase() === "on";
+}

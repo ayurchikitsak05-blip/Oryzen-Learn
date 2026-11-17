@@ -4,6 +4,18 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-17 · Lecture topics for free: the video's own chapters + "Mark topic"; AI lecture notes switched off
+
+**Owner decision (17 Nov):** lecture headings must be free or nearly free. YouTube blocks servers from reading subtitle files (tested on Preview, 15 Nov), so headings come from:
+
+1. **The video's own chapter list (free).** The server reads the public YouTube page once: YouTube's chapter markers first, otherwise timestamps written in the description ("12:40 Newton's 2nd law"). Shown as *Topics in this lecture*; tap a topic to jump there. New: `/api/video/chapters`, `src/lib/video/youtube-chapters.ts`.
+2. **Mark topic (free).** While watching, the student taps *Mark topic at 12:40*, types a short heading, and it's added in order (removable). Topics are kept privately with the lecture and can be saved to My Notes as an Outline note (so they also become revision material). `src/lib/video/lecture-topics.ts`, `src/components/video/LectureTopics.tsx`.
+3. **AI lecture notes are OFF by default** (they cost up to ~₹10 a lecture). Turn on only by setting `LECTURE_AI_NOTES=on` in Vercel. Notes another student already made are still added free.
+
+Cost per lecture: **₹0**.
+
+---
+
 ## 2026-11-15 · Study essentials from competitor reviews (free to run, no AI cost)
 
 **Owner decision (15 Nov):** after reviewing screenshots and reviews of 15+ study apps, add only what fixes complaints students repeat, in ORYZEN's own way.

@@ -67,14 +67,15 @@ export async function writeVideoCaptionNotes(
   ownerId: string,
   lecture: StoredCaptionLecture
 ): Promise<boolean> {
-  if (!ownerId || !lecture.videoId || lecture.notes.length === 0) return false;
+  // An empty list removes the lecture's saved topics (e.g. the student removed the last one).
+  if (!ownerId || !lecture.videoId) return false;
   if (!isAccountVaultUnlocked() || accountVaultUserId() !== ownerId) {
     const opened = await ensureAccountVault();
     if (!opened || accountVaultUserId() !== ownerId) return false;
   }
   const lectures = [
     ...readVideoCaptionNotes(ownerId).filter((item) => item.videoId !== lecture.videoId),
-    lecture,
+    ...(lecture.notes.length > 0 ? [lecture] : []),
   ].slice(-MAX_LECTURES);
   const record: StoredCaptionRecord = { version: 1, ownerId, lectures };
   writePrivateString(STORAGE_KEY, JSON.stringify(record), ownerId);

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { googleApiKey } from "@/lib/ai/providers";
 import { isEntitled } from "@/lib/access/gate";
-import { isVideoId } from "@/lib/video/lecture-notes";
+import { isVideoId, lectureAiNotesEnabled } from "@/lib/video/lecture-notes";
 import { lectureNotesStatus, makeLectureNotes } from "@/lib/video/lecture-notes-server";
 
 /** Reading a 90-minute lecture can take a few minutes. */
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   if (!admin) return NextResponse.json(NOT_ON, { status: 503 });
   try {
     const status = await lectureNotesStatus({ admin, videoId, ...student });
-    return NextResponse.json({ ...status, enabled: Boolean(googleApiKey()) });
+    return NextResponse.json({ ...status, enabled: Boolean(googleApiKey()) && lectureAiNotesEnabled() });
   } catch {
     return NextResponse.json({ error: "Couldn't check lecture notes just now." }, { status: 503 });
   }
@@ -58,7 +58,9 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   if (!admin) return NextResponse.json(NOT_ON, { status: 503 });
   try {
-    const outcome = await makeLectureNotes({ admin, videoId, apiKey: googleApiKey(), ...student });
+    // Switched off: shared notes are still added free; new AI notes are refused before any cost.
+    const apiKey = lectureAiNotesEnabled() ? googleApiKey() : "";
+    const outcome = await makeLectureNotes({ admin, videoId, apiKey, ...student });
     const { status, ...payload } = outcome;
     return NextResponse.json(payload, { status });
   } catch {
