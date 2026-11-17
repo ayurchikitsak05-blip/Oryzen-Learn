@@ -4,6 +4,8 @@
  * in a storage name is not treated as authorization.
  */
 
+import { clearSessionReply, fetchSessionReply } from "@/lib/supabase/session";
+
 export const SEALED_PRIVATE_KEY = "oryzen_sealed_private_v1";
 
 export const PRIVATE_BROWSER_BASES = [
@@ -254,6 +256,7 @@ export async function lockAccountVault(): Promise<void> {
   await persistQueue;
   if (state) await persistPrivateRecords();
   state = null;
+  clearSessionReply();
   for (const hook of lockHooks) hook();
 }
 
@@ -269,6 +272,7 @@ export async function flushAccountVault(): Promise<void> {
 
 /** Drops in-memory copies without writing. Used between tests. */
 export function discardAccountVault(): void {
+  clearSessionReply();
   vaultEpoch += 1;
   state = null;
   retiredSlots = new Set();
@@ -295,7 +299,6 @@ export function ensureAccountVault(): Promise<boolean> {
 
 async function openAccountVault(): Promise<boolean> {
   if (typeof window === "undefined") return false;
-  const { fetchSessionReply } = await import("@/lib/supabase/session");
   const session = await fetchSessionReply();
   if (!session.ok) {
     await lockAccountVault();

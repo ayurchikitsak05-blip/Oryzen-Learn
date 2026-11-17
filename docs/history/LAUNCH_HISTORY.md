@@ -363,3 +363,9 @@ Claude used the Preview app in Chrome as a student: uploaded a PDF, used Explain
 - **Mark topic now uses the moment it was tapped** (typing the heading took ~5 s, so topics landed late), and lecture notes show bold/italic instead of raw `**` marks.
 - **Chapter study book showed only sample books (fixed).** It read the student's saved passages before the account opened. It now waits. Open question for the owner: it still offers only the two demo lectures, because student lectures now have topic headings but no transcript.
 - **One fix for the whole "read too early" family.** The shared helper that tells screens who is signed in now answers only after the student's private record is open. My Notes, Sprint dock, Strict mode, Focus guard, the coach, Universe and the companion bubble all use it or now wait the same way.
+
+## 18 Nov 2026 — Faster sign-in check (after re-testing PR #24 on Preview)
+
+PR #24 cut the "who is signed in?" requests from 12 to 4, but each still took 3–4 s and they ran one after another, so Today still took ~14 s to show the plan.
+- The answer is now reused for 15 seconds and forgotten on sign-in and sign-out.
+- Server functions now run in Tokyo (`hnd1`), next to the database (`ap-northeast-1`). Before, they ran in the default US East region, so each database trip crossed the Pacific. This setting also applies to Production when this branch reaches it.
