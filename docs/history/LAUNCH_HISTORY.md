@@ -346,3 +346,12 @@ Cost per lecture: **₹0**.
 - [ ] Apply `20261104000001` (lecture notes) to Preview, then Production
 - [ ] Lecture notes: a way to redo bad shared notes for a video
 - [ ] Live end-to-end testing on Preview with a test student account
+
+## 17 Nov 2026 — Fixes from the first manual test (Scenario 1, light student)
+
+Claude used the Preview app in Chrome as a student: uploaded a PDF, used Explain, saved a note, highlighted, revised, practised, and downloaded the study data.
+
+- **Revision progress was lost on every reload (fixed).** A card marked "I remembered" went back to "New" after the page was reloaded. Cause: revision progress, sticky notes and the study profile were saved on the device but were missing from the list of records the app reads back. The saved data was never deleted, so students get their progress back once this is live. A new test checks that every saved record is on that list.
+- **"Add your first book" / "Open a document" shown while loading (fixed).** For about 10 seconds after a reload, Today and the reader said there was no book. They now say "Your books · Opening…" and "Opening your books…".
+- **Wording:** Today and Tools now say "YouTube lecture topics" (AI lecture notes are off). The pricing page says "YouTube lecture topics: unlimited" instead of "1 / 8 lectures' notes a month". Fixed "Saved to My Notes as a outline".
+- **Checked and working:** Explain (under 10 s), AI-helps-left counter, My Notes, highlight kept after reload, Morning revision, Practice, Download my notes and Download everything.

@@ -66,7 +66,7 @@ export const PRACTICE_ITEMS: readonly LinkListItem[] = [
 
 /** Shown first on Me, under "Highlights" (owner, 5 Nov 2026). */
 export const ME_HIGHLIGHTS: readonly LinkListItem[] = [
-  { href: "/video", title: "YouTube lecture notes", detail: "Paste a lecture link and get timed notes. Share them free with friends", testId: "me-lectures" },
+  { href: "/video", title: "YouTube lecture topics", detail: "Paste a lecture link. Jump to each topic and mark your own. Free", testId: "me-lectures" },
   { href: "/body-type", title: "My study style", detail: "Find how you focus best and get study settings that suit you", testId: "me-study-style" },
 ];
 

@@ -30,6 +30,10 @@ export const PRIVATE_BROWSER_BASES = [
   "oryzen_lens_feedback_v1",
   "oryzen_study_scheduler_v1",
   "oryzen_video_caption_notes_v1",
+  // Added 17 Nov 2026 (manual test): these were saved but never read back after a reload.
+  "oryzen_revision_cards_v1",
+  "oryzen_sticky_notes_v1",
+  "oryzen_study_profile_v1",
 ] as const;
 
 type VaultState = {

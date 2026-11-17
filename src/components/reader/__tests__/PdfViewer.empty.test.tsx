@@ -135,7 +135,7 @@ describe("PDF reader empty state", () => {
   it("centers an invitation and keeps document controls quiet when no PDF is open", async () => {
     const view = render(<PdfViewer />);
     const empty = await view.findByTestId("pdf-empty-state");
-    expect(empty.textContent).toMatch(/Open a document to start reading/);
+    await waitFor(() => expect(empty.textContent).toMatch(/Open a document to start reading/));
     expect(empty.className).toMatch(/items-center|text-center/);
     expect(view.container.querySelector("canvas")).toBeNull();
     expect(view.getByTestId("reader-page-indicator").textContent).toBe("—");
