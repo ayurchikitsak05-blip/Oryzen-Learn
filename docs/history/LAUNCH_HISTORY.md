@@ -369,3 +369,4 @@ Claude used the Preview app in Chrome as a student: uploaded a PDF, used Explain
 PR #24 cut the "who is signed in?" requests from 12 to 4, but each still took 3–4 s and they ran one after another, so Today still took ~14 s to show the plan.
 - The answer is now reused for 15 seconds and forgotten on sign-in and sign-out.
 - Server functions now run in Tokyo (`hnd1`), next to the database (`ap-northeast-1`). Before, they ran in the default US East region, so each database trip crossed the Pacific. This setting also applies to Production when this branch reaches it.
+- PR #24 re-checked on Preview: revision progress came back ("Learning 1"), the saved YouTube lecture and its marked topic survive a reload, and the server now returns real video titles. Lectures saved earlier as "Your lecture" now look up their real name once when restored.
