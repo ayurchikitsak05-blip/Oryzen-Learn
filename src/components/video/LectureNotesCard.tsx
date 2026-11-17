@@ -8,6 +8,7 @@ import type { LectureAllowance } from "@/lib/video/lecture-notes";
 type Status =
   | { kind: "loading" }
   | { kind: "off"; text: string }
+  | { kind: "hidden" }
   | { kind: "ready"; cached: boolean; allowance: LectureAllowance }
   | { kind: "working" }
   | { kind: "done"; text: string }
@@ -68,7 +69,8 @@ export function LectureNotesCard({
           return;
         }
         if (!data.cached && data.enabled === false) {
-          setStatus({ kind: "off", text: "Lecture notes aren't switched on yet." });
+          // AI notes are switched off (topics come free); nothing to show unless shared notes exist.
+          setStatus({ kind: "hidden" });
           return;
         }
         setStatus({ kind: "ready", cached: Boolean(data.cached), allowance: data.allowance });
@@ -119,6 +121,8 @@ export function LectureNotesCard({
       setStatus({ kind: "error", text: "You seem to be offline. Nothing was counted." });
     }
   };
+
+  if (status.kind === "hidden") return null;
 
   const canMake =
     status.kind === "ready" && (status.cached || status.allowance.left > 0);

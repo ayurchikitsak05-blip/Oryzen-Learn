@@ -24,7 +24,15 @@ import {
 } from "@/lib/ai/adaptive-memory";
 import { notebookSaveMessage, saveToNotebook } from "@/lib/notes/save-to-notebook";
 import type { TimestampedLectureNote } from "@/lib/video/sync-engine";
-import { captionFailureCopy } from "@/lib/video/public-captions";
+import LectureTopics from "@/components/video/LectureTopics";
+import {
+  isTopicsOnly,
+  markTopic,
+  removeTopic,
+  topicsAsOutline,
+  topicsFromChapters,
+} from "@/lib/video/lecture-topics";
+import type { LectureChapter } from "@/lib/video/youtube-chapters";
 import { readVideoCaptionNotes, writeVideoCaptionNotes } from "@/lib/video/caption-notes-store";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 
@@ -38,10 +46,77 @@ export default function ParallelVideoStudioPage() {
   );
   const [currentTimeSeconds, setCurrentTimeSeconds] = useState<number>(258);
   const [telemetryToast, setTelemetryToast] = useState<string | null>(null);
-  const [captionNotice, setCaptionNotice] = useState<{ lectureId: string; text: string } | null>(
-    null
-  );
   const ownerIdRef = useRef<string | null>(null);
+  // Where each lecture's topics came from (lecture id → text shown under the title).
+  const [topicSource, setTopicSource] = useState<Record<string, string>>({});
+
+  const persistTopics = async (lecture: VideoLectureRecord, title: string, notes: TimestampedLectureNote[]) => {
+    if (!lecture.youtubeVideoId) return false;
+    const ownerId = ownerIdRef.current ?? (await fetchSignedInUser())?.userId ?? null;
+    if (!ownerId) return false;
+    ownerIdRef.current = ownerId;
+    return writeVideoCaptionNotes(ownerId, {
+      videoId: lecture.youtubeVideoId,
+      url: lecture.youtubeUrl ?? `https://www.youtube.com/watch?v=${lecture.youtubeVideoId}`,
+      title,
+      notes,
+    });
+  };
+
+  /** The video's own chapter list, read free (no AI). */
+  const loadChapters = (lecture: VideoLectureRecord) => {
+    const videoId = lecture.youtubeVideoId;
+    if (!videoId) return;
+    void fetch(`/api/video/chapters?v=${encodeURIComponent(videoId)}`)
+      .then((response) => response.json() as Promise<{ ok?: boolean; chapters?: LectureChapter[]; title?: string | null; source?: string }>)
+      .then(async (payload) => {
+        const title = payload.title?.trim() || lecture.title;
+        if (!payload.ok || !payload.chapters?.length) {
+          setLectures((prev) => prev.map((row) => (row.id === lecture.id ? { ...row, title } : row)));
+          setTopicSource((prev) => ({ ...prev, [lecture.id]: "No chapter list on this video. Mark topics as you watch." }));
+          return;
+        }
+        const notes = topicsFromChapters(lecture.id, payload.chapters);
+        let merged: TimestampedLectureNote[] = notes;
+        setLectures((prev) =>
+          prev.map((row) => {
+            if (row.id !== lecture.id) return row;
+            // Keep topics the student already marked.
+            merged = [...notes, ...row.notes.filter((note) => note.id.startsWith("mine-"))].sort(
+              (a, b) => a.startSeconds - b.startSeconds
+            );
+            return { ...row, title, notes: merged };
+          })
+        );
+        setTopicSource((prev) => ({
+          ...prev,
+          [lecture.id]: `${payload.chapters!.length} topics from the video's own chapter list. Free.`,
+        }));
+        await persistTopics({ ...lecture, title }, title, merged);
+      })
+      .catch(() => {
+        setTopicSource((prev) => ({ ...prev, [lecture.id]: "Couldn't read this video's chapters just now. You can still mark topics." }));
+      });
+  };
+
+  const updateTopics = (change: (notes: TimestampedLectureNote[]) => TimestampedLectureNote[] | null) => {
+    const lecture = activeLecture;
+    const next = change(lecture.notes);
+    if (!next) return;
+    setLectures((prev) => prev.map((row) => (row.id === lecture.id ? { ...row, notes: next } : row)));
+    void persistTopics(lecture, lecture.title, next).then((saved) => {
+      if (!saved && lecture.youtubeVideoId) setTelemetryToast("Topics are on this screen. Sign in to keep them.");
+    });
+  };
+
+  const handleSaveOutline = async () => {
+    const result = await saveToNotebook({
+      subjectTitle: "Lectures",
+      title: `${activeLecture.title} · topics`,
+      noteBody: topicsAsOutline(activeLecture.notes),
+    });
+    setTelemetryToast(notebookSaveMessage(result));
+  };
 
   // A shared link (/video?v=VIDEO_ID) opens that lecture, ready to add its notes free.
   useEffect(() => {
@@ -61,6 +136,9 @@ export default function ParallelVideoStudioPage() {
     setLectures((prev) => (prev.some((row) => row.id === lecture.id) ? prev : [...prev, lecture]));
     setActiveLectureId(lecture.id);
     setCurrentTimeSeconds(0);
+    loadChapters(lecture);
+    // Runs once for the link the page opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -163,7 +241,6 @@ export default function ParallelVideoStudioPage() {
     title: string,
     notes: TimestampedLectureNote[]
   ) => {
-    setCaptionNotice(null);
     setLectures((prev) => prev.map((row) => (row.id === lecture.id ? { ...row, title, notes } : row)));
     const ownerId = ownerIdRef.current ?? (await fetchSignedInUser())?.userId ?? null;
     if (!ownerId || !lecture.youtubeVideoId) return;
@@ -276,48 +353,9 @@ export default function ParallelVideoStudioPage() {
                 prev.some((row) => row.id === lecture.id) ? prev : [...prev, lecture]
               );
               setActiveLectureId(lecture.id);
-              void fetch(`/api/video/captions?v=${encodeURIComponent(videoId)}`)
-                .then(async (response) => {
-                  if (!response.ok) throw new Error("caption_http");
-                  return response.json() as Promise<{
-                    notes?: VideoLectureRecord["notes"];
-                    reason?: "ok" | "no_public_captions" | "unsupported";
-                  }>;
-                })
-                .then(async (payload) => {
-                  const notes = payload.notes ?? [];
-                  if (notes.length === 0) {
-                    const text = captionFailureCopy(payload.reason ?? "no_public_captions");
-                    setCaptionNotice({ lectureId: lecture.id, text });
-                    setTelemetryToast(text);
-                    return;
-                  }
-                  setCaptionNotice(null);
-                  setLectures((prev) =>
-                    prev.map((row) => (row.id === lecture.id ? { ...row, notes } : row))
-                  );
-                  const ownerId =
-                    ownerIdRef.current ?? (await fetchSignedInUser())?.userId ?? null;
-                  const saved = ownerId
-                    ? await writeVideoCaptionNotes(ownerId, {
-                        videoId,
-                        url,
-                        title: lecture.title,
-                        notes,
-                      })
-                    : false;
-                  if (ownerId) ownerIdRef.current = ownerId;
-                  setTelemetryToast(
-                    saved
-                      ? "Public captions were attached as timed notes."
-                      : "Public captions are on this screen. Sign in to keep them after a refresh."
-                  );
-                })
-                .catch(() => {
-                  const text = captionFailureCopy("unavailable");
-                  setCaptionNotice({ lectureId: lecture.id, text });
-                  setTelemetryToast(text);
-                });
+              setCurrentTimeSeconds(0);
+              // Topics from the video's own chapter list (free; no AI).
+              loadChapters(lecture);
             }}
             onLocalFileSelected={(fileName) => {
               const lecture = createStudentLecture({
@@ -333,6 +371,25 @@ export default function ParallelVideoStudioPage() {
             }}
             theme={theme}
           />
+          {activeLecture.id.startsWith("lec-student-") && isTopicsOnly(activeLecture.notes) ? (
+            <LectureTopics
+              lectureTitle={activeLecture.title}
+              topics={activeLecture.notes}
+              currentTimeSeconds={currentTimeSeconds}
+              sourceText={topicSource[activeLecture.id] ?? null}
+              onSeek={(sec, badge) => {
+                setCurrentTimeSeconds(sec);
+                setTelemetryToast(`Jumped to ${badge}.`);
+              }}
+              onMark={(heading) =>
+                updateTopics((notes) =>
+                  markTopic(notes, { lectureId: activeLecture.id, seconds: currentTimeSeconds, heading })
+                )
+              }
+              onRemove={(id) => updateTopics((notes) => removeTopic(notes, id))}
+              onSaveOutline={() => void handleSaveOutline()}
+            />
+          ) : (
           <ParallelNotes
             lectureTitle={activeLecture.title}
             notes={activeLecture.notes}
@@ -343,11 +400,10 @@ export default function ParallelVideoStudioPage() {
             }}
             onModifyNote={handleModifyNote}
             onSaveNote={(note) => void handleSaveNote(note)}
-            emptyMessage={
-              captionNotice?.lectureId === activeLecture.id ? captionNotice.text : null
-            }
+            emptyMessage={null}
             theme={theme}
           />
+          )}
         </div>
       </div>
         <StudySidePanel dosha={activeDosha} />
