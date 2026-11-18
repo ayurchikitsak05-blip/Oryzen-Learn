@@ -75,6 +75,16 @@ export async function POST(request: NextRequest) {
     if (!title) {
       return NextResponse.json({ error: "Name the subject first." }, { status: 400 });
     }
+    // A subject with this name already? Reuse it ("Hindi" was created 3 times in one second
+    // by repeated taps: manual test, 18 Nov 2026).
+    const { data: sameName } = await supabase
+      .from("note_subjects")
+      .select("id, title")
+      .eq("user_id", user.id);
+    const match = (sameName ?? []).find(
+      (row: { id: string; title: string | null }) => (row.title ?? "").trim().toLowerCase() === title.toLowerCase()
+    );
+    if (match) return NextResponse.json({ id: match.id, existing: true });
     const { data, error } = await supabase
       .from("note_subjects")
       .insert({ user_id: user.id, title })
