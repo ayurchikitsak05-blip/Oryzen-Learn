@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { AUTHORIZED_DOCUMENTS_BUCKET } from "@/lib/supabase/storage";
 import { extractTextbookText } from "@/lib/vaults/extract-pdf";
 import { buildPlainPdf, downloadBlob, safeDownloadName } from "@/lib/vaults/download";
+import { SubjectBooks } from "@/components/vaults/SubjectBooks";
 
 type TabId = "sources" | "chat" | "studio";
 
@@ -390,6 +391,8 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
 
         {tab === "sources" && (
           <section className="mt-6 space-y-4">
+            {title ? <SubjectBooks subject={title} /> : null}
+            <h3 className="pt-2 text-sm font-semibold text-heading">Textbooks for this subject&apos;s AI chat</h3>
             <label className={`${ui.primary} cursor-pointer`}>
               {busy ? "Working…" : "Upload textbook PDF"}
               <input
@@ -405,7 +408,7 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
               />
             </label>
             {sources.length === 0 ? (
-              <p className={ui.empty}>Your library is ready. Add your first document to begin.</p>
+              <p className={ui.empty}>No textbooks uploaded for this subject's AI chat yet.</p>
             ) : (
               <ul className="space-y-3">
                 {sources.map((source) => (
