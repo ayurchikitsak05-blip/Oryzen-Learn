@@ -124,23 +124,29 @@ export default function MyNotes() {
     setError(null);
   };
 
+  const [creatingSubject, setCreatingSubject] = useState(false);
   const createSubject = async () => {
     const title = subjectTitle.trim();
-    if (!title) return;
+    if (!title || creatingSubject) return;
+    setCreatingSubject(true);
     setError(null);
-    const response = await fetch("/api/notes", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "create_subject", title }),
-    });
-    const json = (await response.json()) as { id?: string; error?: string };
-    if (!response.ok || !json.id) {
-      setError(notesError(json.error ?? "The subject could not be created."));
-      return;
+    try {
+      const response = await fetch("/api/notes", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create_subject", title }),
+      });
+      const json = (await response.json()) as { id?: string; error?: string };
+      if (!response.ok || !json.id) {
+        setError(notesError(json.error ?? "The subject could not be created."));
+        return;
+      }
+      setSubjectTitle("");
+      await loadSubjects(json.id);
+    } finally {
+      setCreatingSubject(false);
     }
-    setSubjectTitle("");
-    await loadSubjects(json.id);
   };
 
   const createNote = async () => {
@@ -247,8 +253,9 @@ export default function MyNotes() {
               <button
                 type="submit"
                 className={ui.primary}
+                disabled={creatingSubject}
               >
-                Add
+                {creatingSubject ? "Adding…" : "Add"}
               </button>
             </form>
             <div className="mt-4 space-y-2">

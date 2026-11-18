@@ -84,7 +84,7 @@ export const ME_ITEMS: readonly LinkListItem[] = [
 export const SETTINGS_ITEMS: readonly LinkListItem[] = [
   { href: "/personalize", title: "Personalize my space", detail: "Colours, reading size, focus sounds, reminders", testId: "me-personalize" },
   { href: "/pricing", title: "Plan and payment", detail: "Free or Pro, renewal date, stop auto-renew", testId: "me-plan-payment" },
-  { href: "/auth?form=1", title: "Account and privacy", detail: "Email, password, sign out", testId: "me-account" },
+  { href: "/me/account", title: "Account and privacy", detail: "Email, password, sign out", testId: "me-account" },
   { href: "/me/data", title: "Download my study data", detail: "A copy of your notes, cards and plans, any time", testId: "me-data" },
   { href: "/privacy", title: "Privacy notice", detail: "What we keep, your rights, parent consent", testId: "me-privacy" },
   { href: "/parent", title: "For parents", detail: "Give or withdraw consent for your child", testId: "me-parent" },
