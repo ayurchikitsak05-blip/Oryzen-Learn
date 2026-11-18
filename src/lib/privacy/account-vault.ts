@@ -36,6 +36,7 @@ export const PRIVATE_BROWSER_BASES = [
   "oryzen_revision_cards_v1",
   "oryzen_sticky_notes_v1",
   "oryzen_study_profile_v1",
+  "oryzen_book_subjects_v1",
 ] as const;
 
 type VaultState = {

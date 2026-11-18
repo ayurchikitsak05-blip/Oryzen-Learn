@@ -3,9 +3,22 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, MoreHorizontal } from "lucide-react";
+import { Archive, BookOpen, MoreHorizontal } from "lucide-react";
 import AppChrome from "@/components/layout/AppChrome";
 import { ui } from "@/components/ui/classes";
+import { fetchSignedInUser } from "@/lib/supabase/session";
+import { whenAccountVaultOpen } from "@/lib/privacy/account-vault";
+import { listLocalPdfDocuments } from "@/lib/reader/storage";
+import { writeLastReaderDocumentId } from "@/lib/reader/fit";
+import {
+  groupBooksBySubject,
+  isSampleBook,
+  NO_SUBJECT,
+  readBookSubjects,
+  setBookSubject,
+  subjectChoices,
+  type LibraryBook,
+} from "@/lib/reader/library";
 
 interface VaultCard {
   id: string;
@@ -30,6 +43,54 @@ export default function VaultLibrary() {
   const [menuId, setMenuId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  // Books from the reader (kept on this device), sorted by the subject the student gives them.
+  const [books, setBooks] = useState<LibraryBook[] | null>(null);
+  const [bookSubjects, setBookSubjects] = useState<Record<string, string>>({});
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const user = await fetchSignedInUser().catch(() => null);
+      if (user?.userId) await whenAccountVaultOpen();
+      const documents = await listLocalPdfDocuments().catch(() => []);
+      if (!active) return;
+      setUserId(user?.userId ?? null);
+      setBookSubjects(readBookSubjects(user?.userId ?? null));
+      setBooks(
+        documents.map((doc) => ({
+          id: doc.id,
+          title: doc.title,
+          fileName: doc.fileName,
+          pageCount: doc.pageCount,
+          updatedAt: doc.updatedAt,
+        }))
+      );
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const openBook = (bookId: string) => {
+    writeLastReaderDocumentId(bookId, userId);
+    router.push("/reader");
+  };
+
+  const bookGroups = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const list = (books ?? []).filter(
+      (book) =>
+        !needle ||
+        book.title.toLowerCase().includes(needle) ||
+        (bookSubjects[book.id] ?? "").toLowerCase().includes(needle)
+    );
+    return groupBooksBySubject(list, bookSubjects);
+  }, [books, bookSubjects, query]);
+  const choices = useMemo(
+    () => subjectChoices(vaults.map((vault) => vault.title), bookSubjects),
+    [vaults, bookSubjects]
+  );
 
   const load = async () => {
     const response = await fetch("/api/vaults", { credentials: "same-origin" });
@@ -138,7 +199,7 @@ export default function VaultLibrary() {
         <p className={ui.eyebrow}>My Learning Library</p>
         <h1 className={`${ui.heading} mt-3 text-4xl`}>My Learning Library</h1>
         <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          Keep your subjects, textbooks, and learning materials organized and easy to find.
+          Your subjects and books in one place. Add a subject, then sort the books you read in Books under it.
         </p>
 
         <form
@@ -151,12 +212,12 @@ export default function VaultLibrary() {
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Advanced Pharmacology - CNS"
-            aria-label="New library collection title"
+            placeholder="Physics"
+            aria-label="New subject name"
             className={`${ui.input} flex-1`}
           />
           <button type="submit" className={ui.primary}>
-            Add to library
+            Add subject
           </button>
         </form>
 
@@ -176,7 +237,9 @@ export default function VaultLibrary() {
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           {loading && <p className={ui.loading}>Opening your learning library...</p>}
           {!loading && vaults.length === 0 && !error && (
-            <p className={ui.empty}>Your library is ready. Add your first document to begin.</p>
+            <p className={ui.empty}>
+              No subjects yet. Add one above (for example Physics), then give each of your books below a subject.
+            </p>
           )}
           {!loading && vaults.length > 0 && visibleVaults.length === 0 && (
             <p className={ui.empty}>No collections match that search.</p>
@@ -251,6 +314,76 @@ export default function VaultLibrary() {
             </article>
           ))}
         </div>
+
+        <section className="mt-10 space-y-4" aria-labelledby="library-books-heading" data-testid="library-books">
+          <div>
+            <h2 id="library-books-heading" className={`${ui.heading} text-2xl`}>
+              My books, by subject
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              The PDFs you added in Books. They stay on this device. Pick a subject for each to keep them sorted.
+            </p>
+          </div>
+          {books === null ? <p className={ui.loading}>Opening your books...</p> : null}
+          {books !== null && books.length === 0 ? (
+            <p className={ui.empty}>
+              No books yet. <Link href="/reader?upload=1" className="underline">Add a PDF in Books</Link>.
+            </p>
+          ) : null}
+          {bookGroups.map((group) => (
+            <div key={group.subject} className="space-y-2" data-testid="library-book-group">
+              <h3 className="text-sm font-semibold text-heading">
+                {group.subject} <span className="font-normal text-muted">· {group.books.length}</span>
+              </h3>
+              <ul className="space-y-2">
+                {group.books.map((book) => (
+                  <li
+                    key={book.id}
+                    className="flex flex-col gap-2 rounded-2xl border border-line bg-surface px-4 py-3 sm:flex-row sm:items-center"
+                    data-testid="library-book"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => openBook(book.id)}
+                      className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <BookOpen className="h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-heading">{book.title}</span>
+                        <span className="block text-xs text-muted">
+                          {book.pageCount} {book.pageCount === 1 ? "page" : "pages"} · tap to open
+                        </span>
+                      </span>
+                    </button>
+                    {isSampleBook(book) ? null : (
+                      <label className="flex items-center gap-2 text-sm text-muted">
+                        <span className="sr-only">Subject for {book.title}</span>
+                        <select
+                          value={bookSubjects[book.id] ?? ""}
+                          onChange={(event) =>
+                            setBookSubjects(setBookSubject(userId, book.id, event.target.value || null))
+                          }
+                          className={`${ui.input} min-h-11 py-2`}
+                          data-testid="library-book-subject"
+                        >
+                          <option value="">{NO_SUBJECT}</option>
+                          {choices.map((subject) => (
+                            <option key={subject} value={subject}>
+                              {subject}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {books !== null && books.length > 0 && choices.length === 0 ? (
+            <p className="text-sm text-muted">Add a subject at the top of this page to sort your books.</p>
+          ) : null}
+        </section>
       </main>
     </AppChrome>
   );

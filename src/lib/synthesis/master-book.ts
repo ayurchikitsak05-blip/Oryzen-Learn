@@ -187,8 +187,11 @@ export function synthesizeMasterStudyBook(params: {
         ? "Formatted in High-Precision Comparison Tables, Mechanism Hierarchies & Exact Page Citations (*Tikshna-buddhi* Pitta Mode)."
         : "Formatted in Socratic Question-First Blocks, Worked-Example Challenges & Active Checkpoints (*Dridha-smriti* Kapha Mode).";
 
+  // Topic-only lectures (a student's YouTube lecture) have a heading but no AI key point.
+  const firstNote = videoLectures[0]?.notes[0];
   const lectureAnchor =
-    videoLectures[0]?.notes[0]?.highYieldKeyPoint ??
+    firstNote?.highYieldKeyPoint?.trim() ||
+    (firstNote?.heading ? `Lecture topic: ${firstNote.heading}.` : "") ||
     "Restate the lecture's opening claim in your own words.";
 
   const sections: MasterStudyBookSection[] = [
