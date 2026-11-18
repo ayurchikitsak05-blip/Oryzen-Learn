@@ -1,5 +1,6 @@
 "use client";
 
+import { clearSessionReply } from "@/lib/supabase/session";
 import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { consentNextPath } from "@/lib/consent/age";
@@ -132,6 +133,7 @@ function AuthScreen() {
 
           if (classified.kind === "recovery") {
             setStatusMessage("Recovery verified. Choose a new password.");
+            clearSessionReply();
             router.replace("/auth/reset-password");
             router.refresh();
             return;
@@ -153,6 +155,7 @@ function AuthScreen() {
           }
           setStatusMessage("Signed in.");
           // A parent who signed in from a consent link goes back to it.
+          clearSessionReply();
           router.replace(consentNextPath(new URLSearchParams(window.location.search).get("next")) ?? json.next);
           router.refresh();
         } catch {
@@ -165,6 +168,8 @@ function AuthScreen() {
   }, [router]);
 
   const finishSignIn = (nextPath: string) => {
+    // Signing in changes who is signed in: forget the last "who is signed in?" answer.
+    clearSessionReply();
     const requested = searchParams.get("next");
     const parentNext = consentNextPath(requested);
     if (parentNext) {

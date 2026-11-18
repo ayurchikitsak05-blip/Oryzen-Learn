@@ -1,5 +1,6 @@
 "use client";
 
+import { clearSessionReply } from "@/lib/supabase/session";
 import React, { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -57,6 +58,7 @@ function AccessRequiredScreen() {
           onClick={async () => {
             const supabase = createClient();
             await supabase.auth.signOut();
+            clearSessionReply();
             router.push("/auth");
             router.refresh();
           }}

@@ -148,21 +148,25 @@ export default function ParallelVideoStudioPage() {
       ownerIdRef.current = user.userId;
       const saved = await loadVideoCaptionNotes(user.userId);
       if (!active || saved.length === 0) return;
+      const restored: VideoLectureRecord[] = saved.map((item) => ({
+        ...createStudentLecture({
+          sourceType: "youtube" as const,
+          youtubeVideoId: item.videoId,
+          youtubeUrl: item.url,
+          title: item.title,
+        }),
+        notes: item.notes,
+      }));
       setLectures((prev) => {
         const known = new Set(prev.map((row) => row.youtubeVideoId));
-        const restored = saved
-          .filter((item) => !known.has(item.videoId))
-          .map((item) => ({
-            ...createStudentLecture({
-              sourceType: "youtube" as const,
-              youtubeVideoId: item.videoId,
-              youtubeUrl: item.url,
-              title: item.title,
-            }),
-            notes: item.notes,
-          }));
-        return restored.length > 0 ? [...prev, ...restored] : prev;
+        const fresh = restored.filter((lecture) => !known.has(lecture.youtubeVideoId));
+        return fresh.length > 0 ? [...prev, ...fresh] : prev;
       });
+      // Lectures saved before titles worked are named "Your lecture": look the real name up once.
+      // This also keeps the student's own marked topics (loadChapters merges them).
+      window.setTimeout(() => {
+        restored.filter((lecture) => lecture.title === "Your lecture").forEach((lecture) => loadChapters(lecture));
+      }, 0);
     });
     return () => {
       active = false;
