@@ -96,6 +96,9 @@ function buildSegments(text: string, marks: readonly ReaderTextMark[]) {
   return segments;
 }
 
+/** Long enough for a second click of a double-click to arrive. */
+export const WORD_LOOKUP_DELAY_MS = 320;
+
 function WordLookupPopup({
   anchor,
   onClose,
@@ -211,6 +214,15 @@ export default function PassageText({
   onSelectionChange,
 }: PassageTextProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  // A word's meaning opens after a short pause, so a double or triple click (selecting text)
+  // doesn't open it on top of the selection toolbar (manual test, 18 Nov 2026).
+  const lookupTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (lookupTimerRef.current) window.clearTimeout(lookupTimerRef.current);
+    },
+    []
+  );
   const onSelectionChangeRef = useRef(onSelectionChange);
   const [lookup, setLookup] = useState<LookupAnchor | null>(null);
   const [toolbar, setToolbar] = useState<SelectionToolbarState | null>(null);
@@ -325,16 +337,23 @@ export default function PassageText({
           role="button"
           tabIndex={0}
           onClick={(event) => {
+            if (lookupTimerRef.current) window.clearTimeout(lookupTimerRef.current);
+            lookupTimerRef.current = null;
             const current = window.getSelection();
             if ((current && !current.isCollapsed) || toolbar) return;
-            if (!lookupWord) return;
+            if (!lookupWord || event.detail > 1) return;
             event.stopPropagation();
             const rect = event.currentTarget.getBoundingClientRect();
-            setLookup({
-              word: lookupWord,
-              top: rect.top,
-              left: rect.left,
-            });
+            lookupTimerRef.current = window.setTimeout(() => {
+              lookupTimerRef.current = null;
+              const after = window.getSelection();
+              if (after && !after.isCollapsed) return;
+              setLookup({
+                word: lookupWord,
+                top: rect.top,
+                left: rect.left,
+              });
+            }, WORD_LOOKUP_DELAY_MS);
           }}
           onKeyDown={(event) => {
             if (event.key !== "Enter" || !lookupWord) return;

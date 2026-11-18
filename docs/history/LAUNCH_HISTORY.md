@@ -370,3 +370,8 @@ PR #24 cut the "who is signed in?" requests from 12 to 4, but each still took 3�
 - The answer is now reused for 15 seconds and forgotten on sign-in and sign-out.
 - Server functions now run in Tokyo (`hnd1`), next to the database (`ap-northeast-1`). Before, they ran in the default US East region, so each database trip crossed the Pacific. This setting also applies to Production when this branch reaches it.
 - PR #24 re-checked on Preview: revision progress came back ("Learning 1"), the saved YouTube lecture and its marked topic survive a reload, and the server now returns real video titles. Lectures saved earlier as "Your lecture" now look up their real name once when restored.
+
+## 18 Nov 2026 — Heavy AI test (Scenario 3) and word pop-up fix
+
+- All seven AI tools (Explain, Illustrate, Story, Test me, Revise, Learning-profile lens, Ask My Book) answered on Preview in 8–11 s on a full textbook paragraph, at ₹0.08–0.21 per request (about ₹0.14 on average). Illustrate, Story and Ask My Book count as 2 helps, as labelled. A Revise answer saved as Cornell became 2 revision cards.
+- **Fixed:** triple-clicking to select a paragraph opened the word-meaning pop-up on top of the selection toolbar, so the next tap missed. The meaning now opens after a short pause and not at all when the click is part of a double or triple click.
