@@ -7,6 +7,8 @@ import { listSavedPassages } from "@/lib/ai/passage-store";
 import { getLocalCognitiveDnaState } from "@/lib/ai/adaptive-memory";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { whenAccountVaultOpen } from "@/lib/privacy/account-vault";
+import { loadVideoCaptionNotes } from "@/lib/video/caption-notes-store";
+import { createStudentLecture } from "@/lib/video/sync-engine";
 import {
   buildAvailableSources,
   DEFAULT_VIDEO_LECTURES,
@@ -25,6 +27,9 @@ export interface SynthesisStudioProps {
   theme: PrakritiThemePalette;
 }
 
+const isDemoLecture = (lecture: VideoLectureRecord) =>
+  DEFAULT_VIDEO_LECTURES.some((demo) => demo.id === lecture.id);
+
 export default function SynthesisStudio({
   prakritiDosha,
 }: SynthesisStudioProps) {
@@ -40,9 +45,30 @@ export default function SynthesisStudio({
       .then(async (user) => {
         if (user?.userId) await whenAccountVaultOpen();
         if (!active) return;
-        setAvailableSources(
-          buildAvailableSources(listSavedPassages(undefined, user?.userId ?? null))
-        );
+        const sources = buildAvailableSources(listSavedPassages(undefined, user?.userId ?? null));
+        setAvailableSources(sources);
+        setSelectedSourceIds((prev) => {
+          const kept = prev.filter((id) => sources.some((source) => source.id === id));
+          return kept.length >= 2 ? kept : sources.slice(0, 2).map((source) => source.id);
+        });
+        // The student's own YouTube lectures (topics they or the video marked) come first
+        // (owner, 18 Nov 2026); the two demo lectures stay below them.
+        const saved = user?.userId ? await loadVideoCaptionNotes(user.userId).catch(() => []) : [];
+        if (!active || saved.length === 0) return;
+        const mine = saved
+          .filter((item) => item.notes.length > 0)
+          .map((item) => ({
+            ...createStudentLecture({
+              sourceType: "youtube" as const,
+              youtubeVideoId: item.videoId,
+              youtubeUrl: item.url,
+              title: item.title,
+            }),
+            notes: item.notes,
+          }));
+        if (mine.length === 0) return;
+        setAvailableVideoLectures([...mine, ...DEFAULT_VIDEO_LECTURES]);
+        setSelectedVideoIds([...mine, ...DEFAULT_VIDEO_LECTURES].slice(0, 2).map((lecture) => lecture.id));
       })
       .catch(() => {
         if (!active) return;
@@ -52,7 +78,7 @@ export default function SynthesisStudio({
       active = false;
     };
   }, []);
-  const [availableVideoLectures] = useState<VideoLectureRecord[]>(
+  const [availableVideoLectures, setAvailableVideoLectures] = useState<VideoLectureRecord[]>(
     () => DEFAULT_VIDEO_LECTURES
   );
 
@@ -179,7 +205,7 @@ export default function SynthesisStudio({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium text-muted">
-                Lectures <span className="ml-1 text-[10px] uppercase tracking-wide text-accent">Demo</span>
+                Lectures
               </p>
               <h2 className="mt-1 flex items-center gap-2 font-display text-lg text-heading">
                 <Video className="h-4 w-4" />
@@ -215,7 +241,9 @@ export default function SynthesisStudio({
                       isSelected ? "opacity-80" : "text-muted"
                     }`}
                   >
-                    {lec.facultyName} · {lec.notes.length} timed notes
+                    {isDemoLecture(lec)
+                      ? `${lec.facultyName} · ${lec.notes.length} timed notes · Demo`
+                      : `Your YouTube lecture · ${lec.notes.length} topics`}
                   </span>
                 </button>
               );

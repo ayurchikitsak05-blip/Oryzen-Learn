@@ -29,6 +29,11 @@ describe("TodayHome", () => {
     expect(screen.getByTestId("today-make-plan").getAttribute("href")).toBe("/welcome");
   });
 
+  it("links to the focus timer", () => {
+    render(<TodayHome continuation={empty} />);
+    expect(screen.getByTestId("today-focus-timer").getAttribute("href")).toBe("/focus");
+  });
+
   it("doesn't say 'Add your first book' while the account is still opening", () => {
     render(<TodayHome continuation={empty} record="loading" />);
     expect(screen.getByTestId("today-book").textContent).toMatch(/Your books/);

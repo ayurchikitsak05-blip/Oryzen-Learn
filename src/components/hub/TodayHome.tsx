@@ -6,7 +6,7 @@ import { DailyThought } from "@/components/hub/DailyThought";
 import { PinnedNotes } from "@/components/notes/StickyNotes";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw, Sparkles, Video } from "lucide-react";
+import { BookOpen, ChevronRight, MessageCircle, Play, RotateCcw, Sparkles, Timer, Video } from "lucide-react";
 import type { HomeContinuation } from "@/lib/hub/continuation";
 import { readFirstRunDraft } from "@/lib/onboarding/first-run";
 import { checkInToday, comebackMessage } from "@/lib/hub/comeback";
@@ -227,6 +227,21 @@ export function TodayHome({
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-heading">Morning revision</span>
           <span className="block text-sm text-muted">5 quick cards from your notes, 3 minutes</span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
+      </Link>
+
+      <Link
+        href="/focus"
+        data-testid="today-focus-timer"
+        className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3"
+      >
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-beige-2">
+          <Timer className="h-5 w-5 text-accent" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-heading">Focus timer</span>
+          <span className="block text-sm text-muted">Study and break blocks, minutes saved</span>
         </span>
         <ChevronRight className="h-5 w-5 text-muted" aria-hidden="true" />
       </Link>

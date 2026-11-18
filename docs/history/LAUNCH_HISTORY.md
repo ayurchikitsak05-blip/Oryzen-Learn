@@ -375,3 +375,10 @@ PR #24 cut the "who is signed in?" requests from 12 to 4, but each still took 3�
 
 - All seven AI tools (Explain, Illustrate, Story, Test me, Revise, Learning-profile lens, Ask My Book) answered on Preview in 8–11 s on a full textbook paragraph, at ₹0.08–0.21 per request (about ₹0.14 on average). Illustrate, Story and Ask My Book count as 2 helps, as labelled. A Revise answer saved as Cornell became 2 revision cards.
 - **Fixed:** triple-clicking to select a paragraph opened the word-meaning pop-up on top of the selection toolbar, so the next tap missed. The meaning now opens after a short pause and not at all when the click is part of a double or triple click.
+
+## 18 Nov 2026 — Owner decisions after the manual test
+
+- **New accounts keep Pro limits (40 AI helps a day)** — owner's decision; no change.
+- **Focus timer is back:** new Focus timer page (`/focus`) with study/break blocks, End session (saves minutes studied) and Extend, linked from Today and Tools. Study Sprint stays.
+- **"My PDFs by subject" now includes the books from Books.** Under "My books, by subject", each book gets a subject chosen from the library's subjects (now added with "Add subject"); books are grouped by subject, and tapping one opens it in the reader. Sample books are grouped separately. The subject choice is a private study record (`oryzen_book_subjects_v1`).
+- **Chapter study book offers the student's own YouTube lectures** first (with their topics), the two demo lectures below, marked Demo. Topic-only lectures use the topic heading where AI notes would have given a key point.

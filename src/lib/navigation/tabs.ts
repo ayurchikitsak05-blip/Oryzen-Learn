@@ -74,6 +74,7 @@ export const ME_HIGHLIGHTS: readonly LinkListItem[] = [
 export const ME_ITEMS: readonly LinkListItem[] = [
   { href: "/roadmap", title: "Exam plan and study hours", detail: "Exam date, subjects, daily target", testId: "me-plan" },
   { href: "/companion", title: "Take My Study", detail: "Help to get started, with written tips", testId: "me-take-my-study" },
+  { href: "/focus", title: "Focus timer", detail: "Study and break blocks; End session saves your minutes", testId: "me-focus-timer" },
   { href: "/synthesis", title: "Chapter study book", detail: "Your highlights, notes and lecture notes in one place", testId: "me-study-book" },
   { href: "/vaults", title: "My PDFs by subject", detail: "Your uploaded books, sorted by subject", testId: "me-vaults" },
   { href: "/notes", title: "My Notes", detail: "All your notes and highlights", testId: "me-notes" },
