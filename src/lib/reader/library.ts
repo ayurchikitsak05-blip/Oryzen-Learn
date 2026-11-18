@@ -87,12 +87,15 @@ export function groupBooksBySubject(books: LibraryBook[], subjects: Record<strin
     .sort((a, b) => rank(a.subject) - rank(b.subject) || a.subject.localeCompare(b.subject));
 }
 
-/** Subject names to choose from: the library's collections plus any already given to a book. */
+/**
+ * Subject names to choose from: the library's collections plus any already given to a book.
+ * "Physics" and "physics" count as one subject (the first spelling is kept).
+ */
 export function subjectChoices(collectionTitles: string[], subjects: Record<string, string>): string[] {
-  const all = new Set<string>();
+  const byKey = new Map<string, string>();
   for (const title of [...collectionTitles, ...Object.values(subjects)]) {
     const clean = cleanSubject(title);
-    if (clean) all.add(clean);
+    if (clean && !byKey.has(clean.toLowerCase())) byKey.set(clean.toLowerCase(), clean);
   }
-  return [...all].sort((a, b) => a.localeCompare(b));
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
 }

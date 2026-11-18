@@ -32,8 +32,8 @@ describe("books by subject", () => {
     expect(groups.map((group) => group.subject)).toEqual(["Chemistry", "Physics", NO_SUBJECT, SAMPLE_GROUP]);
   });
 
-  it("offers the library's subjects plus any already used", () => {
-    expect(subjectChoices(["Physics", " physics ", ""], { x: "Biology" })).toEqual(["Biology", "Physics", "physics"]);
+  it("offers the library's subjects plus any already used, ignoring capital letters", () => {
+    expect(subjectChoices(["Physics", " physics ", ""], { x: "Biology" })).toEqual(["Biology", "Physics"]);
   });
 });
 
