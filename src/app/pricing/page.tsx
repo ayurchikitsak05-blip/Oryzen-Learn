@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import SubscriptionCheckout from "@/components/billing/SubscriptionCheckout";
 import AppChrome from "@/components/layout/AppChrome";
-import { MyPlan } from "@/components/billing/MyPlan";
+import { MyPlan, usePlan } from "@/components/billing/MyPlan";
 import { ui } from "@/components/ui/classes";
 import { canonicalInviteCode, DIRECT_ACCESS_PRICE_INR } from "@/lib/access/gate";
 import { DAILY_AI_HELPS } from "@/lib/ai/daily-allowance";
@@ -29,6 +29,7 @@ export default function PricingPage() {
   const [classError, setClassError] = useState<string | null>(null);
   const [classLoading, setClassLoading] = useState(false);
   const [freeLoading, setFreeLoading] = useState(false);
+  const { plan, setPlan, signedIn } = usePlan();
 
   useEffect(() => {
     if (!classOpen) return;
@@ -96,9 +97,15 @@ export default function PricingPage() {
       nav="marketing"
       subtitle="Your personal learning environment"
       actions={
-        <Link href="/auth" className={ui.secondary}>
-          Sign in
-        </Link>
+        signedIn ? (
+          <Link href="/hub" className={ui.secondary}>
+            Back to study
+          </Link>
+        ) : (
+          <Link href="/auth" className={ui.secondary}>
+            Sign in
+          </Link>
+        )
       }
     >
       <main className="mx-auto max-w-6xl px-4 py-14 md:px-8 md:py-16">
@@ -111,7 +118,7 @@ export default function PricingPage() {
           help has a daily allowance, so costs stay predictable. Prices include GST.
           Student Pro renews every month until you stop it.
         </p>
-        <MyPlan />
+        <MyPlan plan={plan} setPlan={setPlan} />
 
         <div className="mt-10 grid items-stretch gap-4 lg:grid-cols-3">
           <article className={`${ui.cardPad} flex flex-col`}>
@@ -149,16 +156,22 @@ export default function PricingPage() {
               ]}
             />
             <LocalFeatureList />
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setCheckoutOpen(true);
-              }}
-              className={`${ui.primary} mt-6`}
-            >
-              Subscribe Now
-            </button>
+            {plan?.pro ? (
+              <button type="button" disabled className={`${ui.secondary} mt-6`} data-testid="pro-current-plan">
+                Your current plan
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setCheckoutOpen(true);
+                }}
+                className={`${ui.primary} mt-6`}
+              >
+                Subscribe Now
+              </button>
+            )}
           </article>
 
           <article className={`${ui.cardPad} flex flex-col`}>

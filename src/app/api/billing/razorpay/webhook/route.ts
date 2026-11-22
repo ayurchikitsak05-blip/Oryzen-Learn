@@ -10,6 +10,8 @@ export async function POST(request: NextRequest) {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim() ?? "";
   const raw = await request.text();
   if (!webhookSignatureValid(raw, request.headers.get("x-razorpay-signature"), secret)) {
+    // Usually a webhook secret in Razorpay that doesn't match RAZORPAY_WEBHOOK_SECRET.
+    console.warn(JSON.stringify({ event: "razorpay_webhook_bad_signature", signed: Boolean(request.headers.get("x-razorpay-signature")) }));
     return NextResponse.json({ error: "Invalid signature." }, { status: 400 });
   }
   const admin = createAdminClient();
@@ -24,6 +26,8 @@ export async function POST(request: NextRequest) {
     request.headers.get("x-razorpay-event-id") ??
     `${body.event ?? "event"}:${body.payload?.subscription?.entity?.id ?? "none"}:${body.payload?.subscription?.entity?.current_end ?? ""}`;
   const result = await handleWebhookEvent(admin, { eventId, body });
+  // One line per notice so deliveries can be checked in the Vercel logs (type and outcome only).
+  console.info(JSON.stringify({ event: "razorpay_webhook", type: body.event ?? null, result }));
   if (result === "failed") {
     // Razorpay retries notices that don't get a 200.
     return NextResponse.json({ error: "Not applied yet." }, { status: 500 });

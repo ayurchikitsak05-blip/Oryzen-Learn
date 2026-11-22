@@ -4,6 +4,23 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-22 · Student Pro ₹149: Razorpay test mode set up and tested on Preview
+
+**Owner decision (22 Nov):** ₹149 a month is final.
+
+**Owner setup (done):** Razorpay Test mode: API keys, the ₹149 monthly plan, and a webhook to the Preview address. Vercel Preview settings `PAYMENTS_PROVIDER`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_PLAN_ID`, `RAZORPAY_WEBHOOK_SECRET`. Preview has no sign-in protection, so Razorpay's notices reach it.
+
+**Tested on Preview (test account `+free`):** Subscribe Now → Razorpay test checkout showing ₹149 and "charged ₹149 every month" → owner paid with test details → the account became Student Pro, paid to 22 Dec 2026 (Razorpay shows 1 active subscription, ₹149, next charge 22 Dec 2026). Stop auto-renew → "Pro stays on until …, then Free; you won't be charged again". An unsigned notice is refused.
+
+### Change: pricing page and notice logging
+- **Pricing:** shows "Back to study" instead of "Sign in" for a signed-in student; the Pro card says "Your current plan" for a Pro student instead of offering a second subscription; My plan shows Razorpay's real charge date (it showed the date two days later, with the grace days added).
+- **Notices:** each Razorpay notice now writes one log line (type and outcome, no personal data), and a notice with a wrong signature writes a warning, so deliveries and a mismatched webhook secret can be seen in the Vercel logs.
+- **Files:** `src/app/pricing/page.tsx`, `src/components/billing/MyPlan.tsx`, `src/app/api/billing/subscription/route.ts`, `src/lib/billing/subscription.ts` (`paidThrough`), `src/app/api/billing/razorpay/webhook/route.ts`; test `src/lib/billing/__tests__/paid-through.test.ts`.
+
+**Not yet shown:** a monthly renewal notice arriving (the first renewal is 22 Dec in test mode). Before Production: add the Learn website in Razorpay Live mode for approval, live keys and a live plan in Vercel Production, the webhook to the Production address, and the database update on Production, with the owner's approval.
+
+---
+
 ## 2026-11-17 · Lecture chapters tested on Preview; title fix
 
 **Tested on Preview (merged build):** a video with YouTube chapters returned all 12 chapters with the right times and headings; videos without a chapter list correctly returned none (students then use *Mark topic*). **Bug found and fixed:** the lecture's title was read from the wrong field (a like count such as "570K"); it now comes from the page's own title tag.

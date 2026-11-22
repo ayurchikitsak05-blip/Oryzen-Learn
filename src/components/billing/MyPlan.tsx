@@ -4,27 +4,42 @@ import React, { useEffect, useState } from "react";
 import { ui } from "@/components/ui/classes";
 import { DIRECT_ACCESS_PRICE_INR } from "@/lib/access/gate";
 
-type Plan = { pro: boolean; proUntil: string | null; renewing: boolean; status: string | null };
+export type Plan = {
+  pro: boolean;
+  proUntil: string | null;
+  paidThrough?: string | null;
+  renewing: boolean;
+  status: string | null;
+};
+
+/** The signed-in student's plan; null while loading or when signed out. `signedIn` is false only on a 401. */
+export function usePlan() {
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    void fetch("/api/billing/subscription", { credentials: "same-origin" })
+      .then((response) => {
+        setSignedIn(response.status !== 401);
+        return response.ok ? response.json() : null;
+      })
+      .then((json) => setPlan(json as Plan | null))
+      .catch(() => setPlan(null));
+  }, []);
+  return { plan, setPlan, signedIn };
+}
 
 function dateLabel(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "";
 }
 
 /** Shown on Pricing for a signed-in Pro student: next renewal, or when Pro ends, and Stop auto-renew. */
-export function MyPlan() {
-  const [plan, setPlan] = useState<Plan | null>(null);
+export function MyPlan({ plan, setPlan }: { plan: Plan | null; setPlan: (plan: Plan) => void }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    void fetch("/api/billing/subscription", { credentials: "same-origin" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((json) => setPlan(json as Plan | null))
-      .catch(() => setPlan(null));
-  }, []);
-
   if (!plan?.pro) return null;
+  const until = plan.paidThrough ?? plan.proUntil;
 
   const stop = async () => {
     setBusy(true);
@@ -57,12 +72,12 @@ export function MyPlan() {
       {plan.renewing ? (
         <p className="text-sm text-ink" data-testid="my-plan-renews">
           Renews automatically for ₹{DIRECT_ACCESS_PRICE_INR}
-          {plan.proUntil ? ` around ${dateLabel(plan.proUntil)}` : " every month"}. Razorpay sends a reminder before each
+          {until ? ` on ${dateLabel(until)}` : " every month"}. Razorpay sends a reminder before each
           charge.
         </p>
       ) : (
         <p className="text-sm text-ink" data-testid="my-plan-ends">
-          {plan.proUntil ? `Pro stays on until ${dateLabel(plan.proUntil)}, then your account moves to the Free plan.` : "Pro is on."}
+          {until ? `Pro stays on until ${dateLabel(until)}, then your account moves to the Free plan.` : "Pro is on."}
         </p>
       )}
       {plan.status === "pending" ? (

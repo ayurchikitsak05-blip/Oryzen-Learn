@@ -69,6 +69,13 @@ export function proUntilFor(subscription: Pick<RazorpaySubscription, "current_en
   return new Date(Math.max(end, now.getTime()) + PRO_GRACE_DAYS * 86_400_000);
 }
 
+/** The date Razorpay charges next (or the paid month ends): pro_until without the short grace. */
+export function paidThrough(proUntil: string | null): string | null {
+  if (!proUntil) return null;
+  const time = Date.parse(proUntil);
+  return Number.isNaN(time) ? null : new Date(time - PRO_GRACE_DAYS * 86_400_000).toISOString();
+}
+
 export async function createSubscription(input: {
   keys: RazorpayKeys;
   planId: string;
