@@ -4,6 +4,18 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-23 · Reader on phones: page didn't fit the screen
+
+**Reported by the owner (phone, Preview):** after opening a PDF, Fit Page / Fit Width left the page wider than the screen and only half the screen showed the page; zooming made it worse.
+
+**Cause (reproduced on an emulated phone):** a hidden "Pages 1" label for screen readers in the reader toolbar sat outside the toolbar's scroll area, so the whole page became 602 px wide on a 412 px phone. Phone Chrome then laid everything out for the wider page, so no fit ever matched the screen. Separately, on phones up to 390 px the toolbar wrapped onto 3–4 rows and took about half the screen.
+
+**Fix:** the toolbar and the reader frame now hold that label inside them, and the toolbar stays one row that scrolls sideways on every phone. Checked on emulated Pixel 7, Galaxy S9+ and iPhone SE: the page stays exactly screen width after opening, Fit Width, Fit Page and zoom; zoom now scrolls inside the reader only.
+
+**Files:** `src/components/reader/PdfViewer.tsx`; test `src/components/reader/__tests__/PdfViewer.empty.test.tsx`.
+
+---
+
 ## 2026-11-22 · Student Pro ₹149: Razorpay test mode set up and tested on Preview
 
 **Owner decision (22 Nov):** ₹149 a month is final.
