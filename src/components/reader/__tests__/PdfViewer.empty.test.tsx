@@ -148,8 +148,11 @@ describe("PDF reader empty state", () => {
     const toolbar = view.getByTestId("reader-toolbar");
     expect(toolbar.className).toContain("min-w-0");
     expect(toolbar.className).toContain("max-w-full");
-    expect(toolbar.className).toContain("max-[390px]:flex-wrap");
-    expect(toolbar.className).toContain("max-[390px]:overflow-x-hidden");
+    // One sideways-scrolling row on every phone, so the page keeps most of the screen.
+    expect(toolbar.className).toContain("overflow-x-auto");
+    expect(toolbar.className).not.toContain("flex-wrap");
+    // Anchors the hidden page label, so it can't widen the page past the phone screen.
+    expect(toolbar.className).toContain("relative");
     expect(view.getByRole("button", { name: "Transform" })).toBeTruthy();
     expect(view.getByRole("button", { name: "Ask My Book" })).toBeTruthy();
   });

@@ -1343,7 +1343,7 @@ export default function PdfViewer({
       data-testid="pdf-reading-canvas"
       data-fit-mode={fitMode}
       data-page-scale={zoomScale}
-      className="flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-canvas"
+      className="relative flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden bg-canvas"
     >
       <Suspense fallback={null}>
         <SprintDock
@@ -1353,7 +1353,7 @@ export default function PdfViewer({
       </Suspense>
       <div
         data-testid="reader-toolbar"
-        className="flex w-full min-w-0 max-w-full shrink-0 flex-nowrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1 max-[390px]:flex-wrap max-[390px]:overflow-x-hidden"
+        className="relative flex w-full min-w-0 max-w-full shrink-0 flex-nowrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1"
       >
         <label className="btn-secondary cursor-pointer px-2.5 py-1 text-[11px]">
           <FileUp className="h-4 w-4" />
