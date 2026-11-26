@@ -19,6 +19,23 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - Checked on an emulated Pixel 7 (two-finger pinch to 3×) and a laptop (Ctrl + scroll): no redraws during the gesture, one redraw after, the point under the fingers stays put, page width stays the phone width.
 
 **Files:** `src/components/reader/PdfViewer.tsx`, `src/components/reader/PdfPageCanvas.tsx`.
+## 2026-11-26 · Reader feedback from colleagues' recordings
+
+**Reported (owner + colleagues, phone and laptop, Preview):**
+1. Contents of a publisher book (Shanbhag Pharmacology) showed garbled lines such as "*URZWK KRUPRQH" and repeated page headers ("306 PHARMACOLOGY FOR MEDICAL GRADUATES").
+2. Toolbar labels "Fit Page", "Fit Width", "Reset Zoom" broke onto two lines and squashed together.
+3. A large empty gap sat above the page.
+4. Notes offered "Download annotations" on an empty book, which downloaded an empty file.
+
+**Causes and fixes:**
+1. That book's font stores letters 29 codes below normal ("*URZWK KRUPRQH" is "Growth hormone"). The reader now shifts such text back when a page shows this pattern, and only for words that then read as words, so normal text is untouched. Books already added are repaired when opened. Contents also skips running page headers (the same heading on 3 or more pages) and lines that still can't be read. This also fixes the text that Explain and Ask My Book receive.
+2. Toolbar labels stay on one line; the row scrolls sideways.
+3. A short page is centred only in Fit Page; Fit Width and zoom start the page at the top.
+4. The download button appears only when there are highlights or notes; the empty panel explains how to add them.
+
+**Also seen:** the recordings show the phone in Chrome's "Desktop site" mode (desktop header, no bottom tabs), which makes everything small. Turn it off in Chrome's ⋮ menu.
+
+**Files:** `src/lib/reader/extractor.ts`, `src/lib/reader/storage.ts`, `src/components/reader/PdfViewer.tsx`, `src/components/reader/ReaderOverlays.tsx`; test `src/lib/reader/__tests__/shifted-glyphs.test.ts`.
 
 ---
 

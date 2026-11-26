@@ -37,6 +37,115 @@ export interface PageExtractionResult {
   chunks: CitationReadyChunk[];
 }
 
+// ---------------------------------------------------------------------------
+// Shifted-glyph repair. Some publisher PDFs store text with a font whose codes
+// sit 29 below normal ASCII: "Growth hormone" comes out as "*URZWK\u0003KRUPRQH"
+// (spaces become control character 3). We shift such text back, per item,
+// only when the shifted version reads more like words than the original.
+// ---------------------------------------------------------------------------
+const GLYPH_SHIFT = 29;
+const CONTROL_CHARS = /[\u0001-\u0008\u000b\u000c\u000e-\u001f]/;
+
+function vowelShare(text: string): number {
+  const letters = text.replace(/[^A-Za-z]/g, "");
+  if (letters.length === 0) return 0;
+  return (letters.match(/[aeiouyAEIOUY]/g)?.length ?? 0) / letters.length;
+}
+
+/** The text shifted back by the font offset (characters that can't shift stay as they are). */
+export function unshiftGlyphText(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const code = ch.charCodeAt(0);
+    const shifted = code + GLYPH_SHIFT;
+    out += code >= 3 && shifted <= 126 ? String.fromCharCode(shifted) : ch;
+  }
+  return out;
+}
+
+/** True when text looks like shifted glyphs and the unshifted version reads like words. */
+export function looksGlyphShifted(text: string): boolean {
+  const letters = text.replace(/[^A-Za-z]/g, "");
+  if (letters.length < 3) return false;
+  const fixed = unshiftGlyphText(text);
+  const fixedLetters = fixed.replace(/[^A-Za-z]/g, "");
+  return fixedLetters.length >= letters.length * 0.7 && vowelShare(fixed) >= 0.28 && vowelShare(fixed) > vowelShare(text) + 0.12;
+}
+
+/**
+ * Repairs a page's text items when the page shows the shifted-font pattern
+ * (control characters where spaces should be). Normal items on the page are left alone.
+ */
+export function repairShiftedGlyphItems<T extends { str: string }>(items: T[]): T[] {
+  const marked = items.filter((item) => CONTROL_CHARS.test(item.str)).length;
+  if (marked === 0) return items;
+  return items.map((item) => {
+    if (!CONTROL_CHARS.test(item.str) && !looksGlyphShifted(item.str)) return item;
+    const fixed = unshiftGlyphText(item.str);
+    if (CONTROL_CHARS.test(item.str) && !looksGlyphShifted(item.str)) {
+      // Only stray control characters: drop them, keep the text.
+      return { ...item, str: item.str.replace(/[\u0000-\u001f]/g, " ") };
+    }
+    return { ...item, str: fixed };
+  });
+}
+
+/** Contents should skip unreadable lines and running page headers ("306 PHARMACOLOGY FOR …"). */
+export function tidyChapters(
+  chapters: Array<{ title: string; pageNumber: number }>,
+  headingPages: Map<string, Set<number>> = new Map()
+): Array<{ title: string; pageNumber: number }> {
+  // Running headers repeat with a different page number each time ("306 …", "308 …").
+  const seen = new Map<string, number>();
+  for (const chapter of chapters) {
+    const key = runningHeaderKey(chapter.title);
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+  const out: Array<{ title: string; pageNumber: number }> = [];
+  for (const chapter of chapters) {
+    let title = chapter.title.trim();
+    if (CONTROL_CHARS.test(title) || looksGlyphShifted(title)) {
+      if (!looksGlyphShifted(title)) continue;
+      title = unshiftGlyphText(title).replace(/\s+/g, " ").trim();
+    }
+    const letters = title.replace(/[^A-Za-z]/g, "");
+    if (letters.length >= 4 && vowelShare(title) < 0.18) continue;
+    const key = runningHeaderKey(chapter.title);
+    if (Math.max(headingPages.get(key)?.size ?? 0, seen.get(key) ?? 0) >= 3) continue;
+    out.push({ ...chapter, title });
+  }
+  return out;
+}
+
+/** Repairs a saved book's chapters and passage text (books added before the repair existed). */
+export function repairStoredBookText<
+  T extends { chapters: Array<{ title: string; pageNumber: number }>; chunks: Array<{ text: string; section_heading: string }> },
+>(record: T): T {
+  const needs =
+    record.chapters.some((chapter) => CONTROL_CHARS.test(chapter.title)) ||
+    record.chunks.some((chunk) => CONTROL_CHARS.test(chunk.text));
+  const chapters = tidyChapters(record.chapters);
+  if (!needs && chapters.length === record.chapters.length) return record;
+  const fixLine = (text: string) => {
+    if (!CONTROL_CHARS.test(text) && !looksGlyphShifted(text)) return text;
+    // Repair word by word: shifted words sit next to normal ones in the same passage.
+    return text
+      .split(/(\s+)/)
+      .map((part) => (/\s+/.test(part) ? part : looksGlyphShifted(part) || CONTROL_CHARS.test(part) ? unshiftGlyphText(part) : part))
+      .join("")
+      .replace(/[\u0000-\u001f]/g, " ");
+  };
+  return {
+    ...record,
+    chapters: chapters.length > 0 ? chapters : record.chapters,
+    chunks: record.chunks.map((chunk) => ({ ...chunk, text: fixLine(chunk.text), section_heading: fixLine(chunk.section_heading) })),
+  };
+}
+
+function runningHeaderKey(title: string): string {
+  return title.replace(/\d+/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 const HEADING_PATTERNS: RegExp[] = [
   /^(chapter|adhyaya|sthana|sutra|section|unit|part|module)\b/i,
   /^[0-9]+(\.[0-9]+)*\s+[A-Z]/,
@@ -287,16 +396,21 @@ export function extractDocumentCitationIndex(params: {
   const allChunks: CitationReadyChunk[] = [];
   const chapters: Array<{ title: string; pageNumber: number }> = [];
 
+  const headingPages = new Map<string, Set<number>>();
+
   for (const page of pages) {
     const pageResult = extractPageCitationChunksFromTextItems({
       documentId,
       pageNumber: page.pageNumber,
-      items: page.items,
+      items: repairShiftedGlyphItems(page.items),
       fallbackHeading: runningHeading,
       maxWordsPerChunk,
     });
 
     for (const heading of pageResult.detected_headings) {
+      const key = runningHeaderKey(heading);
+      if (!headingPages.has(key)) headingPages.set(key, new Set());
+      headingPages.get(key)!.add(page.pageNumber);
       runningHeading = heading;
       if (!chapters.some((c) => c.title === heading)) {
         chapters.push({ title: heading, pageNumber: page.pageNumber });
@@ -309,7 +423,7 @@ export function extractDocumentCitationIndex(params: {
   return {
     document_id: documentId,
     total_chunks: allChunks.length,
-    chapters,
+    chapters: tidyChapters(chapters, headingPages),
     chunks: allChunks,
   };
 }
