@@ -209,18 +209,21 @@ export function AnnotationsDrawer({
 
   return (
     <OverlayShell title="Annotations" onClose={onClose}>
-      <div className="mb-4 flex justify-end">
-        <button
-          type="button"
-          onClick={download}
-          className="btn-primary text-sm"
-        >
-          Download annotations
-        </button>
-      </div>
+      {items.length > 0 ? (
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={download}
+            className="btn-primary text-sm"
+          >
+            Download annotations
+          </button>
+        </div>
+      ) : null}
       {items.length === 0 ? (
-        <p className="text-sm text-muted">
-          Highlights and margin notes you add in the reader will collect here.
+        <p className="text-sm text-muted" data-testid="annotations-empty">
+          No highlights or notes in this book yet. Select some text on the page, then tap Highlight or Note.
+          They&apos;ll collect here, and you can download them.
         </p>
       ) : (
         <ul className="space-y-3">
