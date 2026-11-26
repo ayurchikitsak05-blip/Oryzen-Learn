@@ -298,55 +298,103 @@ export default function PdfViewer({
       );
     };
 
-    let pinching = false;
-    let startDistance = 0;
-    let startZoom = zoomScaleRef.current;
-    let focalX = 0;
-    let focalY = 0;
+    // Smooth zoom: while fingers move (or the trackpad scrolls with Ctrl), only the page
+    // picture is scaled on screen. The sharp page is drawn once, when the gesture ends.
+    const gesture = {
+      active: false,
+      startDistance: 0,
+      startZoom: zoomScaleRef.current,
+      zoom: zoomScaleRef.current,
+      focalX: 0,
+      focalY: 0,
+      startPointerX: 0,
+      startPointerY: 0,
+      pointerX: 0,
+      pointerY: 0,
+    };
+    let wheelTimer: number | null = null;
 
-    const onTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 2) return;
-      pinching = true;
-      startDistance = Math.hypot(
-        event.touches[0].clientX - event.touches[1].clientX,
-        event.touches[0].clientY - event.touches[1].clientY
-      );
-      startZoom = zoomScaleRef.current;
-      const rect = host.getBoundingClientRect();
-      focalX = host.scrollLeft + (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left;
-      focalY = host.scrollTop + (event.touches[0].clientY + event.touches[1].clientY) / 2 - rect.top;
+    const stage = () => host.querySelector<HTMLElement>('[data-testid="pdf-page-stage"]');
+
+    const begin = (pointerX: number, pointerY: number) => {
+      gesture.active = true;
+      gesture.startZoom = zoomScaleRef.current;
+      gesture.zoom = gesture.startZoom;
+      gesture.focalX = host.scrollLeft + pointerX;
+      gesture.focalY = host.scrollTop + pointerY;
+      gesture.startPointerX = gesture.pointerX = pointerX;
+      gesture.startPointerY = gesture.pointerY = pointerY;
+      const el = stage();
+      if (el) {
+        el.style.transformOrigin = `${gesture.focalX}px ${gesture.focalY}px`;
+        el.style.willChange = "transform";
+      }
     };
 
-    const applyFocalZoom = (nextZoom: number, pointerX: number, pointerY: number) => {
-      const next = clampFitZoom(nextZoom);
-      if (Math.abs(next - zoomScaleRef.current) < 0.001) return;
+    const preview = (nextZoom: number, pointerX: number, pointerY: number) => {
+      gesture.zoom = clampFitZoom(nextZoom);
+      gesture.pointerX = pointerX;
+      gesture.pointerY = pointerY;
+      const el = stage();
+      if (!el) return;
+      const scale = gesture.zoom / gesture.startZoom;
+      const dx = pointerX - gesture.startPointerX;
+      const dy = pointerY - gesture.startPointerY;
+      el.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scale})`;
+    };
+
+    const commit = () => {
+      if (!gesture.active) return;
+      gesture.active = false;
+      const next = gesture.zoom;
+      if (Math.abs(next - zoomScaleRef.current) < 0.001) {
+        const el = stage();
+        if (el) {
+          el.style.transform = "";
+          el.style.willChange = "";
+        }
+        return;
+      }
       pinchScrollRef.current = scrollForFocalZoom({
-        focalContentX: focalX,
-        focalContentY: focalY,
-        startZoom,
+        focalContentX: gesture.focalX,
+        focalContentY: gesture.focalY,
+        startZoom: gesture.startZoom,
         nextZoom: next,
-        pointerX,
-        pointerY,
+        pointerX: gesture.pointerX,
+        pointerY: gesture.pointerY,
       });
       setFitMode("custom");
       setCustomZoom(next);
     };
 
-    const onTouchMove = (event: TouchEvent) => {
-      if (!pinching || event.touches.length !== 2 || startDistance <= 0) return;
-      event.preventDefault();
-      const distance = Math.hypot(
-        event.touches[0].clientX - event.touches[1].clientX,
-        event.touches[0].clientY - event.touches[1].clientY
-      );
+    const touchPoint = (event: TouchEvent) => {
       const rect = host.getBoundingClientRect();
-      const pointerX = (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left;
-      const pointerY = (event.touches[0].clientY + event.touches[1].clientY) / 2 - rect.top;
-      applyFocalZoom(nextPinchZoom(startZoom, startDistance, distance), pointerX, pointerY);
+      return {
+        x: (event.touches[0].clientX + event.touches[1].clientX) / 2 - rect.left,
+        y: (event.touches[0].clientY + event.touches[1].clientY) / 2 - rect.top,
+        distance: Math.hypot(
+          event.touches[0].clientX - event.touches[1].clientX,
+          event.touches[0].clientY - event.touches[1].clientY
+        ),
+      };
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 2) return;
+      const point = touchPoint(event);
+      gesture.startDistance = point.distance;
+      begin(point.x, point.y);
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!gesture.active || event.touches.length !== 2 || gesture.startDistance <= 0) return;
+      event.preventDefault();
+      const point = touchPoint(event);
+      preview(nextPinchZoom(gesture.startZoom, gesture.startDistance, point.distance), point.x, point.y);
     };
 
     const onTouchEnd = (event: TouchEvent) => {
-      if (event.touches.length < 2) pinching = false;
+      if (event.touches.length < 2) commit();
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -355,10 +403,13 @@ export default function PdfViewer({
       const rect = host.getBoundingClientRect();
       const pointerX = event.clientX - rect.left;
       const pointerY = event.clientY - rect.top;
-      startZoom = zoomScaleRef.current;
-      focalX = host.scrollLeft + pointerX;
-      focalY = host.scrollTop + pointerY;
-      applyFocalZoom(startZoom * Math.exp(-event.deltaY * 0.002), pointerX, pointerY);
+      if (!gesture.active) begin(pointerX, pointerY);
+      preview(gesture.zoom * Math.exp(-event.deltaY * 0.002), gesture.startPointerX, gesture.startPointerY);
+      if (wheelTimer !== null) window.clearTimeout(wheelTimer);
+      wheelTimer = window.setTimeout(() => {
+        wheelTimer = null;
+        commit();
+      }, 160);
     };
 
     measure();
@@ -382,11 +433,18 @@ export default function PdfViewer({
       host.removeEventListener("touchend", onTouchEnd);
       host.removeEventListener("touchcancel", onTouchEnd);
       host.removeEventListener("wheel", onWheel);
+      if (wheelTimer !== null) window.clearTimeout(wheelTimer);
     };
   }, [workspaceOpen, contentsOpen, gridOpen, annotationsOpen, transformOpen]);
 
   useLayoutEffect(() => {
     const host = canvasHostRef.current;
+    // The new size is laid out now: drop the on-screen preview scale in the same frame.
+    const stageEl = host?.querySelector<HTMLElement>('[data-testid="pdf-page-stage"]');
+    if (stageEl && stageEl.style.transform) {
+      stageEl.style.transform = "";
+      stageEl.style.willChange = "";
+    }
     const pending = pinchScrollRef.current;
     if (!host || !pending) return;
     host.scrollLeft = Math.max(0, pending.left);

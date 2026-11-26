@@ -4,6 +4,21 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-26 · Smooth PDF zoom; lecture notes on for Preview
+
+**Owner decisions (26 Nov):** turn AI YouTube lecture notes on for Preview only so colleagues can test (`LECTURE_AI_NOTES=on`, Preview; Production stays off). Zooming a PDF must be smooth.
+
+**Reported:** pinching to zoom made the page shake and jump around.
+
+**Cause:** every small finger movement set a new zoom; each one reloaded the whole book file, drew the page again from scratch, blanked the page while drawing, and only then changed its size, while the scroll position had already moved.
+
+**Fix:**
+- While pinching (or Ctrl + trackpad scroll on a laptop), the page picture is only scaled on screen, which is instant; the sharp page is drawn once when the fingers lift.
+- The book file is opened once and shared by all pages and zoom levels.
+- The page is drawn off screen and swapped in, so it never goes blank; its size changes at once, so nothing jumps.
+- Checked on an emulated Pixel 7 (two-finger pinch to 3×) and a laptop (Ctrl + scroll): no redraws during the gesture, one redraw after, the point under the fingers stays put, page width stays the phone width.
+
+**Files:** `src/components/reader/PdfViewer.tsx`, `src/components/reader/PdfPageCanvas.tsx`.
 ## 2026-11-26 · Reader feedback from colleagues' recordings
 
 **Reported (owner + colleagues, phone and laptop, Preview):**
