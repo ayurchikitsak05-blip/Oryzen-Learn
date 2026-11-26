@@ -44,7 +44,6 @@ export interface PageExtractionResult {
 // only when the shifted version reads more like words than the original.
 // ---------------------------------------------------------------------------
 const GLYPH_SHIFT = 29;
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0001-\u0008\u000b\u000c\u000e-\u001f]/;
 
 function vowelShare(text: string): number {
@@ -85,7 +84,6 @@ export function repairShiftedGlyphItems<T extends { str: string }>(items: T[]): 
     const fixed = unshiftGlyphText(item.str);
     if (CONTROL_CHARS.test(item.str) && !looksGlyphShifted(item.str)) {
       // Only stray control characters: drop them, keep the text.
-      // eslint-disable-next-line no-control-regex
       return { ...item, str: item.str.replace(/[\u0000-\u001f]/g, " ") };
     }
     return { ...item, str: fixed };
@@ -131,12 +129,10 @@ export function repairStoredBookText<
   const fixLine = (text: string) => {
     if (!CONTROL_CHARS.test(text) && !looksGlyphShifted(text)) return text;
     // Repair word by word: shifted words sit next to normal ones in the same passage.
-    // eslint-disable-next-line no-control-regex
     return text
       .split(/(\s+)/)
       .map((part) => (/\s+/.test(part) ? part : looksGlyphShifted(part) || CONTROL_CHARS.test(part) ? unshiftGlyphText(part) : part))
       .join("")
-      // eslint-disable-next-line no-control-regex
       .replace(/[\u0000-\u001f]/g, " ");
   };
   return {
