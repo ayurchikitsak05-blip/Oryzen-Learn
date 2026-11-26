@@ -18,6 +18,7 @@ import {
   sealWithRawKey,
   wrapLegacyDataKey,
 } from "@/lib/privacy/account-vault";
+import { repairStoredBookText } from "@/lib/reader/extractor";
 
 export const LOCAL_READER_DB_NAME = "prakriti_reader_local_db_v1";
 export const LOCAL_READER_DB_VERSION = 1;
@@ -321,7 +322,9 @@ async function loadSealedDocuments(): Promise<void> {
     const opened = await openBytes(blob.iv, blob.data);
     if (!opened) continue;
     try {
-      const record = JSON.parse(new TextDecoder().decode(opened)) as LocalPdfDocumentRecord;
+      const record = repairStoredBookText(
+        JSON.parse(new TextDecoder().decode(opened)) as LocalPdfDocumentRecord
+      );
       if (record?.id) memoryDocumentStore.set(record.id, record);
     } catch {
       // Another account's sealed book stays unreadable.

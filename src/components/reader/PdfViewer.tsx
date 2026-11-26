@@ -1353,7 +1353,7 @@ export default function PdfViewer({
       </Suspense>
       <div
         data-testid="reader-toolbar"
-        className="relative flex w-full min-w-0 max-w-full shrink-0 flex-nowrap items-center gap-0.5 overflow-x-auto border-b border-line px-1.5 py-1"
+        className="relative flex w-full min-w-0 max-w-full shrink-0 flex-nowrap items-center gap-0.5 overflow-x-auto whitespace-nowrap *:shrink-0 border-b border-line px-1.5 py-1"
       >
         <label className="btn-secondary cursor-pointer px-2.5 py-1 text-[11px]">
           <FileUp className="h-4 w-4" />
@@ -1588,7 +1588,9 @@ export default function PdfViewer({
             className={
               documentReady
                 ? `flex min-h-full min-w-full w-max p-1 ${
-                    pageGeometry && pageGeometry.height * zoomScale > Math.max(0, viewportBox.height - FIT_PAGE_PADDING)
+                    // Only Fit Page centres a short page; otherwise reading starts at the top, with no gap.
+                    fitMode !== "page" ||
+                    (pageGeometry && pageGeometry.height * zoomScale > Math.max(0, viewportBox.height - FIT_PAGE_PADDING))
                       ? "items-start"
                       : "items-center"
                   } ${
