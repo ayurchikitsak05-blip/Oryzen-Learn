@@ -110,7 +110,7 @@ export function TodayHome({
         </section>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
         <div className="min-w-0 space-y-6">
           {/* Continue card: the last book and today's plan, with the goal and revision beside it. */}
           <section
@@ -260,8 +260,8 @@ export function TodayHome({
             </div>
           </section>
 
-          {/* Phones: the week's stamps right under the Continue card (the side column comes last there). */}
-          <div className="lg:hidden">
+          {/* Below 1280px (phones and laptops with the menu open): stamps right under the Continue card. */}
+          <div className="xl:hidden">
             <WeekStampsCard stamps={extras.stamps} streak={extras.streak} todayMinutes={extras.todayMinutes} />
           </div>
 
@@ -334,8 +334,8 @@ export function TodayHome({
           </section>
         </div>
 
-        <aside className="space-y-4" aria-label="Your week and exam">
-          <div className="hidden lg:block">
+        <aside className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 xl:content-start" aria-label="Your week and exam">
+          <div className="hidden xl:block">
             <WeekStampsCard testId="today-week-side" stamps={extras.stamps} streak={extras.streak} todayMinutes={extras.todayMinutes} />
           </div>
           {continuation.exam ? (
