@@ -9,6 +9,9 @@ async function signedInClient() {
   return { supabase, user };
 }
 
+/** Most cards one import request may save; the browser sends bigger decks in batches. */
+const IMPORT_BATCH = 500;
+
 function missingTable(message: string): boolean {
   return /note_subjects|study_notes|schema cache|does not exist/i.test(message);
 }
@@ -62,8 +65,10 @@ export async function POST(request: NextRequest) {
       | "create_note"
       | "delete_subject"
       | "delete_note"
-      | "save_passage";
+      | "save_passage"
+      | "import_notes";
     title?: string;
+    notes?: Array<{ title?: unknown; body?: unknown }>;
     noteBody?: string;
     subjectId?: string;
     subjectTitle?: string;
@@ -97,6 +102,48 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json({ id: data.id });
+  }
+
+  if (body.action === "import_notes") {
+    // Anki import (27 Nov 2026): many notes in one request, into the subject named after the deck.
+    const subjectTitle = (body.subjectTitle?.trim() || "Imported deck").slice(0, 120);
+    const incoming = Array.isArray(body.notes) ? body.notes : [];
+    if (incoming.length === 0) return NextResponse.json({ error: "There were no cards to import." }, { status: 400 });
+    if (incoming.length > IMPORT_BATCH) {
+      return NextResponse.json({ error: `Import at most ${IMPORT_BATCH} cards at a time.` }, { status: 400 });
+    }
+    const { data: subjects, error: subjectsError } = await supabase
+      .from("note_subjects")
+      .select("id, title")
+      .eq("user_id", user.id);
+    if (subjectsError) return NextResponse.json({ error: subjectsError.message }, { status: 400 });
+    let subjectId =
+      (subjects ?? []).find(
+        (row: { id: string; title: string | null }) => (row.title ?? "").trim().toLowerCase() === subjectTitle.toLowerCase()
+      )?.id ?? null;
+    if (!subjectId) {
+      const created = await supabase
+        .from("note_subjects")
+        .insert({ user_id: user.id, title: subjectTitle })
+        .select("id")
+        .single();
+      if (created.error || !created.data) {
+        return NextResponse.json({ error: created.error?.message ?? "The subject could not be created." }, { status: 400 });
+      }
+      subjectId = created.data.id;
+    }
+    const rows = incoming
+      .map((note) => ({
+        subject_id: subjectId,
+        user_id: user.id,
+        title: typeof note.title === "string" ? note.title.trim().slice(0, 300) : "",
+        body: typeof note.body === "string" ? note.body.trim().slice(0, 5000) : "",
+      }))
+      .filter((row) => row.title);
+    if (rows.length === 0) return NextResponse.json({ error: "There were no cards to import." }, { status: 400 });
+    const { error } = await supabase.from("study_notes").insert(rows);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ subjectId, imported: rows.length });
   }
 
   if (body.action === "save_passage") {

@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Literata, Playfair_Display } from "next/font/google";
 import ExperienceProvider from "@/components/experience/ExperienceProvider";
 import StudyRhythmProvider from "@/components/rhythm/StudyRhythmProvider";
 import { EXPERIENCE_BOOT_SCRIPT } from "@/lib/experience/persist";
 import { READING_SIZE_BOOT_SCRIPT } from "@/lib/reading/prefs";
 import { RHYTHM_BOOT_SCRIPT } from "@/lib/rhythm/persist";
+import AppInstallSetup from "@/components/pwa/AppInstallSetup";
 import "./globals.css";
 
 const inter = Inter({
@@ -29,6 +30,16 @@ export const metadata: Metadata = {
   title: "Oryzen Learn — Your personal learning environment",
   description:
     "An AI-powered personal learning environment. Read your textbooks, learn from videos, keep your notes, and discover how you study best.",
+  applicationName: "Oryzen Learn",
+  appleWebApp: { capable: true, title: "Oryzen", statusBarStyle: "default" },
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f4efe7",
 };
 
 export default function RootLayout({
@@ -59,6 +70,7 @@ export default function RootLayout({
           id="oryzen-experience-boot"
           dangerouslySetInnerHTML={{ __html: EXPERIENCE_BOOT_SCRIPT }}
         />
+        <AppInstallSetup />
         <StudyRhythmProvider>
           <ExperienceProvider>{children}</ExperienceProvider>
         </StudyRhythmProvider>

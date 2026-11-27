@@ -28,6 +28,16 @@ vi.mock("@/lib/reader/storage", () => ({
   ]),
 }));
 vi.mock("@/lib/reader/fit", () => ({ readPersistedReaderView: vi.fn(() => null) }));
+vi.mock("@/lib/reader/quiz-progress", () => ({
+  readAllQuizProgress: vi.fn(() => [{ documentId: "book-1", pageNumber: 30, weakConcepts: ["velocity"] }]),
+}));
+vi.mock("@/lib/revision/cards", () => ({
+  readRevisionState: vi.fn(() => ({ n1: { box: 0, due: "2026-11-28", lastSeen: "2026-11-27", lapses: 2 } })),
+  weakCards: (notes: Array<{ id: string }>, state: Record<string, { lapses?: number }>) => notes.filter((note) => (state[note.id]?.lapses ?? 0) >= 2),
+}));
+vi.mock("@/components/revision/MorningRevision", () => ({
+  toRevisionNotes: () => [{ id: "n1", title: "Velocity", body: "Speed with direction", subject: "Physics", updatedAt: "" }],
+}));
 vi.mock("@/lib/reader/library", () => ({
   isSampleBook: () => false,
   readBookSubjects: () => ({ "book-1": "Physics", "book-2": "Chemistry" }),
@@ -42,6 +52,8 @@ vi.mock("@/lib/subjects/chapters", async (importOriginal) => {
 });
 
 import { SubjectChapters } from "../SubjectChapters";
+
+vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ notes: [] }), { status: 200 })));
 
 describe("SubjectChapters", () => {
   it("lists only this subject's chapters with status, pages and a link to the page", async () => {
@@ -67,5 +79,13 @@ describe("SubjectChapters", () => {
   it("explains what to do when the subject has no books", async () => {
     render(<SubjectChapters subject="Biology" />);
     expect(await screen.findByTestId("subject-chapters-empty")).toBeTruthy();
+  });
+
+  it("shows weak spots from Test me misses and forgotten cards, with a practice link", async () => {
+    render(<SubjectChapters subject="Physics" />);
+    const panel = await screen.findByTestId("subject-weak");
+    expect(panel.textContent).toMatch(/Motion in a Straight Line/);
+    expect((await screen.findByTestId("subject-weak-practise")).getAttribute("href")).toBe("/revise?subject=Physics&weak=1");
+    expect(screen.getAllByTestId("subject-chapter-weak")).toHaveLength(1);
   });
 });

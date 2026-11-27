@@ -15,6 +15,7 @@ import { StudyIcon, StudyIconTile, type StudyIconName } from "@/components/icons
 import { WeekStampsCard } from "@/components/hub/WeekStampsCard";
 import { SubjectsStrip } from "@/components/hub/SubjectsStrip";
 import { useTodayExtras } from "@/components/hub/useTodayExtras";
+import { InstallApp } from "@/components/pwa/InstallApp";
 import type { MixItem } from "@/lib/hub/today-mix";
 
 /** Good morning / afternoon / evening, from the device clock. */
@@ -316,6 +317,8 @@ export function TodayHome({
           ) : null}
 
           <SubjectsStrip />
+
+          <InstallApp dismissible />
 
           <section aria-labelledby="today-highlights" data-testid="today-highlights" className="space-y-3">
             <h2 id="today-highlights" className="text-lg font-semibold text-heading">Highlights</h2>
