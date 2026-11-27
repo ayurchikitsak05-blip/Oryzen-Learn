@@ -8,7 +8,11 @@ import { ListenButton } from "@/components/speech/ListenButton";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { BellRing } from "lucide-react";
+import { cardView, matchRound, type MatchRound } from "@/lib/revision/card-kinds";
+import type { Rating } from "@/lib/revision/fsrs";
+import { ChoiceFace, ClozeFace, ForecastStrip, MatchGame, RatingButtons } from "@/components/revision/CardFaces";
 import { ui } from "@/components/ui/classes";
+import { AnkiImport } from "@/components/import/AnkiImport";
 import { ensureAccountVault } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { localIsoDate } from "@/lib/roadmap/time";
@@ -16,8 +20,11 @@ import {
   googleCalendarReminderUrl,
   markRevisionDone,
   revisionDoneToday,
-  gradeCard,
+  dueForecast,
   pickTodayCards,
+  previewDays,
+  rateCard,
+  weakCards,
   practiceCards,
   PRACTICE_ROUND_SIZE,
   readRevisionState,
@@ -215,6 +222,9 @@ export function MorningRevision() {
   const [mode, setMode] = useState<"today" | "practice">("today");
   const [round, setRound] = useState<RevisionNote[]>([]);
   const [answered, setAnswered] = useState<Record<string, boolean>>({});
+  // Fill-the-gap / multiple choice: the answer is out, with the rating it suggests.
+  const [suggested, setSuggested] = useState<Rating | null>(null);
+  const [match, setMatch] = useState<MatchRound | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,6 +258,27 @@ export function MorningRevision() {
       ];
       const today = localIsoDate();
       const cards = pickTodayCards(notes, saved, today);
+      const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const linkedSubject = params?.get("subject")?.trim().toLowerCase() ?? "";
+      if (params?.get("weak") === "1") {
+        const weakRound = shuffleCards(
+          weakCards(notes, saved).filter((note) => !linkedSubject || note.subject.toLowerCase() === linkedSubject)
+        ).slice(0, PRACTICE_ROUND_SIZE);
+        if (weakRound.length > 0) {
+          setMode("practice");
+          setRound(weakRound);
+          setLoad({
+            kind: "ready",
+            userId: user.userId,
+            cards,
+            notes,
+            hasNotes: true,
+            doneToday: false,
+            locked: !opened,
+          });
+          return;
+        }
+      }
       setRound(cards);
       setLoad({
         kind: "ready",
@@ -266,15 +297,17 @@ export function MorningRevision() {
 
   const goTo = (next: number) => {
     setShown(false);
+    setSuggested(null);
     setIndex(Math.max(0, Math.min(next, round.length)));
   };
 
-  const grade = (yes: boolean) => {
+  const rate = (rating: Rating) => {
     if (load.kind !== "ready") return;
     const card = round[index];
     if (!card) return;
+    const yes = rating > 1;
     if (mode === "today" && answered[card.id] === undefined) {
-      const next = gradeCard(state, card.id, yes, localIsoDate());
+      const next = rateCard(state, card.id, rating, localIsoDate());
       setState(next);
       writeRevisionState(next, load.userId);
     }
@@ -284,6 +317,25 @@ export function MorningRevision() {
     setAnswered((current) => ({ ...current, [card.id]: yes }));
     if (mode === "today" && index + 1 >= round.length) markRevisionDone(load.userId, localIsoDate());
     goTo(index + 1);
+  };
+  const grade = (yes: boolean) => rate(yes ? 3 : 1);
+
+  const startWeak = () => {
+    if (load.kind !== "ready") return;
+    const cards = shuffleCards(weakCards(load.notes, state)).slice(0, PRACTICE_ROUND_SIZE);
+    setMode("practice");
+    setRound(cards);
+    setAnswered({});
+    setRemembered(0);
+    setLoad({ ...load, doneToday: false });
+    setIndex(0);
+    setShown(false);
+  };
+
+  const startMatch = (subject?: string | null) => {
+    if (load.kind !== "ready") return;
+    const pool = load.notes.filter((note) => !subject || note.subject === subject);
+    setMatch(matchRound(pool, `${Date.now()}`));
   };
 
   const startPractice = (subject?: string | null) => {
@@ -305,6 +357,12 @@ export function MorningRevision() {
   };
 
   const card = round[index];
+  const today = localIsoDate();
+  // Practice keeps plain flip cards; the daily round mixes in fill-the-gap and multiple choice.
+  const view = card && load.kind === "ready" && mode === "today" ? cardView(card, load.notes, today) : { kind: "flip" as const };
+  const days = card && mode === "today" ? previewDays(state, card.id, today) : null;
+  const forecast = load.kind === "ready" ? dueForecast(load.notes, state, today) : [];
+  const weak = load.kind === "ready" ? weakCards(load.notes, state) : [];
   const subjects =
     load.kind === "ready"
       ? Array.from(new Set(load.notes.filter((note) => note.subject && note.title.trim()).map((note) => note.subject))).slice(0, 8)
@@ -321,6 +379,9 @@ export function MorningRevision() {
             : "Quick cards from your own notes, about 3 minutes. Uses no AI help."}
         </p>
       </header>
+
+      {load.kind === "ready" && load.hasNotes && mode === "today" ? <ForecastStrip counts={forecast} /> : null}
+      {match ? <MatchGame round={match} onClose={() => setMatch(null)} /> : null}
 
       {load.kind === "loading" ? <p className={ui.loading}>Opening your notes…</p> : null}
       {load.kind === "signed-out" ? (
@@ -366,15 +427,41 @@ export function MorningRevision() {
               </button>
             ) : null}
           </div>
-          <h2 className={`${ui.heading} text-xl`}>{card.title}</h2>
-          <ListenButton
-            key={`${index}-${shown}`}
-            text={shown && !card.audioId ? noteTextForReading(card.title, card.body) : card.title}
-          />
-          <p className="text-sm text-muted">Say the answer in your head first.</p>
+          {view.kind === "flip" ? <h2 className={`${ui.heading} text-xl`}>{card.title}</h2> : null}
+          {view.kind === "choice" ? <h2 className={`${ui.heading} text-xl`}>{view.question}</h2> : null}
+          {view.kind === "cloze" ? <p className={ui.eyebrow}>Fill the gap</p> : null}
+          {view.kind === "flip" ? (
+            <>
+              <ListenButton
+                key={`${index}-${shown}`}
+                text={shown && !card.audioId ? noteTextForReading(card.title, card.body) : card.title}
+              />
+              <p className="text-sm text-muted">Say the answer in your head first.</p>
+            </>
+          ) : null}
+          {view.kind === "cloze" ? (
+            <ClozeFace
+              key={`cloze-${card.id}-${index}`}
+              card={view}
+              onRevealed={(correct) => {
+                setShown(true);
+                setSuggested(correct === null ? null : correct ? 3 : 1);
+              }}
+            />
+          ) : null}
+          {view.kind === "choice" ? (
+            <ChoiceFace
+              key={`choice-${card.id}-${index}`}
+              card={view}
+              onAnswered={(correct) => {
+                setShown(true);
+                setSuggested(correct ? 3 : 1);
+              }}
+            />
+          ) : null}
           {shown ? (
             <>
-              {card.audioId ? (
+              {view.kind !== "flip" ? null : card.audioId ? (
                 <VoiceNotePlayer id={card.audioId} userId={load.userId} />
               ) : (
                 <div className="rounded-xl bg-beige-2 p-3 text-sm leading-relaxed text-ink" data-testid="revision-answer">
@@ -385,20 +472,30 @@ export function MorningRevision() {
                   )}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" className={`${ui.primary} min-h-12`} onClick={() => grade(true)} data-testid="revision-yes">
-                  I remembered
-                </button>
-                <button type="button" className={`${ui.secondary} min-h-12`} onClick={() => grade(false)} data-testid="revision-no">
-                  Not yet
-                </button>
-              </div>
+              {view.kind !== "flip" ? (
+                <details className="rounded-xl bg-beige-2 p-3 text-sm text-ink">
+                  <summary className="cursor-pointer text-muted">Your full note: {card.title}</summary>
+                  <p className="mt-2 whitespace-pre-line">{card.body}</p>
+                </details>
+              ) : null}
+              {mode === "today" ? (
+                <RatingButtons days={days} suggested={suggested} onRate={rate} />
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" className={`${ui.primary} min-h-12`} onClick={() => grade(true)} data-testid="revision-yes">
+                    I remembered
+                  </button>
+                  <button type="button" className={`${ui.secondary} min-h-12`} onClick={() => grade(false)} data-testid="revision-no">
+                    Not yet
+                  </button>
+                </div>
+              )}
             </>
-          ) : (
+          ) : view.kind === "flip" ? (
             <button type="button" className={`${ui.primary} min-h-12 w-full`} onClick={() => setShown(true)} data-testid="revision-show">
               Show answer
             </button>
-          )}
+          ) : null}
           <div className="flex items-center justify-between gap-2 pt-1">
             <button
               type="button"
@@ -444,6 +541,14 @@ export function MorningRevision() {
             <button type="button" className={`${ui.secondary} min-h-11`} onClick={() => startPractice(null)} data-testid="revision-practice-all">
               Practise all subjects
             </button>
+            {weak.length > 0 ? (
+              <button type="button" className={`${ui.secondary} min-h-11`} onClick={() => startWeak()} data-testid="revision-practice-weak">
+                Weak cards ({weak.length})
+              </button>
+            ) : null}
+            <button type="button" className={`${ui.secondary} min-h-11`} onClick={() => startMatch(null)} data-testid="revision-match-start">
+              Matching game
+            </button>
             {subjects.length > 1
               ? subjects.map((subject) => (
                   <button key={subject} type="button" className={`${ui.ghost} min-h-11`} onClick={() => startPractice(subject)}>
@@ -456,6 +561,8 @@ export function MorningRevision() {
       ) : null}
 
       {load.kind === "ready" && load.hasNotes && !load.locked ? <RevisionProgress notes={load.notes} state={state} /> : null}
+
+      {load.kind === "ready" ? <AnkiImport onImported={() => window.setTimeout(() => window.location.reload(), 1500)} /> : null}
 
       <ReminderSetup />
     </main>

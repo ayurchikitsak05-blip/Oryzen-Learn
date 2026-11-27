@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chapterKey, chapterRows, chapterSummary } from "../chapters";
+import { chapterKey, chapterRows, chapterSummary, weakChapterKeys } from "../chapters";
 
 const book = {
   id: "b1",
@@ -36,5 +36,11 @@ describe("chapter status (no AI)", () => {
     const rows = chapterRows([book], new Set([chapterKey("b1", 25)]));
     expect(rows[1].status).toBe("ready");
     expect(chapterSummary(rows)).toEqual({ ready: 1, read: 1, reading: 1, new: 0, total: 3 });
+  });
+
+  it("marks chapters where the student missed Test me questions", () => {
+    const rows = chapterRows([book], new Set());
+    const weak = weakChapterKeys(rows, [{ documentId: "b1", pageNumber: 30 }, { documentId: "other", pageNumber: 2 }]);
+    expect([...weak]).toEqual([chapterKey("b1", 25)]);
   });
 });

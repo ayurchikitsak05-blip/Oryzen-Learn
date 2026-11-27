@@ -82,3 +82,19 @@ export function writeChapterReady(userId: string | null, ready: ReadonlySet<stri
   if (!userId || typeof window === "undefined") return;
   writePrivateString(CHAPTER_READY_KEY, JSON.stringify([...ready].slice(-2000)), userId);
 }
+
+/**
+ * Chapters with a "Test me" page where the student missed questions (weak spots), from the
+ * reader's saved quiz results. No AI.
+ */
+export function weakChapterKeys(
+  rows: readonly ChapterRow[],
+  weakPages: ReadonlyArray<{ documentId: string; pageNumber: number }>
+): Set<string> {
+  const out = new Set<string>();
+  for (const page of weakPages) {
+    const row = rows.find((candidate) => candidate.bookId === page.documentId && page.pageNumber >= candidate.startPage && page.pageNumber <= candidate.endPage);
+    if (row) out.add(row.key);
+  }
+  return out;
+}

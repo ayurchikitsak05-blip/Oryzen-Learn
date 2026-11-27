@@ -8,9 +8,13 @@ import { whenAccountVaultOpen } from "@/lib/privacy/account-vault";
 import { listLocalPdfDocuments } from "@/lib/reader/storage";
 import { readPersistedReaderView } from "@/lib/reader/fit";
 import { isSampleBook, readBookSubjects } from "@/lib/reader/library";
+import { readAllQuizProgress } from "@/lib/reader/quiz-progress";
+import { readRevisionState, weakCards, type RevisionNote } from "@/lib/revision/cards";
+import { toRevisionNotes } from "@/components/revision/MorningRevision";
 import {
   chapterRows,
   chapterSummary,
+  weakChapterKeys,
   readChapterReady,
   writeChapterReady,
   type ChapterBook,
@@ -31,7 +35,7 @@ const STATUS_BADGE: Record<ChapterStatus, string> = {
   new: "bg-beige-2 text-muted",
 };
 
-type Filter = "all" | ChapterStatus;
+type Filter = "all" | "weak" | ChapterStatus;
 const PAGE = 40;
 
 /**
@@ -44,6 +48,8 @@ export function SubjectChapters({ subject }: { subject: string }) {
   const [ready, setReady] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>("all");
   const [shown, setShown] = useState(PAGE);
+  const [weakPages, setWeakPages] = useState<Array<{ documentId: string; pageNumber: number }>>([]);
+  const [weakNotes, setWeakNotes] = useState<RevisionNote[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +63,20 @@ export function SubjectChapters({ subject }: { subject: string }) {
       const key = subject.trim().toLowerCase();
       setUserId(id);
       setReady(readChapterReady(id));
+      setWeakPages(
+        readAllQuizProgress(id)
+          .filter((quiz) => (quiz.weakConcepts ?? []).length > 0)
+          .map((quiz) => ({ documentId: quiz.documentId, pageNumber: quiz.pageNumber }))
+      );
+      // Revision cards in this subject the student keeps forgetting (one notes request, no AI).
+      void fetch("/api/notes", { credentials: "same-origin" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data) => {
+          if (cancelled || !data) return;
+          const notes = toRevisionNotes(data).filter((note) => note.subject.trim().toLowerCase() === key);
+          setWeakNotes(weakCards(notes, readRevisionState(id)));
+        })
+        .catch(() => undefined);
       setBooks(
         documents
           .filter((doc) => !isSampleBook({ fileName: doc.fileName }))
@@ -80,7 +100,9 @@ export function SubjectChapters({ subject }: { subject: string }) {
 
   const rows = useMemo(() => (books ? chapterRows(books, ready) : []), [books, ready]);
   const summary = useMemo(() => chapterSummary(rows), [rows]);
-  const visible = filter === "all" ? rows : rows.filter((row) => row.status === filter);
+  const weakKeys = useMemo(() => weakChapterKeys(rows, weakPages), [rows, weakPages]);
+  const visible =
+    filter === "all" ? rows : filter === "weak" ? rows.filter((row) => weakKeys.has(row.key)) : rows.filter((row) => row.status === filter);
   const multipleBooks = (books?.length ?? 0) > 1;
 
   const toggleReady = (key: string) => {
@@ -117,6 +139,47 @@ export function SubjectChapters({ subject }: { subject: string }) {
 
   return (
     <section className="space-y-4" data-testid="subject-chapters">
+      {weakKeys.size > 0 || weakNotes.length > 0 ? (
+        <div className="card-soft space-y-2 border-l-4 border-l-[#94664f] p-4" data-testid="subject-weak">
+          <p className="font-semibold text-heading">Weak spots in {subject}</p>
+          <ul className="space-y-1 text-sm text-ink">
+            {weakKeys.size > 0 ? (
+              <li>
+                {weakKeys.size} chapter{weakKeys.size === 1 ? "" : "s"} where you missed Test me questions:{" "}
+                <span className="text-muted">
+                  {rows.filter((row) => weakKeys.has(row.key)).slice(0, 3).map((row) => row.title).join(", ")}
+                </span>
+              </li>
+            ) : null}
+            {weakNotes.length > 0 ? (
+              <li>
+                {weakNotes.length} revision card{weakNotes.length === 1 ? "" : "s"} you keep forgetting:{" "}
+                <span className="text-muted">{weakNotes.slice(0, 3).map((note) => note.title).join(", ")}</span>
+              </li>
+            ) : null}
+          </ul>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {weakNotes.length > 0 ? (
+              <Link
+                href={`/revise?subject=${encodeURIComponent(subject)}&weak=1`}
+                className="inline-flex min-h-10 items-center rounded-xl bg-heading px-4 text-sm font-semibold text-canvas"
+                data-testid="subject-weak-practise"
+              >
+                Practise weak cards
+              </Link>
+            ) : null}
+            {weakKeys.size > 0 ? (
+              <button
+                type="button"
+                onClick={() => setFilter("weak")}
+                className="inline-flex min-h-10 items-center rounded-xl border border-line bg-surface px-4 text-sm font-semibold text-heading"
+              >
+                Show weak chapters
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         {(
           [
@@ -142,6 +205,7 @@ export function SubjectChapters({ subject }: { subject: string }) {
               ["read", `Read ${summary.read}`],
               ["ready", `Exam-ready ${summary.ready}`],
               ["new", `Not started ${summary.new}`],
+              ...(weakKeys.size > 0 ? ([["weak", `Weak ${weakKeys.size}`]] as const) : []),
             ] as const
           ).map(([id, label]) => (
             <button
@@ -179,6 +243,11 @@ export function SubjectChapters({ subject }: { subject: string }) {
                 <p className="truncate font-semibold text-heading">{row.title}</p>
                 <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
                   <span className={`rounded-full px-2 py-0.5 font-semibold ${STATUS_BADGE[row.status]}`}>{STATUS_LABEL[row.status]}</span>
+                  {weakKeys.has(row.key) ? (
+                    <span className="rounded-full bg-[#f6efe8] px-2 py-0.5 font-semibold text-[#94664f]" data-testid="subject-chapter-weak">
+                      Weak spot
+                    </span>
+                  ) : null}
                   <span className="rounded-full bg-beige-2 px-2 py-0.5">
                     {multipleBooks ? `${row.bookTitle} · ` : "Book "}p. {row.startPage}
                     {row.endPage > row.startPage ? `–${row.endPage}` : ""}

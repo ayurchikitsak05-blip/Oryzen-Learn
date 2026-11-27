@@ -43,9 +43,12 @@ describe("MorningRevision", () => {
     expect(screen.getByText(/Card 1 of 1 · Physics/)).toBeTruthy();
     fireEvent.click(screen.getByTestId("revision-show"));
     expect(screen.getByTestId("revision-answer").textContent).toMatch(/gravity/);
-    fireEvent.click(screen.getByTestId("revision-yes"));
+    // The daily round asks Not yet / Hard / Got it / Easy, each showing when the card returns.
+    expect(screen.getByTestId("revision-rate-1").textContent).toMatch(/tomorrow/);
+    fireEvent.click(screen.getByTestId("revision-rate-3"));
     expect(screen.getByTestId("revision-done").textContent).toMatch(/remembered 1 of 1/);
     expect(readRevisionState("student-a").n1.box).toBe(1);
+    expect(readRevisionState("student-a").n1.stability).toBeGreaterThan(3);
     expect(screen.getByTestId("revision-reminder")).toBeTruthy();
   });
 

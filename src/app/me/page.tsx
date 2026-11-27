@@ -4,12 +4,14 @@ import AppChrome from "@/components/layout/AppChrome";
 import { LinkList } from "@/components/layout/LinkList";
 import { ME_HIGHLIGHTS, ME_ITEMS, SETTINGS_ITEMS } from "@/lib/navigation/tabs";
 import { PageTitle } from "@/components/layout/PageTitle";
+import { InstallApp } from "@/components/pwa/InstallApp";
 
 export default function MePage() {
   return (
     <AppChrome subtitle="Tools" showBack={false} actions={<AccountMenu />}>
       <main className="mx-auto w-full max-w-xl space-y-4 px-4 py-6 md:py-10">
         <PageTitle kicker="Tools" title="Study tools" subtitle="Lectures, your plan, notes and settings." />
+        <InstallApp />
         <section aria-labelledby="me-highlights" className="space-y-2">
           <h2 id="me-highlights" className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">
             Highlights

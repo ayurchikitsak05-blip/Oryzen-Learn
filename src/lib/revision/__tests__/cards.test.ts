@@ -3,8 +3,12 @@ import {
   addDaysIso,
   cardStage,
   googleCalendarReminderUrl,
+  dueForecast,
   gradeCard,
   memoriseNow,
+  previewDays,
+  rateCard,
+  weakCards,
   pickTodayCards,
   revisionReminderIcs,
   strengthsAndWeakSpots,
@@ -34,14 +38,40 @@ describe("morning revision cards", () => {
     expect(picked).not.toContain("g");
   });
 
-  it("spaces out remembered cards and brings back forgotten ones tomorrow", () => {
+  it("spaces out remembered cards with FSRS and brings back forgotten ones tomorrow", () => {
     let state = gradeCard({}, "a", true, "2026-11-05");
-    expect(state.a).toMatchObject({ box: 1, due: "2026-11-06" });
-    state = gradeCard(state, "a", true, "2026-11-06");
-    expect(state.a).toMatchObject({ box: 2, due: "2026-11-09" });
-    state = gradeCard(state, "a", false, "2026-11-09");
-    expect(state.a).toMatchObject({ box: 0, due: "2026-11-10" });
+    expect(state.a).toMatchObject({ box: 1, due: "2026-11-09" }); // first "remembered": about 4 days
+    state = gradeCard(state, "a", true, "2026-11-09");
+    expect(state.a.box).toBe(2);
+    expect(state.a.due > "2026-11-20").toBe(true); // the gap grows
+    state = gradeCard(state, "a", false, "2026-12-01");
+    expect(state.a).toMatchObject({ box: 0, due: "2026-12-02", lapses: 1 });
     expect(addDaysIso("2026-12-30", 3)).toBe("2027-01-02");
+  });
+
+  it("shows how many days each answer gives, and Easy > Good > Hard > Again", () => {
+    const days = previewDays({}, "n", "2026-11-27");
+    expect(days[1]).toBe(1);
+    expect(days[2]).toBeLessThan(days[3]);
+    expect(days[3]).toBeLessThan(days[4]);
+  });
+
+  it("reads cards saved before FSRS from their old box", () => {
+    const state = { a: { box: 3, due: "2026-11-20", lastSeen: "2026-11-06" } };
+    const next = rateCard(state, "a", 3, "2026-11-20");
+    expect(next.a.stability).toBeGreaterThan(7);
+    expect(next.a.box).toBe(4);
+  });
+
+  it("forecasts cards due this week and finds weak cards", () => {
+    const notes = [note("a", ""), note("b", ""), note("c", "")];
+    const state = {
+      a: { box: 1, due: "2026-11-26", lastSeen: "2026-11-20" },
+      b: { box: 1, due: "2026-11-29", lastSeen: "2026-11-25" },
+      c: { box: 0, due: "2026-11-28", lastSeen: "2026-11-27", lapses: 2 },
+    };
+    expect(dueForecast(notes, state, "2026-11-27")).toEqual([1, 1, 1, 0, 0, 0, 0]);
+    expect(weakCards(notes, state).map((n) => n.id)).toEqual(["c"]);
   });
 
   it("makes a daily calendar reminder that opens Morning revision", () => {

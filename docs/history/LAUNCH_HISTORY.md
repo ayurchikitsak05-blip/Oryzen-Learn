@@ -4,6 +4,23 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-27 · Revision card types, weak topics, Anki import and "Install as an app" (after StudyTab)
+
+**Owner decision (27 Nov):** after comparing with studytab.ai, build points 1 to 3: more card types without AI plus a smarter schedule with a forecast; weak topics on each subject page; Anki import and install as an app. No new AI cost.
+
+**Built (this change):**
+- **Card types, made from the student's own notes (no AI):** fill-the-gap (from Anki cloze `{{c1::…}}`, **bold** or ==highlighted== words, or the note's title inside its text), multiple choice (wrong options taken from the student's other notes, same subject first) and a matching game. Each day's card type is fixed, so a card looks the same if the page is reopened.
+- **Smarter schedule (FSRS):** the daily round now has Not yet / Hard / Got it / Easy, each showing when the card returns (for example "tomorrow", "4 days"). "Not yet" always brings it back tomorrow. All due cards come first, weakest first, then up to 5 new cards a day. Old progress is carried over. The page shows due today, tomorrow and this week.
+- **Weak topics on the subject page:** a "Weak spots" panel from quiz pages with weak concepts and cards forgotten twice or more; chapters with weak pages get a "Weak spot" badge and a "Weak" filter; "Practise weak cards" opens a round of just those.
+- **Anki import (Revise page):** .apkg decks (saved with "Support older Anki versions") and Anki's "Notes in Plain Text" export (.txt/.csv). The file is read on the student's device; the cards are saved as notes in a subject named after the deck (an existing subject with that name is reused), up to 2,000 cards per file, sent in batches of 500. Media and HTML are dropped. Decks in Anki's newest format get a clear message on how to re-export.
+- **Install as an app:** app manifest, Oryzen icons, and an "Install Oryzen as an app" card on Tools and Today (Today's can be hidden). On iPhone it shows "Share → Add to Home Screen". A small service worker only shows an offline page; it caches no study data.
+
+**Checked:** 729 automated tests (one known local-only failure, cache-rls-policy, passes in CI); type check clean. In a local browser: a sample Biology .apkg was read (3 cards, cloze kept) and sent in one import request; the manifest and the reader engine file load.
+
+**Owner to do:** merge PR #35 (laptop width) first, then this PR. Then on Preview: import a small Anki deck on Revise, and try Install on Android Chrome or a laptop.
+
+---
+
 ## 2026-11-27 · Study-app layout (after VaidyaGenie), Warm Sand colours, week stamps and Today's mix
 
 **Owner decisions (27 Nov):** use VaidyaGenie's six layout ideas (clear next step, organised by subject and chapter, small daily variety, grouped menu, calm consistent pages, visible progress); add the week streak and stamps; Today's mix, exam countdown and chapter status; keep AI cost down: build from the student's own data, not AI. Desktop layout as designed; phones what suits phones.

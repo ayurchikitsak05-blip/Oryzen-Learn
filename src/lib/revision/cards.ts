@@ -1,13 +1,18 @@
 import { readPrivateString, writePrivateString } from "@/lib/privacy/account-vault";
+import { intervalDays, nextMemory, retrievability, type FsrsMemory, type Rating } from "@/lib/revision/fsrs";
 
 /**
  * Morning revision cards from the student's own notes (design board "Alarm quiz", 3 Nov 2026).
- * No AI: the front is the note's title, the back is what the student saved. Cards the student
- * remembers come back less often (1, 3, 7, then 14 days); ones they don't come back tomorrow.
+ * No AI: the front is the note's title, the back is what the student saved. Since 27 Nov 2026
+ * cards are scheduled with FSRS (src/lib/revision/fsrs.ts): each comes back just before it
+ * would be forgotten; ones the student doesn't remember come back tomorrow.
  */
 
 export const REVISION_STATE_KEY = "oryzen_revision_cards_v1";
+/** New cards a day; every due card is shown too (up to DUE_PER_DAY). */
 export const CARDS_PER_DAY = 5;
+export const DUE_PER_DAY = 50;
+/** The old fixed gaps, used only to read cards saved before FSRS. */
 export const BOX_INTERVAL_DAYS = [1, 3, 7, 14] as const;
 
 export interface RevisionNote {
@@ -21,9 +26,14 @@ export interface RevisionNote {
 }
 
 export interface CardState {
+  /** Remembered this many times in a row (capped at 4); 0 after "Not yet". */
   box: number;
   due: string;
   lastSeen: string;
+  /** FSRS memory: days until recall drops to 90%, and how hard the card is (1–10). */
+  stability?: number;
+  difficulty?: number;
+  lapses?: number;
 }
 
 export type RevisionState = Record<string, CardState>;
@@ -34,7 +44,7 @@ export function addDaysIso(day: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** Today's cards: due cards first (weakest first), then notes never revised (newest first). */
+/** Today's cards: every due card (least likely to be remembered first), then up to 5 new notes (newest first). */
 export function pickTodayCards(
   notes: readonly RevisionNote[],
   state: RevisionState,
@@ -42,13 +52,38 @@ export function pickTodayCards(
   max: number = CARDS_PER_DAY
 ): RevisionNote[] {
   const usable = notes.filter((note) => note.title.trim() && note.body.trim());
+  const recall = (id: string) => {
+    const card = state[id];
+    const memory = memoryOf(card);
+    return memory && card.lastSeen ? retrievability(daysBetween(card.lastSeen, today), memory.stability) : 0;
+  };
   const due = usable
     .filter((note) => state[note.id] && state[note.id].due <= today)
-    .sort((a, b) => state[a.id].box - state[b.id].box || state[a.id].due.localeCompare(state[b.id].due));
+    .sort((a, b) => recall(a.id) - recall(b.id) || state[a.id].due.localeCompare(state[b.id].due))
+    .slice(0, DUE_PER_DAY);
   const fresh = usable
     .filter((note) => !state[note.id])
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  return [...due, ...fresh].slice(0, max);
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, max);
+  // Old behaviour kept for small decks: at most `max` cards when few are due.
+  return due.length >= max ? [...due, ...fresh.slice(0, Math.max(0, CARDS_PER_DAY - due.length))] : [...due, ...fresh].slice(0, max);
+}
+
+export function daysBetween(from: string, to: string): number {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+/** FSRS memory for a saved card; cards saved before FSRS get one from their old box. */
+export function memoryOf(card: CardState | undefined): FsrsMemory | null {
+  if (!card || !card.lastSeen) return null;
+  if (typeof card.stability === "number" && typeof card.difficulty === "number") {
+    return { stability: card.stability, difficulty: card.difficulty };
+  }
+  const box = Math.max(0, Math.min(card.box, BOX_INTERVAL_DAYS.length));
+  return { stability: box > 0 ? BOX_INTERVAL_DAYS[box - 1] : 1, difficulty: box > 0 ? 5 : 7 };
 }
 
 /** A new order for a round of cards (Fisher-Yates). `random` is replaceable in tests. */
@@ -81,11 +116,58 @@ export function practiceCards(
     .slice(0, options.max ?? PRACTICE_ROUND_SIZE);
 }
 
-export function gradeCard(state: RevisionState, noteId: string, remembered: boolean, today: string): RevisionState {
+/** Again / Hard / Good / Easy. */
+export function rateCard(state: RevisionState, noteId: string, rating: Rating, today: string): RevisionState {
   const current = state[noteId];
-  const box = remembered ? Math.min((current?.box ?? 0) + 1, BOX_INTERVAL_DAYS.length) : 0;
-  const days = remembered ? BOX_INTERVAL_DAYS[box - 1] : 1;
-  return { ...state, [noteId]: { box, due: addDaysIso(today, days), lastSeen: today } };
+  const memory = nextMemory(memoryOf(current), current?.lastSeen ? daysBetween(current.lastSeen, today) : 0, rating);
+  const box = rating === 1 ? 0 : Math.min((current?.box ?? 0) + 1, BOX_INTERVAL_DAYS.length);
+  return {
+    ...state,
+    [noteId]: {
+      box,
+      due: addDaysIso(today, intervalDays(memory, rating)),
+      lastSeen: today,
+      stability: Math.round(memory.stability * 100) / 100,
+      difficulty: Math.round(memory.difficulty * 100) / 100,
+      lapses: (current?.lapses ?? 0) + (rating === 1 && current?.lastSeen ? 1 : 0),
+    },
+  };
+}
+
+/** "I remembered" = Good, "Not yet" = Again. */
+export function gradeCard(state: RevisionState, noteId: string, remembered: boolean, today: string): RevisionState {
+  return rateCard(state, noteId, remembered ? 3 : 1, today);
+}
+
+/** Days until the card comes back for each answer, for the button labels. */
+export function previewDays(state: RevisionState, noteId: string, today: string): Record<Rating, number> {
+  const out = {} as Record<Rating, number>;
+  for (const rating of [1, 2, 3, 4] as Rating[]) {
+    const next = rateCard(state, noteId, rating, today)[noteId];
+    out[rating] = daysBetween(today, next.due);
+  }
+  return out;
+}
+
+/** Cards coming back on each of the next `days` days (index 0 = today, including overdue). */
+export function dueForecast(notes: readonly RevisionNote[], state: RevisionState, today: string, days = 7): number[] {
+  const counts = new Array(days).fill(0) as number[];
+  for (const note of notes) {
+    const card = state[note.id];
+    if (!card || !card.lastSeen || !note.title.trim() || !note.body.trim()) continue;
+    const offset = card.due <= today ? 0 : daysBetween(today, card.due);
+    if (offset < days) counts[offset] += 1;
+  }
+  return counts;
+}
+
+/** Cards the student keeps forgetting (2+ "Not yet" after learning, or hard and not yet memorised). */
+export function weakCards(notes: readonly RevisionNote[], state: RevisionState): RevisionNote[] {
+  return notes.filter((note) => {
+    const card = state[note.id];
+    if (!card || !card.lastSeen) return false;
+    return (card.lapses ?? 0) >= 2 || (card.box === 0 && (card.difficulty ?? 0) >= 7);
+  });
 }
 
 export function countDueToday(notes: readonly RevisionNote[], state: RevisionState, today: string): number {
