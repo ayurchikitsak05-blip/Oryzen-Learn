@@ -164,6 +164,9 @@ export interface PdfViewerProps {
   promptUpload?: boolean;
   initialLens?: string | null;
   sprintId?: string | null;
+  /** Open this saved book (from a chapter link: /reader?doc=ID&page=N). */
+  openDocumentId?: string | null;
+  openAtPage?: number | null;
 }
 
 const DEFAULT_THEME: PrakritiThemePalette = {
@@ -185,6 +188,8 @@ export default function PdfViewer({
   promptUpload = false,
   initialLens = null,
   sprintId = null,
+  openDocumentId = null,
+  openAtPage = null,
 }: PdfViewerProps) {
   const [documents, setDocuments] = useState<LocalPdfDocumentRecord[]>([]);
   const [activeDoc, setActiveDoc] = useState<LocalPdfDocumentRecord | null>(null);
@@ -721,7 +726,7 @@ export default function PdfViewer({
       const allDocs = await listLocalPdfDocuments();
       if (!active || allDocs.length === 0) return;
       setDocuments(allDocs);
-      const lastId = pickedDocIdRef.current ?? readLastReaderDocumentId(readerUserId);
+      const lastId = pickedDocIdRef.current ?? openDocumentId ?? readLastReaderDocumentId(readerUserId);
       let chosen =
         (lastId ? allDocs.find((doc) => doc.id === lastId) : undefined) ??
         allDocs[0];
@@ -741,7 +746,11 @@ export default function PdfViewer({
       if (pickedDocIdRef.current && pickedDocIdRef.current !== chosen.id) return;
       pickedDocIdRef.current = chosen.id;
       setActiveDoc(chosen);
-      setActivePage(persisted?.page || 1);
+      const linkedPage =
+        openDocumentId === chosen.id && openAtPage && openAtPage > 0
+          ? Math.min(Math.max(1, Math.floor(openAtPage)), Math.max(1, chosen.pageCount || openAtPage))
+          : null;
+      setActivePage(linkedPage ?? (persisted?.page || 1));
       const restored = restoredReaderFit(persisted, window.innerWidth);
       setFitMode(restored.fitMode);
       if (restored.zoom != null) setCustomZoom(restored.zoom);
@@ -763,7 +772,7 @@ export default function PdfViewer({
     return () => {
       active = false;
     };
-  }, [readerUserId, scopeReady]);
+  }, [readerUserId, scopeReady, openDocumentId, openAtPage]);
 
   const totalPages = activeDoc?.pageCount ?? 1;
   const documentReady = Boolean(activePdfBytes);

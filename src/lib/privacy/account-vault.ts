@@ -39,6 +39,7 @@ export const PRIVATE_BROWSER_BASES = [
   "oryzen_book_subjects_v1",
   // Added 27 Nov 2026: week stamps and streak.
   "oryzen_study_days_v1",
+  "oryzen_chapter_ready_v1",
 ] as const;
 
 type VaultState = {

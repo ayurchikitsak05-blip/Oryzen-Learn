@@ -131,6 +131,8 @@ function ReaderStudio() {
           promptUpload={searchParams.get("upload") === "1"}
           initialLens={searchParams.get("lens")}
           sprintId={searchParams.get("sprint")}
+          openDocumentId={searchParams.get("doc")}
+          openAtPage={Number(searchParams.get("page")) || null}
         />
       </div>
     </AppChrome>

@@ -13,6 +13,7 @@ import { checkInToday, comebackMessage } from "@/lib/hub/comeback";
 import { PageTitle } from "@/components/layout/PageTitle";
 import { StudyIcon, StudyIconTile, type StudyIconName } from "@/components/icons/StudyIcons";
 import { WeekStampsCard } from "@/components/hub/WeekStampsCard";
+import { SubjectsStrip } from "@/components/hub/SubjectsStrip";
 import { useTodayExtras } from "@/components/hub/useTodayExtras";
 import type { MixItem } from "@/lib/hub/today-mix";
 
@@ -313,6 +314,8 @@ export function TodayHome({
               ) : null}
             </div>
           ) : null}
+
+          <SubjectsStrip />
 
           <section aria-labelledby="today-highlights" data-testid="today-highlights" className="space-y-3">
             <h2 id="today-highlights" className="text-lg font-semibold text-heading">Highlights</h2>

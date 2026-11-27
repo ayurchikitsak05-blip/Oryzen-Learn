@@ -16,7 +16,9 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 - **Week stamps and streak, no AI:** 10 minutes a day earns a stamp; minutes come from the timer and from active minutes on reading, lecture, revision and notes pages (screen on and used in the last 90 seconds), kept in the private record on the device (`oryzen_study_days_v1`).
 - **Animated study icons** from the approved design are now app components.
 
-**Next:** subject pages with chapter status (Exam-ready / Learning / Not started), built from book contents and reading progress.
+- **Subject pages:** a new first tab, Chapters: every chapter of the subject's books with its pages (from the book's contents), how far the student has read, status Read / Reading / Not started, a link that opens the book at that chapter (`/reader?doc=…&page=…`, new), and "Mark exam-ready", the student's own tick (`oryzen_chapter_ready_v1`). Filters and a summary (exam-ready x of y).
+- **My subjects on Today:** chapters read and exam-ready per subject.
+- **Same page title** on Today, Practice, Tools and My Learning Library.
 
 ---
 

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Archive, BookOpen, MoreHorizontal } from "lucide-react";
+import { PageTitle } from "@/components/layout/PageTitle";
 import AppChrome from "@/components/layout/AppChrome";
 import { ui } from "@/components/ui/classes";
 import { fetchSignedInUser } from "@/lib/supabase/session";
@@ -196,11 +197,11 @@ export default function VaultLibrary() {
   return (
     <AppChrome subtitle="My Learning Library">
       <main className={ui.main}>
-        <p className={ui.eyebrow}>My Learning Library</p>
-        <h1 className={`${ui.heading} mt-3 text-4xl`}>My Learning Library</h1>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted">
-          Your subjects and books in one place. Add a subject, then sort the books you read in Books under it.
-        </p>
+        <PageTitle
+          kicker="My subjects"
+          title="My Learning Library"
+          subtitle="Your subjects and books in one place. Open a subject to see every chapter and how far you've read."
+        />
 
         <form
           className="mt-8 flex flex-col gap-3 sm:flex-row"
