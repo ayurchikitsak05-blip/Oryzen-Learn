@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { FIRST_RUN_DRAFT_KEY } from "@/lib/onboarding/first-run";
 import { afterEach, describe, expect, it } from "vitest";
-import { TodayHome } from "../TodayHome";
+import { TodayHome, greeting } from "../TodayHome";
 
 const empty = {
   bookTitle: null,
@@ -87,5 +87,24 @@ describe("TodayHome", () => {
     render(<TodayHome continuation={{ ...empty, backlog: { topics: 3, minutes: 150 } }} />);
     expect(screen.getByTestId("today-backlog").textContent).toMatch(/Backlog: 3 topics/);
     expect(screen.getByTestId("today-backlog").getAttribute("href")).toBe("/roadmap#backlog");
+  });
+
+  it("greets by the time of day", () => {
+    expect(greeting(new Date(2026, 10, 27, 8))).toBe("Good morning");
+    expect(greeting(new Date(2026, 10, 27, 14))).toBe("Good afternoon");
+    expect(greeting(new Date(2026, 10, 27, 20))).toBe("Good evening");
+  });
+
+  it("shows Today's mix, the week's stamps and the book's page progress", () => {
+    render(
+      <TodayHome continuation={{ ...empty, bookTitle: "Physics Part 1", bookPage: 60, bookPages: 120 }} />
+    );
+    expect(screen.getByTestId("today-mix").textContent).toMatch(/Today.s mix/);
+    expect(screen.getByTestId("today-mix-revision").getAttribute("href")).toBe("/reader");
+    expect(screen.getByTestId("today-mix-lecture").getAttribute("href")).toBe("/video");
+    expect(screen.getByTestId("today-week").querySelectorAll("li")).toHaveLength(7);
+    expect(screen.getByTestId("today-week-streak").textContent).toMatch(/Start a streak/);
+    expect(screen.getByTestId("today-plan").textContent).toMatch(/Page 60 of 120/);
+    expect(screen.getByTestId("today-continue-reading").getAttribute("href")).toBe("/reader");
   });
 });

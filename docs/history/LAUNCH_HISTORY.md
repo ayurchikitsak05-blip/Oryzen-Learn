@@ -4,6 +4,22 @@ A plain-language record of each change on the way to launch: what was wrong, wha
 
 ---
 
+## 2026-11-27 · Study-app layout (after VaidyaGenie), Warm Sand colours, week stamps and Today's mix
+
+**Owner decisions (27 Nov):** use VaidyaGenie's six layout ideas (clear next step, organised by subject and chapter, small daily variety, grouped menu, calm consistent pages, visible progress); add the week streak and stamps; Today's mix, exam countdown and chapter status; keep AI cost down: build from the student's own data, not AI. Desktop layout as designed; phones what suits phones.
+
+**Built (this change):**
+- **Desktop menu:** a left menu on large screens, grouped Study (Today, Books, Lectures, My subjects, Chapter study book), Practice (Revision, Practice, Focus timer, My notes) and Plan (Exam plan, Progress, My study style), plus All tools; it can be made narrow. Phones keep the four bottom tabs.
+- **Warm Sand colours** are the default look signed in and signed out (they differed before). Accent is a shade deeper (#7d5b3e) so brown text stays readable; students who chose their own colours keep them.
+- **Today:** greeting and the same page title pattern; a Continue card (last book with page progress, today's plan with Start, today's goal ring, revision due); Today's mix; Highlights; a side column with the week's stamps, exam countdown, "Can't get started?" and the daily thought. On phones the stamps sit under the Continue card.
+- **Today's mix, no AI:** cards due from the student's notes; resume the last YouTube lecture; one of the student's own notes each day (a study tip when there are none).
+- **Week stamps and streak, no AI:** 10 minutes a day earns a stamp; minutes come from the timer and from active minutes on reading, lecture, revision and notes pages (screen on and used in the last 90 seconds), kept in the private record on the device (`oryzen_study_days_v1`).
+- **Animated study icons** from the approved design are now app components.
+
+**Next:** subject pages with chapter status (Exam-ready / Learning / Not started), built from book contents and reading progress.
+
+---
+
 ## 2026-11-26 · Smooth PDF zoom; lecture notes on for Preview
 
 **Owner decisions (26 Nov):** turn AI YouTube lecture notes on for Preview only so colleagues can test (`LECTURE_AI_NOTES=on`, Preview; Production stays off). Zooming a PDF must be smooth.

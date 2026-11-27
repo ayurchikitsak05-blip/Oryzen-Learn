@@ -9,6 +9,9 @@ import { readinessSummary } from "@/lib/study/readiness";
 
 export interface HomeContinuation {
   bookTitle: string | null;
+  /** Page the student reached in that book, and its length (for the Continue card). */
+  bookPage?: number | null;
+  bookPages?: number | null;
   sprintLabel: string | null;
   nextBlock: string | null;
   studiedMinutes: number | null;
