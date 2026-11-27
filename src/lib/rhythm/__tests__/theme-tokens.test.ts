@@ -13,11 +13,12 @@ import {
 import { LOCKED_PDF_PARCHMENT, LOGO_CHIP_HEX } from "../types";
 
 describe("R0 study rhythm tokens", () => {
-  it("keeps Classic Soft Beige as the existing hex set", () => {
+  // Owner, 20 Nov 2026: Warm Sand is the default, signed in or out (was Classic Soft Beige).
+  it("uses Warm Sand for the default theme", () => {
     const classic = THEME_DEFINITIONS.find((theme) => theme.id === "classic");
-    expect(classic?.tokens.bg).toBe("#FAF8F5");
-    expect(classic?.tokens.heading).toBe("#20242B");
-    expect(classic?.tokens.accent).toBe("#766454");
+    expect(classic?.tokens.bg).toBe("#F4EFE7");
+    expect(classic?.tokens.heading).toBe("#2B2622");
+    expect(classic?.tokens.accent).toBe("#7D5B3E");
     expect(classic?.tokens.card).toBe(LOGO_CHIP_HEX);
   });
 

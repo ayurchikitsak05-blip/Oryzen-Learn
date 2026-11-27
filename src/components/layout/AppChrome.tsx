@@ -9,6 +9,8 @@ import OryzenLearnBrand from "@/components/brand/OryzenLearnBrand";
 import OwnerDemoBanner from "@/components/demo/OwnerDemoBanner";
 import PublicDemoBanner from "@/components/demo/PublicDemoBanner";
 import AppBackButton from "@/components/layout/AppBackButton";
+import AppSidebar from "@/components/layout/AppSidebar";
+import { StudyActivityTracker, isStudyPath } from "@/components/streak/StudyActivityTracker";
 import { APP_LINKS } from "@/lib/navigation/tabs";
 import { ensureAccountVault } from "@/lib/privacy/account-vault";
 
@@ -53,13 +55,19 @@ export default function AppChrome({
 
   return (
     <div className={`flex h-dvh min-h-0 flex-col overflow-hidden bg-canvas text-ink ${showAppNav ? "pb-[calc(3.75rem+env(safe-area-inset-bottom))] md:pb-0" : strict ? "pb-[calc(3.75rem+env(safe-area-inset-bottom))]" : ""}`}>
+      <StudyActivityTracker active={showAppNav && isStudyPath(navPath)} />
+      <div className="flex min-h-0 min-w-0 flex-1">
+      {showAppNav ? <AppSidebar pathname={navPath} /> : null}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-canvas/92 backdrop-blur-md">
         <div
-          className={`mx-auto flex min-h-12 w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1 md:flex-nowrap md:px-4 lg:gap-2 lg:px-6 ${maxWidthClass}`}
+          className={`mx-auto flex min-h-12 w-full min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-1 md:flex-nowrap md:px-4 lg:gap-2 lg:px-6 ${showAppNav ? "lg:justify-end" : ""} ${maxWidthClass}`}
         >
-          <OryzenLearnBrand subtitle={subtitle} />
+          <div className={showAppNav ? "lg:hidden" : undefined}>
+            <OryzenLearnBrand subtitle={subtitle} />
+          </div>
           {showAppNav ? (
-            <nav className="hidden items-center md:flex" aria-label="Primary">
+            <nav className="hidden items-center md:flex lg:hidden" aria-label="Primary">
               {APP_LINKS.map((link) => (
                 <Link
                   key={link.href}
@@ -87,6 +95,8 @@ export default function AppChrome({
         </div>
       ) : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">{children}</div>
+      </div>
+      </div>
       <FocusGuard />
       {strict ? <StrictBar session={strict.session} clock={strict.clock} userId={strict.userId} /> : null}
       {showAppNav ? (

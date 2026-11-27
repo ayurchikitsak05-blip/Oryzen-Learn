@@ -10,9 +10,10 @@ import { createClient } from "@/lib/supabase/client";
 import { AUTHORIZED_DOCUMENTS_BUCKET } from "@/lib/supabase/storage";
 import { extractTextbookText } from "@/lib/vaults/extract-pdf";
 import { buildPlainPdf, downloadBlob, safeDownloadName } from "@/lib/vaults/download";
+import { SubjectChapters } from "@/components/vaults/SubjectChapters";
 import { SubjectBooks } from "@/components/vaults/SubjectBooks";
 
-type TabId = "sources" | "chat" | "studio";
+type TabId = "chapters" | "sources" | "chat" | "studio";
 
 interface SourceRow {
   id: string;
@@ -49,7 +50,7 @@ function describeFailure(message: string): string {
 export default function VaultStudio({ vaultId }: { vaultId: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [tab, setTab] = useState<TabId>("sources");
+  const [tab, setTab] = useState<TabId>("chapters");
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [notes, setNotes] = useState<NoteRow[]>([]);
@@ -361,6 +362,7 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
         <div className="mt-6 flex flex-wrap gap-2">
           {(
             [
+              ["chapters", "Chapters"],
               ["sources", "Sources"],
               ["chat", "AI Chat"],
               ["studio", "Studio"],
@@ -388,6 +390,12 @@ export default function VaultStudio({ vaultId }: { vaultId: string }) {
               : "Composed from the textbook text. A study model was not used for this response."}
           </p>
         )}
+
+        {tab === "chapters" && title ? (
+          <div className="mt-6">
+            <SubjectChapters subject={title} />
+          </div>
+        ) : null}
 
         {tab === "sources" && (
           <section className="mt-6 space-y-4">

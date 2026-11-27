@@ -10,7 +10,7 @@ import { readHomeContinuation } from "@/lib/hub/continuation";
 import { ensureAccountVault, isAccountVaultUnlocked } from "@/lib/privacy/account-vault";
 import { fetchSignedInUser } from "@/lib/supabase/session";
 import { getLocalPdfDocument } from "@/lib/reader/storage";
-import { readLastReaderDocumentId } from "@/lib/reader/fit";
+import { readLastReaderDocumentId, readPersistedReaderView } from "@/lib/reader/fit";
 import { todayKey } from "@/lib/sprint/plan";
 
 const EMPTY_CONTINUATION: HomeContinuation = {
@@ -62,7 +62,12 @@ export default function StudyHubPage() {
           const documentId = readLastReaderDocumentId(userId);
           const document = documentId ? await getLocalPdfDocument(documentId) : null;
           if (cancelled) return;
-          setContinuation(readHomeContinuation(userId, date, document?.title ?? null));
+          const view = documentId ? readPersistedReaderView(documentId, userId) : null;
+          setContinuation({
+            ...readHomeContinuation(userId, date, document?.title ?? null),
+            bookPage: document ? Math.max(1, view?.page ?? document.lastReadPage ?? 1) : null,
+            bookPages: document?.pageCount ?? null,
+          });
           setRecord("ready");
         } catch {
           if (cancelled) return;

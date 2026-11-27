@@ -1,4 +1,18 @@
-import { BookOpen, CircleCheck, House, LayoutGrid } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  CalendarDays,
+  CircleCheck,
+  House,
+  LayoutGrid,
+  Library,
+  NotebookText,
+  RotateCcw,
+  Sprout,
+  StickyNote,
+  Timer,
+  Video,
+} from "lucide-react";
 import type { LinkListItem } from "@/components/layout/LinkList";
 
 /**
@@ -12,6 +26,45 @@ export const APP_LINKS = [
   { href: "/practice", label: "Practice", icon: CircleCheck },
   { href: "/me", label: "Tools", icon: LayoutGrid },
 ] as const;
+
+/**
+ * Desktop left menu (owner, 27 Nov 2026, after VaidyaGenie): every place one click away,
+ * grouped the way students think. Phones keep the four bottom tabs above.
+ */
+export const SIDEBAR_GROUPS = [
+  {
+    id: "study",
+    label: "Study",
+    items: [
+      { href: "/hub", label: "Today", icon: House },
+      { href: "/reader", label: "Books", icon: BookOpen },
+      { href: "/video", label: "Lectures", icon: Video },
+      { href: "/vaults", label: "My subjects", icon: Library },
+      { href: "/synthesis", label: "Chapter study book", icon: NotebookText },
+    ],
+  },
+  {
+    id: "practice",
+    label: "Practice",
+    items: [
+      { href: "/revise", label: "Revision", icon: RotateCcw },
+      { href: "/practice", label: "Practice", icon: CircleCheck },
+      { href: "/focus", label: "Focus timer", icon: Timer },
+      { href: "/notes", label: "My notes", icon: StickyNote },
+    ],
+  },
+  {
+    id: "plan",
+    label: "Plan",
+    items: [
+      { href: "/roadmap", label: "Exam plan", icon: CalendarDays },
+      { href: "/progress", label: "Progress", icon: BarChart3 },
+      { href: "/body-type", label: "My study style", icon: Sprout },
+    ],
+  },
+] as const;
+
+export const SIDEBAR_FOOTER = { href: "/me", label: "All tools and settings", icon: LayoutGrid } as const;
 
 export const PRACTICE_ITEMS: readonly LinkListItem[] = [
   {
